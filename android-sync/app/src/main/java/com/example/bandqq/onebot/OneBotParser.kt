@@ -25,9 +25,24 @@ class OneBotParser {
     companion object {
         private val EMOJI = Regex("\\p{So}|\\p{Sk}|[\\x{2600}-\\x{27BF}\\x{2B00}-\\x{2BFF}\\x{1F000}-\\x{1FAFF}\\x{FE0F}\\x{200D}]")
 
+        /** v1.2.0：字符串消息里的 CQ 码（部分协议端 message 字段直接给字符串而非数组） */
+        private val CQ_CODE = Regex("\\[CQ:[^\\]]{0,200}?\\]")
+
+        /** 蓝牙帧瘦身：单条正文截断上限（互联通道单帧 ~15KB，群聊长文直接吃满帧预算） */
+        private const val BAND_CONTENT_MAX = 180
+
         fun stripEmoji(s: String): String = s.replace(EMOJI, "")
 
         fun markEmoji(s: String): String = s.replace(EMOJI, "[表情]")
+
+        /** v1.2.0：清洗 CQ 码（字符串消息透传会让手环气泡变成「一堆格式代码」） */
+        fun cleanCqCodes(s: String): String = s.replace(CQ_CODE, "").replace("  +".toRegex(), " ")
+
+        /** v1.2.0：下发手环前的正文裁剪（在手机端完成，手环不做任何文本处理） */
+        fun truncateForBand(s: String, max: Int = BAND_CONTENT_MAX): String {
+            val t = s.trim()
+            return if (t.length <= max) t else t.take(max) + "…"
+        }
     }
 
     /** 消息段提取结果：降级文本 + @我标记 + 首图 URL */
@@ -36,7 +51,7 @@ class OneBotParser {
     /** 逐段解析消息数组：文本保留、face/image/... 降级为中文标记、at 段还原为 @xxx。 */
     fun extractSegs(message: com.google.gson.JsonElement?, selfId: String?): SegInfo {
         if (message == null) return SegInfo("", false, "")
-        if (message.isJsonPrimitive && message.asJsonPrimitive.isString) return SegInfo(message.asString, false, "")
+        if (message.isJsonPrimitive && message.asJsonPrimitive.isString) return SegInfo(cleanCqCodes(message.asString), false, "")
         if (!message.isJsonArray) return SegInfo("", false, "")
         val arr: JsonArray = message.asJsonArray
         val sb = StringBuilder()
@@ -126,7 +141,7 @@ class OneBotParser {
 
     fun degradeContent(message: com.google.gson.JsonElement?): String {
         if (message == null) return ""
-        if (message.isJsonPrimitive && message.asJsonPrimitive.isString) return message.asString
+        if (message.isJsonPrimitive && message.asJsonPrimitive.isString) return cleanCqCodes(message.asString)
         if (!message.isJsonArray) return ""
         val arr: JsonArray = message.asJsonArray
         val sb = StringBuilder()
@@ -162,7 +177,8 @@ class OneBotParser {
         obj.addProperty("sender_id", msg.senderId)
         obj.addProperty("sender_name", msg.senderName)
         obj.addProperty("target_name", targetName)
-        obj.addProperty("content", msg.content)
+        // v1.2.0：下发前清洗 CQ 码 + 超长截断（手机端预裁剪，手环零处理 + 帧瘦身）
+        obj.addProperty("content", truncateForBand(cleanCqCodes(msg.content)))
         obj.addProperty("time", msg.time)
         obj.addProperty("is_self", msg.isSelf)
         obj.addProperty("visible", visible)

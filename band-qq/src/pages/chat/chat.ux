@@ -6,22 +6,24 @@
     <div class="title-bar">
       <text class="page-title">{{name}}</text>
     </div>
-    <div class="send-status" show="{{sendStatus}}">
+    <div class="send-status">
       <text class="send-status-text {{sendStatusClass}}">{{sendStatus}}</text>
     </div>
     <scroll id="msgList" class="msg-area" scroll-y="true" scroll-top="{{scrollTop}}">
-      <div class="load-older" @click="loadOlder" show="{{!olderEnd || loadingOlder}}">
-        <text class="load-older-text">{{loadingOlder ? '加载中…' : (olderEnd ? '没有更早的消息了' : '↑ 加载更早消息')}}</text>
+      <div class="load-older" @click="loadOlder" show="{{showOlder}}">
+        <!-- v1.2.0：嵌套三元会被编译器丢弃，改计算字段 -->
+        <text class="load-older-text">{{olderText}}</text>
       </div>
-      <block for="{{item in viewList}}">
+      <block for="{{item in viewList}}" tid="item.key">
         <div class="time-tip" if="{{item.tip}}">
           <text class="time-tip-text">{{item.tip}}</text>
         </div>
-        <div class="msg-item {{item.is_self ? 'self' : 'other'}}" else>
-          <div class="msg-col {{item.is_self ? 'col-self' : 'col-other'}}">
-            <text class="msg-name {{item.at_me ? 'name-atme' : ''}}" if="{{item.message_type === 'group' && !item.is_self}}">{{item.sender_name}}</text>
+        <!-- v1.2.0：Vela 5.0 编译器丢弃 mustache 三元/复合表达式，全部改预计算字段 -->
+        <div class="msg-item" if="{{item.row_cls}}">
+          <div class="msg-col {{item.col_cls}}">
+            <text class="msg-name" if="{{item.show_name}}" style="color: {{item.name_color}}">{{item.sender_name}}</text>
             <image class="bubble-img" if="{{item.thumb}}" src="{{item.thumb}}"></image>
-            <text class="bubble {{item.is_self ? 'bubble-self' : 'bubble-other'}} {{item.at_me ? 'bubble-atme' : ''}}" else>{{item.content}}</text>
+            <text class="bubble {{item.bubble_cls}}" if="{{item.show_bubble}}">{{item.content}}</text>
           </div>
         </div>
       </block>
@@ -29,7 +31,7 @@
     <scroll class="quick-bar" scroll-x="true">
       <div class="quick-row">
         <div class="quick-chip" for="{{q in quickReplies}}" @click="sendQuick(q)">
-          <text class="quick-chip-text">{{q}}</text>
+          <text class="quick-chip-text">{{q.label}}</text>
         </div>
       </div>
     </scroll>
@@ -41,37 +43,34 @@
 
 <style>
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
-  .top-row { height: 70px; flex-direction: row; align-items: flex-start; justify-content: center; padding-top: 4px; }
-  .btn { width: 102px; height: 66px; }
-  .btn-back { width: 102px; height: 66px; }
-  .title-bar { height: 32px; flex-direction: row; align-items: center; justify-content: center; }
-  .send-status { height: 24px; flex-direction: row; align-items: center; justify-content: center; }
-  .send-status-text { font-size: 16px; color: #07c160; }
+  .top-row { height: 70px; flex-direction: row; align-items: flex-start; padding-top: 4px; }
+  .btn { width: 102px; height: 66px; margin-left: 45px; }
+  .btn-back { width: 102px; height: 66px; margin-left: 45px; }
+  .title-bar { height: 32px; flex-direction: row; align-items: center; }
+  .send-status { height: 24px; flex-direction: row; align-items: center; }
+  .send-status-text { font-size: 16px; color: #07c160; width: 192px; text-align: center; }
   .send-fail { color: #ff4d4f; }
-  .page-title { font-size: 22px; color: #ffffff; }
-  .msg-area { height: 238px; flex-direction: column; }
-  .load-older { width: 192px; height: 36px; justify-content: center; align-items: center; flex-shrink: 0; }
-  .load-older-text { font-size: 15px; color: rgba(255, 255, 255, 0.45); }
-  .time-tip { width: 192px; height: 30px; justify-content: center; align-items: center; flex-shrink: 0; }
-  .time-tip-text { font-size: 14px; color: rgba(255, 255, 255, 0.35); }
+  .page-title { font-size: 22px; color: #ffffff; width: 192px; text-align: center; }
+  .msg-area { flex: 1; flex-direction: column; }
+  .load-older { width: 192px; height: 36px; align-items: center; flex-shrink: 0; }
+  .load-older-text { font-size: 15px; color: #999999; width: 192px; text-align: center; }
+  .time-tip { width: 192px; height: 30px; align-items: center; flex-shrink: 0; }
+  .time-tip-text { font-size: 14px; color: #777777; width: 192px; text-align: center; }
   .msg-item { width: 192px; padding: 0 8px; margin-top: 8px; flex-direction: row; flex-shrink: 0; }
-  .self { justify-content: flex-end; }
-  .other { justify-content: flex-start; }
-  .msg-col { flex-direction: column; align-items: flex-start; flex-shrink: 0; max-width: 150px; }
-  .col-self { align-items: flex-end; }
+  .col-self { margin-left: auto; align-items: flex-end; }
   .col-other { align-items: flex-start; }
-  .msg-name { font-size: 14px; color: rgba(255, 255, 255, 0.55); margin-bottom: 4px; }
-  .name-atme { color: #ff9800; }
+  .msg-col { flex-direction: column; align-items: flex-start; flex-shrink: 0; max-width: 150px; }
+  .msg-name { font-size: 14px; color: #bbbbbb; margin-bottom: 4px; }
   .bubble { max-width: 150px; padding: 7px 10px; border-radius: 10px; font-size: 18px; line-height: 25px; word-break: break-all; }
   .bubble-self { background-color: #07c160; color: #ffffff; border-bottom-right-radius: 3px; }
   .bubble-other { background-color: #1f1f1f; color: #ffffff; border-bottom-left-radius: 3px; }
-  .bubble-atme { border: 1px solid #ff9800; background-color: rgba(255, 152, 0, 0.18); }
+  .bubble-atme { border: 1px solid #ff9800; background-color: #553311; }
   .bubble-img { max-width: 120px; max-height: 120px; border-radius: 10px; }
-  .quick-bar { height: 52px; flex-direction: row; background-color: rgba(255, 255, 255, 0.04); }
+  .quick-bar { height: 52px; flex-direction: row; background-color: #111111; }
   .quick-row { flex-direction: row; align-items: center; padding: 0 8px; }
-  .quick-chip { height: 36px; border-radius: 18px; background-color: #262626; border-width: 1px; border-color: #333333; justify-content: center; align-items: center; padding: 0 12px; margin-right: 8px; flex-shrink: 0; }
+  .quick-chip { height: 36px; border-radius: 18px; background-color: #262626; border-width: 1px; border-color: #333333; align-items: center; padding: 0 12px; margin-right: 8px; flex-shrink: 0; }
   .quick-chip-text { font-size: 16px; color: #0d84ff; }
-  .input-bar { height: 72px; flex-direction: row; align-items: center; justify-content: center; border-top: 1px solid #222222; }
+  .input-bar { height: 72px; flex-direction: row; align-items: center; border-top: 1px solid #222222; }
 </style>
 
 <script>
@@ -81,7 +80,8 @@
   // Stapxs 风格：群成员昵称按 ID 稳定着色
   const NAME_COLORS = ['#4fa1ff', '#35c759', '#ff9f43', '#b07cff', '#ff6b81', '#2dd4bf', '#fbbf24', '#818cf8']
 
-  // 快捷回复（Stapxs 表情面板的轻量移植）：label 供手环展示，text 为实际发送内容
+  // 快捷回复（v1.2.0：全部纯文字。Vela 手环无 emoji 字体，
+  // 👍❤️😂 这类字符会渲染成乱码方块，被用户反馈为「一堆格式代码」）
   const QUICK_REPLIES = [
     { label: '收到', text: '收到' },
     { label: '好的', text: '好的' },
@@ -89,9 +89,9 @@
     { label: '哈哈', text: '哈哈哈' },
     { label: 'OK', text: 'OK' },
     { label: '晚安', text: '晚安' },
-    { label: '👍', text: '👍' },
-    { label: '❤️', text: '❤️' },
-    { label: '😂', text: '😂' }
+    { label: '赞', text: '赞' },
+    { label: '比心', text: '比心' },
+    { label: '笑死', text: '笑死' }
   ]
 
   export default {
@@ -108,7 +108,9 @@
       viewList: [],
       quickReplies: QUICK_REPLIES,
       loadingOlder: false,
-      olderEnd: false
+      olderEnd: false,
+      olderText: '↑ 更早消息',
+      showOlder: true
     },
     onInit(params) {
       let targetId = (params && params.targetId) || ''
@@ -161,6 +163,9 @@
             this.olderEnd = false
             this.loadMessages()
           }
+          // v1.2.0：翻页按钮文案与显隐（计算字段，避开模板表达式）
+          this.olderText = this.loadingOlder ? '加载中' : '↑ 更早消息'
+          this.showOlder = !this.olderEnd || this.loadingOlder
         },
         cleared: () => this.loadMessages(),
         send_status: () => this.refreshSendStatus()
@@ -235,11 +240,18 @@
       const msgs = this.messages || []
       if (!msgs.length) { this.olderEnd = true; return }
       this.loadingOlder = true
+      this.olderText = '加载中'
+      this.showOlder = true
       const api = this.$app.$def.api
       api.send(protocol.getHistory(this.targetId, 20, { older: true, beforeTime: msgs[0].time }))
       // 超时兜底：手机端无更多或未响应时恢复按钮（history 到达时会清除本计时器）
       if (this._olderTimer) clearTimeout(this._olderTimer)
-      this._olderTimer = setTimeout(() => { this.loadingOlder = false; this._olderTimer = null }, 6000)
+      this._olderTimer = setTimeout(() => {
+        this.loadingOlder = false
+        this.olderText = '↑ 更早消息'
+        this.showOlder = !this.olderEnd
+        this._olderTimer = null
+      }, 6000)
     },
     nameColor(senderId) {
       const s = String(senderId || '')
@@ -264,24 +276,36 @@
       }
       msgs.sort((a, b) => (a.time || 0) - (b.time || 0))
       this.messages = msgs
-      // 构建视图列表：插入时间分隔条（≥5 分钟，Stapxs 规则）+ 头像色 + 缩略图 + @我 标记
+      // 构建视图列表：插入时间分隔条（≥5 分钟，Stapxs 规则）+ 昵称色 + 缩略图 + @我 标记
+      // v1.2.0：全部展示字段在此预计算（key/色值），模板零函数调用 + tid 键控 diff（跳动/性能双修）
       const view = []
       let prev = 0
       for (const m of msgs) {
         if (protocol.needTimeSplit(prev, m.time)) {
-          view.push({ tip: protocol.formatTime(m.time) })
+          view.push({ key: 't' + m.time, tip: protocol.formatTime(m.time) })
         }
         prev = m.time
+        const isSelf = m.is_self === true
+        const showName = m.message_type === 'group' && !isSelf
+        const thumb = m.thumb || store.getThumb(this.targetId, m.time) || ''
+        let bubbleCls = isSelf ? 'bubble-self' : 'bubble-other'
+        if (m.at_me === true) bubbleCls += ' bubble-atme'
         view.push({
+          key: 'm' + m.time + '|' + (m.content || '').slice(0, 24),
           message_type: m.message_type,
           sender_name: m.sender_name,
           sender_id: m.sender_id,
-          is_self: m.is_self === true,
+          is_self: isSelf,
           at_me: m.at_me === true,
           content: m.content,
           time: m.time,
-          nameColor: this.nameColor(m.sender_id),
-          thumb: m.thumb || store.getThumb(this.targetId, m.time) || ''
+          row_cls: isSelf ? 'self' : 'other',
+          col_cls: isSelf ? 'col-self' : 'col-other',
+          bubble_cls: bubbleCls,
+          show_name: showName,
+          show_bubble: !thumb,
+          name_color: isSelf ? 'rgba(255,255,255,0.55)' : this.nameColor(m.sender_id),
+          thumb: thumb
         })
       }
       this.viewList = view

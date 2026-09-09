@@ -4,9 +4,17 @@ import com.example.bandqq.onebot.OneBotMessage
 import com.example.bandqq.onebot.OneBotParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 
 class MessageBrokerTest {
+
+    @Before
+    fun setUpOnline() { SyncState.bandConnected = true }
+
+    @After
+    fun tearDownOnline() { SyncState.bandConnected = false }
 
     private val parser = OneBotParser()
 

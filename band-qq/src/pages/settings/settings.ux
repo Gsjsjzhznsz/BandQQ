@@ -44,23 +44,23 @@
 
 <style>
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
-  .top-row { height: 78px; align-items: flex-start; justify-content: center; padding-top: 6px; }
+  .top-row { height: 78px; align-items: flex-start;  padding-top: 6px; }
   .btn { width: 102px; height: 72px; }
-  .title-bar { height: 40px; align-items: center; justify-content: center; }
-  .page-title { font-size: 24px; color: #ffffff; }
-  .card { border-width: 1px; border-color: rgba(255, 255, 255, 0.06); border-radius: 16px; background-color: #262626; }
+  .title-bar { height: 40px; align-items: center;  }
+  .page-title { font-size: 24px; color: #ffffff; width: 192px; text-align: center; }
+  .card { border-width: 1px; border-color: #ffffff; border-radius: 16px; background-color: #262626; }
   .row { height: 52px; flex-direction: row; align-items: center; margin: 4px 8px; padding: 0 12px; }
   .row-label { font-size: 20px; color: #ffffff; }
-  .row-value { flex: 1; text-align: right; font-size: 20px; color: #07c160; }
+  .row-value { margin-left: auto; text-align: right; font-size: 20px; color: #07c160; }
   .row-value.danger { color: #ff5a5a; }
   .row-value.account { color: #0d84ff; }
-  .section { font-size: 16px; color: rgba(255, 255, 255, 0.6); padding: 8px 12px; }
+  .section { font-size: 16px; color: #ffffff; padding: 8px 12px; }
   .body { height: 372px; width: 192px; flex-direction: column; }
-  .mask { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.65); align-items: center; justify-content: center; }
-  .confirm-box { width: 176px; background-color: #2b2b2b; border-radius: 14px; padding: 14px; flex-direction: column; }
+  .mask { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: #000000; align-items: center;  }
+  .confirm-box { width: 176px; background-color: #2b2b2b; border-radius: 14px; padding: 14px; flex-direction: column; margin-top: 130px; }
   .confirm-title { font-size: 18px; color: #ff5a5a; font-weight: bold; text-align: center; margin-bottom: 8px; }
   .confirm-desc { font-size: 14px; color: #ffffff; text-align: center; margin-bottom: 14px; }
-  .confirm-btns { flex-direction: row; justify-content: space-between; }
+  .confirm-btns { flex-direction: row;  }
   .confirm-cancel { flex: 1; text-align: center; padding: 9px 0; font-size: 16px; color: #999999; background-color: #3a3a3a; border-radius: 12px; margin-right: 8px; }
   .confirm-ok { flex: 1; text-align: center; padding: 9px 0; font-size: 16px; color: #ffffff; background-color: #ff5a5a; border-radius: 12px; }
 </style>
@@ -91,12 +91,22 @@
         for (const c of dict[k]) chars.add(c)
       }
       this.dictText = String(chars.size)
-      this.$app.$def.on('state', () => this.refreshStatus())
-      this.$app.$def.on('login_info', () => this.refreshAccount())
+      // v1.2.0：保存 handler 引用并精确 off —— 此前 off('state') 不带 fn 会清空
+      // 全部 state 监听，把 index 页的连接状态刷新回调也误删了
+      this._stateHandler = () => this.refreshStatus()
+      this._loginHandler = () => this.refreshAccount()
+      this.$app.$def.on('state', this._stateHandler)
+      this.$app.$def.on('login_info', this._loginHandler)
     },
     onDestroy() {
-      this.$app.$def.off('state')
-      this.$app.$def.off('login_info')
+      if (this._stateHandler) {
+        this.$app.$def.off('state', this._stateHandler)
+        this._stateHandler = null
+      }
+      if (this._loginHandler) {
+        this.$app.$def.off('login_info', this._loginHandler)
+        this._loginHandler = null
+      }
     },
     refreshAccount() {
       const p = this.$app.$def.store.getMyProfile()

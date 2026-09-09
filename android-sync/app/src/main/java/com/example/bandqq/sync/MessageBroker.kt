@@ -47,6 +47,20 @@ class MessageBroker(
 
     var bandSender: (String) -> Unit = {}
 
+    /**
+     * v1.2.0 T2：手环业务帧统一出口，带在线门控。
+     * 快应用关闭/挂后台被杀后，互联通道仍在投递帧（系统蓝牙栈缓存或唤醒快应用），
+     * 会白白耗电甚至拖垮手环 —— 离线时业务帧直接丢弃：消息已在 store + pendingTargets，
+     * 重连后由 onBandConnected() 统一回放。心跳 ping 不走此门控（需持续探测手环回归）。
+     */
+    private fun sendBand(frame: String) {
+        if (!SyncState.bandConnected) {
+            log("band offline, drop frame (" + frame.length + "B, type=" + frame.take(40) + ")")
+            return
+        }
+        bandSender(frame)
+    }
+
     /** 手环 pong 心跳应答回调，由互联层在收到 pong 时调用以确认手环在线。 */
     var onBandPong: () -> Unit = {}
 
@@ -95,7 +109,8 @@ class MessageBroker(
                     if (!ok) {
                         log("send_message -> $targetId 失败: $err")
                     }
-                    bandSender(parser.buildSendResultFrame(seq, ok, err))
+                    // 发送结果回推：手环离线时没有意义（聊天页都不在了），门控丢弃
+                    sendBand(parser.buildSendResultFrame(seq, ok, err))
                     // 回填自发消息锚点：OneBot 发送响应携带 message_id，缺失锚点会导致该消息
                     // 成为翻页断点（v1.1.0 翻页失效诱因之一）
                     if (ok) {
@@ -132,10 +147,11 @@ class MessageBroker(
                     )
                 )
                 MessageBus.notify(targetId)
-                // 回推手环：与手环本地回显相同 time，upsertMessage 按 time|content 去重不会重复显示
+                // 回推手环：与手环本地回显相同 time，upsertMessage 按 time|content 去重不会重复显示。
+                // v1.2.0：手环离线时门控丢弃（不向已死通道推帧）
                 val visible = store.isVisibleContact(targetId)
                 val targetName = store.conversationName(targetId, messageType, selfSenderName)
-                bandSender(
+                sendBand(
                     parser.toHandBandFrame(
                         OneBotMessage(
                             messageType = messageType,
@@ -171,7 +187,7 @@ class MessageBroker(
                     if (have < limit) {
                         fetchLatestThenReply(targetId, limit, seq)
                     } else {
-                        bandSender(store.buildHistoryFrame(targetId, limit, seq))
+                        sendBand(store.buildHistoryFrame(targetId, limit, seq))
                     }
                 } else {
                     log("get_history dedup skip $targetId")
@@ -179,7 +195,7 @@ class MessageBroker(
                 return true
             }
             "get_conversations" -> {
-                bandSender(store.buildConversationFrame(seq))
+                sendBand(store.buildConversationFrame(seq))
                 return true
             }
             "clear_all_history" -> {
@@ -189,11 +205,11 @@ class MessageBroker(
             "get_visible_contacts" -> {
                 val frame = store.buildVisibleContactsFrame(seq)
                 log("get_visible_contacts -> ${store.getVisibleContacts().size} contacts")
-                bandSender(frame)
+                sendBand(frame)
                 return true
             }
             "get_connect_state" -> {
-                bandSender(SyncStatePush.buildFrame())
+                sendBand(SyncStatePush.buildFrame())
                 return true
             }
             else -> return false
@@ -215,8 +231,13 @@ class MessageBroker(
             )
         )
         MessageBus.notify(msg.targetId)
-        // 手环离线（应用被杀/挂后台）期间到达的消息记入待补推集合，重连后回推
-        if (!SyncState.bandConnected) pendingTargets.add(msg.targetId)
+        // v1.2.0 T2：手环离线（快应用关闭/被杀）期间不再向已死通道推帧（停止蓝牙传输路径），
+        // 消息已入 store + pendingTargets，重连后由 onBandConnected() 回放。
+        // 缩略图也不抓（省流量省电），回放时只回文本占位。
+        if (!SyncState.bandConnected) {
+            pendingTargets.add(msg.targetId)
+            return null
+        }
         val visible = store.isVisibleContact(msg.targetId)
         val targetName = store.conversationName(msg.targetId, msg.messageType, msg.senderName)
         // 图片消息：经缩略图钩子抓取后再下发（一次投递，避免手环去重丢图）；
@@ -226,7 +247,10 @@ class MessageBroker(
         if (url.isNotBlank() && fetcher != null) {
             // 异步抓取缩略图后一次性下发（抓取失败回传 null，仅 [图片] 占位）
             fetcher(url) { b64 ->
-                bandSender(parser.toHandBandFrame(msg, visible, targetName, b64))
+                // 抓取是异步的：回调时手环可能已离线，再次门控
+                if (SyncState.bandConnected) {
+                    bandSender(parser.toHandBandFrame(msg, visible, targetName, b64))
+                }
             }
             return null
         }
@@ -243,7 +267,7 @@ class MessageBroker(
 
     override fun onState(connected: Boolean) {
         SyncState.oneBotConnected = connected
-        bandSender(SyncStatePush.buildFrame())
+        sendBand(SyncStatePush.buildFrame())
         if (connected) {
             // 连接建立即拉登录账号并推手环：设置页展示 + @我 判定依据
             oneBot.requestApiParams("get_login_info", com.google.gson.JsonObject()) { raw ->
@@ -255,7 +279,7 @@ class MessageBroker(
                     frame.addProperty("type", "login_info")
                     frame.addProperty("user_id", info.first)
                     frame.addProperty("nickname", info.second)
-                    bandSender(frame.toString())
+                    sendBand(frame.toString())
                 }
             }
         }
@@ -271,10 +295,13 @@ class MessageBroker(
      */
     fun onBandConnected() {
         pushVisibleContacts()
+        // v1.2.0 T2：重连即推会话列表（冷启动后手环列表立刻有数据，不等下一条消息）
+        sendBand(store.buildConversationFrame(0))
         val visibleIds = store.getVisibleContacts().map { it.id }.toSet()
         val targets = pendingTargets.filter { it in visibleIds }
         pendingTargets.clear()
         for (t in targets) {
+            // 回放走 bandSender 直连（此刻刚确认在线，门控已是 true；保持一致用 sendBand 亦可）
             bandSender(store.buildHistoryFrame(t, 30, 0))
             log("band reconnect catch-up -> $t")
         }
@@ -461,6 +488,7 @@ class MessageBroker(
 
     /** 手环连接建立后补推可见联系人，确保保存时未连接的联系人在连接后自动同步到手环。 */
     fun pushVisibleContacts() {
+        // 由 onConnect 主动调用（此刻必然在线），直连 bandSender
         bandSender(store.buildVisibleContactsFrame(0))
         log("pushVisibleContacts -> ${store.getVisibleContacts().size} contacts")
     }

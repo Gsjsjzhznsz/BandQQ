@@ -131,7 +131,7 @@ class OneBotClientTest {
         val wsUrl = server.url("/").toString().replaceFirst("http://", "ws://")
         val connectedLatch = CountDownLatch(1)
         client.start(
-            com.example.bandqq.config.EndpointConfig(wsUrl, "", "http://127.0.0.1:1", ""),
+            com.example.bandqq.config.EndpointConfig(wsUrl = wsUrl, wsToken = "", httpUrl = "http://127.0.0.1:1", httpToken = ""),
             object : OneBotListener {
                 override fun onEvent(message: OneBotMessage) {}
                 override fun onState(connected: Boolean) {
@@ -168,7 +168,7 @@ class OneBotClientTest {
         val wsUrl = server.url("/").toString().replaceFirst("http://", "ws://")
         val connectedLatch = CountDownLatch(1)
         client.start(
-            com.example.bandqq.config.EndpointConfig(wsUrl, "", "http://127.0.0.1:1", ""),
+            com.example.bandqq.config.EndpointConfig(wsUrl = wsUrl, wsToken = "", httpUrl = "http://127.0.0.1:1", httpToken = ""),
             object : OneBotListener {
                 override fun onEvent(message: OneBotMessage) {}
                 override fun onState(connected: Boolean) {

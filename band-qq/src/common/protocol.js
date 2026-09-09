@@ -83,10 +83,23 @@ export function markEmoji(s) {
   return transformEmoji(s, true)
 }
 
+/**
+ * v1.2.0：清洗 CQ 码（OneBot 字符串消息格式）。
+ * 字符串消息里的 [CQ:image,file=xxx.image][CQ:at,qq=123] 若不清洗会原样透传到手环，
+ * 聊天气泡/快捷回复区就会呈现「一堆格式代码」。
+ * 只清洗明确的 [CQ: 前缀，避免误伤 [图片] 之类占位文本。
+ */
+const CQ_CODE_RE = /\[CQ:[^\]]{0,200}\]/g
+
+export function cleanCqCodes(s) {
+  if (typeof s !== 'string') return ''
+  return s.replace(CQ_CODE_RE, '').replace(/ {2,}/g, ' ')
+}
+
 export function degradeContent(raw) {
-  if (typeof raw === 'string') return markEmoji(raw)
+  if (typeof raw === 'string') return markEmoji(cleanCqCodes(raw))
   if (!Array.isArray(raw)) return ''
-  return raw.map((seg) => {
+  return cleanCqCodes(raw.map((seg) => {
     if (seg.type === 'text') return markEmoji((seg.data && seg.data.text) || '')
     if (seg.type === 'face') return '[表情]'
     if (seg.type === 'image') return '[图片]'
@@ -94,7 +107,7 @@ export function degradeContent(raw) {
     if (seg.type === 'video') return '[视频]'
     if (seg.type === 'file') return '[文件]'
     return '[其他]'
-  }).join('')
+  }).join(''))
 }
 
 /** 聊天页时间分隔条：与上一条间隔 ≥5 分钟时展示（Stapxs 同款规则） */
@@ -140,7 +153,7 @@ export function decodePush(raw) {
     sender_id: raw.sender_id,
     sender_name: stripEmoji(raw.sender_name || ''),
     target_name: stripEmoji(raw.target_name || ''),
-    content: typeof raw.content === 'string' ? markEmoji(raw.content) : degradeContent(raw.content),
+    content: typeof raw.content === 'string' ? markEmoji(cleanCqCodes(raw.content)) : degradeContent(raw.content),
     is_self: raw.is_self === true,
     time: raw.time || Date.now(),
     visible: raw.visible !== false,
@@ -160,6 +173,7 @@ export default {
   clearAllHistory,
   stripEmoji,
   markEmoji,
+  cleanCqCodes,
   degradeContent,
   decodePush,
   needTimeSplit,

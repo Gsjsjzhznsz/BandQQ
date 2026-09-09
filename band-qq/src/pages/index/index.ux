@@ -1,31 +1,30 @@
 <template>
   <div class="page">
     <div class="top-row">
-      <image class="btn" src="../../common/ui/more.png" @click="goSettings"></image>
+      <image class="btn" src="../../common/ui/more.png" onclick="goSettings"></image>
     </div>
-    <scroll class="list" scroll-y="true" show="{{conversations.length}}">
-      <!-- tid 键控 diff：数组局部变化时仅更新对应项，避免整表重建导致的抖动 -->
-      <div class="card item" for="{{item in conversations}}" tid="item.id" @click="openChatItem(item)">
-        <div class="avatar" style="background-color: {{avatarColor(item)}}">
-          <text class="avatar-text">{{firstName(item)}}</text>
-          <div class="unread" if="{{item.unread > 0}}"><text class="unread-text">{{unreadText(item)}}</text></div>
+    <scroll class="list" scroll-y="true" if="{{hasConversations}}">
+      <div class="card item" for="{{item in conversations}}" tid="item.id" onclick="openItem(item)">
+        <div class="avatar {{item.avatar_cls}}">
+          <text class="avatar-text">{{item.first_char}}</text>
+          <div class="unread" if="{{item.has_unread}}"><text class="unread-text">{{item.unread_text}}</text></div>
         </div>
         <div class="body">
           <div class="name-row">
-            <text class="item-name">{{shortName(item.name)}}</text>
+            <text class="item-name">{{item.name_text}}</text>
             <text class="item-tag" if="{{item.is_temporary}}">临时</text>
             <text class="at-tag" if="{{item.at_me}}">[@我]</text>
-            <text class="item-time">{{listTime(item)}}</text>
+            <text class="item-time">{{item.time_text}}</text>
           </div>
-          <text class="item-preview" if="{{item.last_msg}}">{{shortPreview(item.last_msg)}}</text>
+          <text class="item-preview" if="{{item.preview_text}}">{{item.preview_text}}</text>
         </div>
       </div>
     </scroll>
-    <div class="empty-wrap" show="{{!conversations.length}}">
+    <div class="empty-wrap" if="{{showEmpty}}">
       <image class="empty-icon" src="../../common/ui/empty_icon.png"></image>
-      <text class="empty-text">{{conversations.length === 0 ? '请在手机端添加联系人' : '暂无会话'}}</text>
+      <text class="empty-text">{{emptyText}}</text>
     </div>
-    <div class="status-bar" @click="refreshConnection">
+    <div class="status-bar">
       <div class="status-dot {{statusClass}}"></div>
       <text class="status-text">{{statusText}}</text>
     </div>
@@ -33,44 +32,57 @@
 </template>
 
 <style>
+  /* v1.2.0 Vela 5.0 适配铁律：
+     1) justify-content: center 在 5.0 上按 2 倍容器宽计算，内容会被推出屏幕外
+        → 一律改显式 margin 定位 + text-align: center
+     2) 模板里不能有三元/复合表达式（编译器静默丢弃）→ 全部预计算字段
+     3) align-items(交叉轴) 与 text-align 可正常使用 */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
-  .top-row { height: 70px; align-items: flex-start; justify-content: center; padding-top: 4px; }
-  .btn { width: 102px; height: 68px; }
-  .list { height: 366px; padding: 2px 8px 0 8px; flex-direction: column; background-color: rgba(13, 132, 255, 0.06); }
-  .card { border-width: 1px; border-color: rgba(255, 255, 255, 0.06); border-radius: 16px; background-color: #1c1c1e; }
-  .item { height: 84px; width: 100%; flex-direction: row; align-items: center; margin: 4px 0; padding: 0 10px; }
+  .top-row { height: 70px; align-items: flex-start; }
+  .btn { width: 102px; height: 68px; margin-top: 2px; margin-left: 45px; }
+  .list { height: 362px; padding: 2px 8px 0 8px; flex-direction: column; background-color: #03080d; }
+  .card { border-width: 1px; border-color: #1c1c1e; border-radius: 16px; background-color: #1c1c1e; }
+  .item { height: 84px; width: 176px; flex-direction: row; align-items: center; margin: 4px 0; padding: 0 10px; }
   .avatar { width: 48px; height: 48px; border-radius: 14px; margin-right: 10px; justify-content: center; align-items: center; }
+  .avatar-c0 { background-color: #0d84ff; }
+  .avatar-c1 { background-color: #07c160; }
+  .avatar-c2 { background-color: #ff9800; }
+  .avatar-c3 { background-color: #ab7dff; }
+  .avatar-c4 { background-color: #e91e63; }
+  .avatar-c5 { background-color: #00bcd4; }
+  .avatar-c6 { background-color: #3f51b5; }
+  .avatar-c7 { background-color: #8bc34a; }
   .avatar-text { font-size: 22px; color: #ffffff; font-weight: bold; }
-  .unread { position: absolute; top: -6px; right: -6px; min-width: 26px; height: 26px; border-radius: 13px; background-color: #ff4d4f; justify-content: center; align-items: center; padding: 0 5px; }
+  .unread { position: absolute; top: 0px; right: 0px; min-width: 24px; height: 24px; border-radius: 12px; background-color: #ff4d4f; justify-content: center; align-items: center; padding: 0 4px; border: 1px solid #1c1c1e; }
   .unread-text { font-size: 15px; color: #ffffff; }
   .body { flex-direction: column; flex: 1; }
   .name-row { flex-direction: row; align-items: center; }
   .item-name { font-size: 20px; color: #ffffff; }
   .item-tag { font-size: 12px; color: #ffb800; border-width: 1px; border-color: #ffb800; border-radius: 6px; padding: 0 4px; margin-left: 6px; }
   .at-tag { font-size: 12px; color: #ffffff; background-color: #ff4d4f; border-radius: 6px; padding: 1px 4px; margin-left: 6px; }
-  .item-time { position: absolute; right: 0; font-size: 14px; color: rgba(255, 255, 255, 0.4); }
-  .item-preview { font-size: 16px; color: rgba(255, 255, 255, 0.5); margin-top: 4px; lines: 1; text-overflow: ellipsis; }
-  .empty-wrap { flex: 1; height: 366px; flex-direction: column; justify-content: center; align-items: center; }
-  .empty-icon { width: 78px; height: 78px; object-fit: contain; }
-  .empty-text { margin-top: 12px; font-size: 20px; color: rgba(255, 255, 255, 0.5); }
-  .status-bar { height: 58px; flex-direction: row; justify-content: center; align-items: center; }
-  .status-dot { width: 12px; height: 12px; border-radius: 6px; margin-right: 8px; background-color: #666666; }
+  .item-time { position: absolute; right: 0px; font-size: 14px; color: #999999; }
+  .item-preview { font-size: 16px; color: #999999; margin-top: 4px; lines: 1; text-overflow: ellipsis; }
+  .empty-wrap { height: 362px; flex-direction: column; }
+  .empty-icon { width: 78px; height: 78px; object-fit: contain; margin-top: 100px; margin-left: 57px; }
+  .empty-text { margin-top: 12px; font-size: 20px; color: #aaaaaa; width: 192px; text-align: center; }
+  .status-bar { height: 58px; flex-direction: row; align-items: center; }
+  .status-dot { width: 12px; height: 12px; border-radius: 6px; margin-left: 57px; margin-right: 8px; background-color: #666666; }
   .dot-ok { background-color: #07c160; }
   .dot-bad { background-color: #ff4d4f; }
-  .status-text { font-size: 19px; color: rgba(255, 255, 255, 0.6); }
+  .status-text { font-size: 19px; color: #cccccc; }
 </style>
 
 <script>
   import router from '@system.router'
   import protocol from '../../common/protocol'
 
-  // Stapxs 风格：会话头像底色按 ID 稳定取色（同一会话颜色恒定）
-  const AVATAR_COLORS = ['#0d84ff', '#07c160', '#ff9800', '#ab7dff', '#e91e63', '#00bcd4', '#3f51b5', '#8bc34a']
-
   export default {
     private: {
-      statusText: '连接中…',
+      statusText: '连接中',
       statusClass: '',
+      emptyText: '暂无会话',
+      hasConversations: false,
+      showEmpty: true,
       conversations: []
     },
     onShow() {
@@ -122,20 +134,19 @@
       const api = this.$app.$def.api
       try {
         await api.send(protocol.getConnectState())
-      } catch (e) {
-        console.error('pull connect state failed', e)
-      }
+      } catch (e) {}
     },
     async refreshStatus() {
       const store = this.$app.$def.store
       const s = store.getConnectState()
       const ok = s && s.band && s.onebot !== false
-      this.statusText = ok ? '已连接' : (s && s.band ? '手机已连，QQ未连' : '未连接，等待手机端')
+      // v1.2.0：文案缩短（19px 字号下长文案会溢出 192px 屏宽）
+      this.statusText = ok ? '已连接' : (s && s.band ? 'QQ未连' : '未连接')
       this.statusClass = ok ? 'dot-ok' : (s && s.band ? '' : 'dot-bad')
     },
     refreshConnection() {
       // 点击状态栏手动重试
-      this.statusText = '重连中…'
+      this.statusText = '重连中'
       this.statusClass = ''
       this.$app.$def.ensureAlive().then(() => {
         this.refreshStatus()
@@ -152,13 +163,33 @@
     async refreshConversations() {
       const store = this.$app.$def.store
       const next = await store.getConversations()
+      // 空态文案与显隐开关（v1.2.0：从模板表达式迁移到计算字段，绕开编译器丢弃问题）
+      this.emptyText = next.length === 0 ? '请在手机端添加联系人' : '暂无会话'
+      this.hasConversations = next.length > 0
+      this.showEmpty = next.length === 0
       // 签名比对：内容未变化时不重新赋值，避免无谓的整体重渲染（抖动主因）
       const sig = next.map((c) => [c.id, c.name, c.last_msg, c.time, c.unread, c.at_me, c.is_temporary].join('~')).join('|')
       if (this._convSig === sig) return
       this._convSig = sig
-      this.conversations = next
+      // v1.2.0：展示字段预计算（头像色 class/首字/截断名/预览/时间/未读文本），
+      // 模板不再调用任何函数 —— Vela 模板内函数在每次重渲染时都会重新执行，是跳动与卡顿源
+      this.conversations = next.map((c) => ({
+        id: c.id,
+        type: c.type,
+        name: c.name,
+        is_temporary: c.is_temporary,
+        at_me: c.at_me,
+        unread: c.unread,
+        avatar_cls: this.avatarClass(c),
+        first_char: (c.name && typeof c.name === 'string' && c.name.charAt(0)) || '#',
+        name_text: this.shortName(c.name),
+        preview_text: this.shortPreview(c.last_msg),
+        time_text: protocol.formatListTime(c.time),
+        unread_text: c.unread > 99 ? '99+' : String(c.unread),
+        has_unread: c.unread > 0
+      }))
     },
-    openChatItem(item) {
+    openItem(item) {
       if (!item) return
       if (!item.id) return
       const store = this.$app.$def.store
@@ -172,22 +203,12 @@
         params: { targetId: item.id, name: item.name, type: item.type }
       })
     },
-    firstName(item) {
-      if (!item || typeof item.name !== 'string') return ''
-      return item.name.charAt(0) || '#'
-    },
-    avatarColor(item) {
-      if (!item || !item.id) return AVATAR_COLORS[0]
+    avatarClass(item) {
+      if (!item || !item.id) return 'avatar-c0'
       let h = 0
       const s = String(item.id)
       for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 997
-      return AVATAR_COLORS[h % AVATAR_COLORS.length]
-    },
-    unreadText(item) {
-      return item.unread > 99 ? '99+' : String(item.unread)
-    },
-    listTime(item) {
-      return protocol.formatListTime(item.time)
+      return 'avatar-c' + (h % 8)
     },
     shortPreview(msg) {
       if (!msg || typeof msg !== 'string') return ''
@@ -202,9 +223,7 @@
       const api = this.$app.$def.api
       try {
         await api.send(protocol.getVisibleContacts())
-      } catch (e) {
-        console.error('pull visible contacts failed', e)
-      }
+      } catch (e) {}
     },
     goSettings() {
       router.push({ uri: '/settings' })

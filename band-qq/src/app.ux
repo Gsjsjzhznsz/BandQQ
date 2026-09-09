@@ -32,15 +32,14 @@ function vibrate() {
 
 function handleMessage(msg) {
   if (!msg || !msg.type) return
-  try {
-    console.log('[BANDQQ] v10 msg <-', msg.type, msg.target_id || msg.targetId || msg.seq || '')
-  } catch (e) {}
+  // v1.2.0：砍掉每帧 console.log（Vela 上同步 IO，群聊高峰直接拖慢渲染线程）
   switch (msg.type) {
     case 'ping':
       api.send({ type: 'pong', seq: msg.seq || 0 })
       break
+
 case 'push_message': {
-      // decodePush 统一提取扩展字段（at_me/@我标记、thumb/图片缩略图）
+      // decodePush 统一提取扩展字段（at_me/@我标记、thumb/图片缩略图），并清洗 CQ 码
       const frame = protocol.decodePush(msg)
       if (!frame) break
       store.upsertMessage(frame).then(() => { emit('message', frame) }).catch((e) => console.error('upsert fail', e))
@@ -60,10 +59,7 @@ case 'push_message': {
     case 'history_list':
       if (Array.isArray(msg.list) && msg.target_id) {
         store.setMessages(msg.target_id, msg.list)
-        try { console.log('[BANDQQ] v17 history set target=' + msg.target_id + ' n=' + msg.list.length) } catch (e) {}
         emit('history', msg)
-      } else {
-        try { console.log('[BANDQQ] v17 history BAD target=' + msg.target_id + ' isArr=' + Array.isArray(msg.list)) } catch (e) {}
       }
       break
     case 'connect_state':
@@ -95,13 +91,11 @@ export default {
   handleMessage,
   emit,
   /**
-   * 全局统一上行入口：由 app 层持有的 api 发送，不受页面销毁影响�?   * 返回 Promise，页面可链式观察成功/失败�?   */
+   * 全局统一上行入口：由 app 层持有的 api 发送，不受页面销毁影响。
+   * 返回 Promise，页面可链式观察成功/失败。
+   */
 sendUpstream(payload) {
-    console.log('[BANDQQ] v9 upstream ->', JSON.stringify(payload).slice(0, 160))
-    return api.send(payload).then(
-      (r) => { console.log('[BANDQQ] v9 upstream OK') ; return r },
-      (e) => { console.log('[BANDQQ] v9 upstream FAIL', JSON.stringify(e)) ; throw e }
-    )
+    return api.send(payload)
   },
   on(event, fn) {
     if (!listeners[event]) listeners[event] = []
@@ -133,7 +127,6 @@ sendUpstream(payload) {
     })
   },
   onCreate() {
-    console.log('[BANDQQ] v9 app onCreate, protocol=', typeof protocol, 'store=', typeof store, 'api=', typeof api)
     store.init()
     const pullAll = () => {
       api.send(protocol.getConnectState())
@@ -143,13 +136,15 @@ sendUpstream(payload) {
     api.init({
       onMessage: handleMessage,
       onOpen: () => {
+        // 就绪后只在此处拉一次全量（就绪门控会 hold 住 onOpen 前的 send，无需重复发送）
         api.send({ type: 'band_state', state: 'connected', seq: 0 })
         pullAll()
       }
     })
-    api.send(protocol.getConnectState())
-    api.send(protocol.getVisibleContacts())
-    api.send(protocol.getConversations())
+  },
+  /** v1.2.0：退后台立即落盘节流队列，防快应用被杀丢消息 */
+  onHide() {
+    try { store.flushPersist() } catch (e) {}
   }
 }
 </script>

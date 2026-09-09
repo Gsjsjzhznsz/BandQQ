@@ -51,7 +51,7 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var reconnectJob: Job? = null
     private var ws: WebSocket? = null
-    private var config: EndpointConfig = EndpointConfig("ws://127.0.0.1:3001", "", "http://127.0.0.1:3000", "")
+    private var config: EndpointConfig = EndpointConfig(wsUrl = "ws://127.0.0.1:3001", wsToken = "", httpUrl = "http://127.0.0.1:3000", httpToken = "")
     private var listener: OneBotListener? = null
     @Volatile private var connected = false
 

@@ -47,6 +47,13 @@ function resolveSystemStorage() {
   return Promise.resolve(systemStorage)
 }
 
+// v1.2.0 性能治理：@system.storage 是同步 IO，每条消息全量 JSON.stringify + 写盘
+// 会在群聊高峰期阻塞渲染线程（死机重启主因）。改为节流持久化：
+// 同一 key 400ms 内多次写入合并为最后一次；flushPersist() 提供退出前立即落盘。
+const PERSIST_DEBOUNCE_MS = 400
+// 缩略图 base64 内存上限（LRU）：base64 字符串每张 3~8KB，不设上限会持续吃内存
+const MAX_THUMBS = 20
+
 export function createStore(storageImpl) {
   const cache = createStorageAdapter(storageImpl)
   let conversations = []
@@ -56,11 +63,34 @@ export function createStore(storageImpl) {
   let initPromise = null
   // 未读计数：仅内存态（重启清零等同已读，符合手表轻量习惯）
   const unreadByTarget = {}
-  // 缩略图内存缓存 key: targetId|time（不持久化）
-  const thumbsByTarget = {}
+  // 缩略图内存缓存 key: targetId|time（不持久化，LRU 限容）
+  const thumbsByTarget = new Map()
   // 当前正在查看的会话：查看中的新消息不计未读
   let activeChatId = null
   let myProfile = null
+  // 节流写盘队列：key -> { value, timer }
+  const pendingWrites = {}
+
+  function schedulePersist(key, value) {
+    const slot = pendingWrites[key] || (pendingWrites[key] = { timer: null, value: null })
+    slot.value = value
+    if (slot.timer) return
+    slot.timer = setTimeout(() => {
+      slot.timer = null
+      const v = slot.value
+      if (v !== null) cache.set(key, v)
+      slot.value = null
+    }, PERSIST_DEBOUNCE_MS)
+  }
+
+  /** 立即落盘全部待写内容（app onHide / 清空时调用，防丢数据） */
+  function flushPersist() {
+    for (const key of Object.keys(pendingWrites)) {
+      const slot = pendingWrites[key]
+      if (slot.timer) { clearTimeout(slot.timer); slot.timer = null }
+      if (slot.value !== null) { cache.set(key, slot.value); slot.value = null }
+    }
+  }
 
   /**
    * 旧版 bug 数据清理（schema v2）：
@@ -151,7 +181,22 @@ export function createStore(storageImpl) {
       return unreadByTarget[targetId] || 0
     },
     getThumb(targetId, time) {
-      return thumbsByTarget[targetId + '|' + time] || null
+      const k = targetId + '|' + time
+      const v = thumbsByTarget.get(k) || null
+      if (v) {
+        // LRU 触碰：重新插入到 Map 尾部
+        thumbsByTarget.delete(k)
+        thumbsByTarget.set(k, v)
+      }
+      return v
+    },
+    /** v1.2.0：退出前立即落盘（app onHide 调用） */
+    flushPersist() {
+      flushPersist()
+    },
+    /** v1.2.0：持久化统计（测试用） */
+    _pendingPersistCount() {
+      return Object.keys(pendingWrites).filter((k) => pendingWrites[k].value !== null).length
     },
     clearAtMe(targetId) {
       const c = conversations.find((x) => x.id === targetId)
@@ -250,8 +295,16 @@ export function createStore(storageImpl) {
       const key = msg.target_id === undefined || msg.target_id === null ? '' : String(msg.target_id)
       if (!key || key === '' || key === 'undefined') return
       const isTemp = !(msg.visible !== false && this.isVisible(msg.target_id))
-      // 缩略图仅内存态：持久化时剔除，避免 base64 撑爆 storage
-      if (msg.thumb) thumbsByTarget[key + '|' + (msg.time || 0)] = msg.thumb
+      // 缩略图仅内存态：持久化时剔除；LRU 限容防内存增长（死机诱因之一）
+      if (msg.thumb) {
+        const tk = key + '|' + (msg.time || 0)
+        thumbsByTarget.delete(tk)
+        thumbsByTarget.set(tk, msg.thumb)
+        while (thumbsByTarget.size > MAX_THUMBS) {
+          const oldest = thumbsByTarget.keys().next().value
+          thumbsByTarget.delete(oldest)
+        }
+      }
       const messages = messagesByTarget[key] || []
       // push 重复时去重（手机端可能因监听器叠加重复推送同一消息）
       const dk = (msg.time || Date.now()) + '|' + content
@@ -269,8 +322,8 @@ export function createStore(storageImpl) {
         messages.sort((a, b) => (a.time || 0) - (b.time || 0))
         while (messages.length > MAX_MESSAGES) messages.shift()
         messagesByTarget[key] = messages
-        // 持久化时剥离缩略图（thumb 不落盘）
-        await cache.set(MSG_PREFIX + key, JSON.stringify(messages.slice(-CACHE_MESSAGES).map((m) => {
+        // 持久化时剥离缩略图（thumb 不落盘）；节流合并写盘（v1.2.0 性能治理）
+        schedulePersist(MSG_PREFIX + key, JSON.stringify(messages.slice(-CACHE_MESSAGES).map((m) => {
           const c = Object.assign({}, m); delete c.thumb; return c
         })))
         // 未读累计：非自己发的、且不在当前查看会话时 +1
@@ -301,7 +354,7 @@ export function createStore(storageImpl) {
       }
       conversations.unshift(conv)
       while (conversations.length > MAX_CONVERSATIONS) conversations.pop()
-      await cache.set(CONV_KEY, JSON.stringify(conversations.slice(0, CACHE_CONVERSATIONS).map((c) => {
+      schedulePersist(CONV_KEY, JSON.stringify(conversations.slice(0, CACHE_CONVERSATIONS).map((c) => {
         const cp = Object.assign({}, c); delete cp.unread; delete cp.at_me; return cp
       })))
     },
@@ -353,8 +406,10 @@ export function createStore(storageImpl) {
       const keys = Object.keys(messagesByTarget)
       keys.forEach((k) => { delete messagesByTarget[k] })
       Object.keys(unreadByTarget).forEach((k) => { delete unreadByTarget[k] })
-      Object.keys(thumbsByTarget).forEach((k) => { delete thumbsByTarget[k] })
+      thumbsByTarget.clear()
       conversations = []
+      // 清空是用户显式操作：取消节流直接落盘，防止队列里旧数据回写
+      flushPersist()
       await cache.set(CONV_KEY, JSON.stringify([]))
       for (const k of keys) await cache.set(MSG_PREFIX + k, JSON.stringify([]))
     }

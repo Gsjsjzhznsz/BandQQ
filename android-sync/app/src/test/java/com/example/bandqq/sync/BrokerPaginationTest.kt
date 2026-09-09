@@ -5,10 +5,18 @@ import com.example.bandqq.onebot.OneBotParser
 import com.google.gson.JsonObject
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.After
+import org.junit.Before
 import org.junit.Test
 
 /** 翻页历史与缩略图钩子测试 */
 class BrokerPaginationTest {
+
+    @Before
+    fun setUpOnline() { SyncState.bandConnected = true }
+
+    @After
+    fun tearDownOnline() { SyncState.bandConnected = false }
 
     private val parser = OneBotParser()
 
