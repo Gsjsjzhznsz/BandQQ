@@ -1,146 +1,161 @@
-/**
- * BandQQ 手环端连接层 v1.1.1
- * - @system.websocketfactory 多形状适配（Vela 各版本 API 差异兜底）
- * - v1.1.1: ensureAlive() 冷启动自愈增强：通道失效重建 + 就绪门控 + 重拉全量状态
- */
-let wsImpl = null
-let task = null
-let connPromise = null
-let lastHandlers = null
-let ready = false
-let closedByUser = false
-
-function loadImpl() {
-  if (wsImpl) return wsImpl
-  const candidates = ['@system.websocketfactory', '@system.websocket', 'system.websocketfactory']
-  for (const name of candidates) {
+// 惰性获取系统 interconnect，避免在 Node 测试环境中解析 @system.interconnect（该模块仅存在于 Vela 运行时）
+// 使用 Vela 快应用支持的 require() 方式加载系统模块
+let systemInterconnect = null
+function getSystemInterconnect() {
+  if (!systemInterconnect) {
     try {
-      const m = typeof require === 'function' ? require(name) : null
-      if (m) { wsImpl = m; break }
-    } catch (e) { /* continue */ }
-  }
-  return wsImpl
-}
-
-function notify(handlers, ev, payload) {
-  const fn = handlers && handlers['on' + ev]
-  if (typeof fn === 'function') {
-    try { fn(payload) } catch (e) {}
-  }
-}
-
-/**
- * 连接（幂等）。返回 Promise<boolean>：resolve(true)=就绪，false=失败。
- * handlers: { onMessage(text), onOpen(), onClose() }
- */
-export function connect(url, handlers, timeoutMs) {
-  lastHandlers = handlers
-  closedByUser = false
-  if (connPromise) return connPromise
-  ready = false
-  connPromise = new Promise((resolve) => {
-    const impl = loadImpl()
-    if (!impl) { resolve(false); return }
-    let settled = false
-    const finish = (ok) => { if (!settled) { settled = true; ready = ok; resolve(ok) } }
-    const guard = setTimeout(() => finish(false), timeoutMs || 10000)
-
-    const bind = (t) => {
-      task = t
-      // 兼容两种事件模型：属性回调(onopen/onmessage) 与 on(...) 注册
-      if (typeof t.on === 'function' && typeof t.onopen !== 'function') {
-        t.on('open', () => { clearTimeout(guard); finish(true); notify(handlers, 'Open') })
-        t.on('message', (ev) => { const d = ev && (ev.data !== undefined ? ev.data : ev); notify(handlers, 'Message', typeof d === 'object' && d !== null && 'data' in d ? d.data : d) })
-        t.on('close', () => { ready = false; connPromise = null; notify(handlers, 'Close'); if (!closedByUser) scheduleReconnect(url, handlers) })
-        t.on('error', () => { clearTimeout(guard); finish(false) })
-      } else {
-        t.onopen = () => { clearTimeout(guard); finish(true); notify(handlers, 'Open') }
-        t.onmessage = (ev) => {
-          const raw = ev && (ev.data !== undefined ? ev.data : ev)
-          const text = raw && typeof raw === 'object' && 'data' in raw ? raw.data : raw
-          notify(handlers, 'Message', typeof text === 'string' ? text : (text && text.data !== undefined ? text.data : text))
-        }
-        t.onclose = () => { ready = false; connPromise = null; notify(handlers, 'Close'); if (!closedByUser) scheduleReconnect(url, handlers) }
-        t.onerror = () => { clearTimeout(guard); finish(false) }
-      }
-    }
-
-    try {
-      // 形状 B：createWebSocket({url, ...})
-      if (typeof impl.createWebSocket === 'function') {
-        bind(impl.createWebSocket({ url }))
-        return
-      }
-      // 形状 A/C：connect(...) 返回 task 或经 success 回调
-      if (typeof impl.connect === 'function') {
-        const ret = impl.connect({
-          url,
-          success: (data) => {
-            const t = data && data.ref ? data.ref : data
-            if (t && typeof t.send === 'function') { bind(t); return }
-            // 连接即成功型
-            clearTimeout(guard); finish(true)
-          },
-          fail: () => { clearTimeout(guard); finish(false) }
-        })
-        if (ret && (typeof ret.send === 'function' || typeof ret.on === 'function')) { bind(ret); return }
-        if (ret === undefined || ret === null) return // success 回调型
-        return
-      }
-      // 形状 D：open(...)
-      if (typeof impl.open === 'function') {
-        impl.open({ url, success: (data) => { clearTimeout(guard); finish(true) }, fail: () => { clearTimeout(guard); finish(false) } })
-        return
-      }
-      clearTimeout(guard); finish(false)
+      systemInterconnect = require('@system.interconnect')
     } catch (e) {
-      clearTimeout(guard); finish(false)
+      systemInterconnect = null
     }
-  })
-  return connPromise
-}
-
-let reconnectTimer = null
-function scheduleReconnect(url, handlers) {
-  if (reconnectTimer || closedByUser) return
-  reconnectTimer = setTimeout(() => {
-    reconnectTimer = null
-    connPromise = null
-    connect(url, handlers, 10000)
-  }, 4000)
-}
-
-export function send(text) {
-  if (!task || typeof task.send !== 'function' || !ready) return false
-  try { task.send(text); return true } catch (e) { return false }
-}
-
-export function isConnected() { return ready }
-
-export function disconnect() {
-  closedByUser = true
-  ready = false
-  try { task && task.close && task.close() } catch (e) {}
-  task = null
-  connPromise = null
-}
-
-/**
- * v1.1.1 冷启动自愈：
- * 通道宣称已连接但请求无响应 / onClose 后重连成功，需重拉全量状态。
- * 返回 true 表示这次调用实际建立了新连接（调用方应随后 refresh）。
- */
-export async function ensureAlive(url, handlers, sendRefresh) {
-  const wasReady = ready
-  if (connPromise) {
-    const ok = await Promise.race([connPromise, new Promise((r) => setTimeout(() => r(false), 10000))])
-    if (ok && ready) {
-      // 通道活着：探测一次
-      const probeOk = sendRefresh()
-      return !wasReady
-    }
-    connPromise = null
   }
-  await connect(url, handlers, 10000)
-  return ready
+  return Promise.resolve(systemInterconnect)
 }
+
+export function createApi(interconnectImpl) {
+  const ic = interconnectImpl || null
+  // 注入实现（单测）时同步建立连接；默认实现惰性加载。连接就绪统一由 onopen 决定。
+  let conn = ic ? ic.instance() : null
+  let connected = false
+  let messageHandler = null
+  let connPromise = null
+
+  // 连接就绪门控：真实场景下业务帧需等 onopen 后才发送，避免通道未开导致首拉丢失
+  const READY_TIMEOUT_MS = 10000
+  let readyPromise = null
+  let readyResolve = null
+  let readyTimer = null
+
+  function markReady() {
+    connected = true
+    if (readyResolve) {
+      clearTimeout(readyTimer)
+      readyResolve()
+      readyResolve = null
+      readyPromise = null
+      readyTimer = null
+    }
+  }
+
+  function waitReady() {
+    if (connected) return Promise.resolve()
+    if (!readyPromise) {
+      readyPromise = new Promise((resolve) => {
+        readyResolve = resolve
+        // 超时兜底：长时间未确认 onopen 也继续尝试发送，失败由 send fail 回调反映
+        readyTimer = setTimeout(() => {
+          if (readyResolve) {
+            readyResolve()
+            readyResolve = null
+          }
+          readyPromise = null
+          readyTimer = null
+        }, READY_TIMEOUT_MS)
+      })
+    }
+    return readyPromise
+  }
+
+  function ensureConn() {
+    if (conn) return Promise.resolve(conn)
+    if (!connPromise) {
+      connPromise = getSystemInterconnect().then((impl) => {
+        conn = impl.instance()
+        // 未注入实现时，init 可能已在连接就绪前被调用，这里补注册
+        return conn
+      })
+    }
+    return connPromise
+  }
+
+  function registerOn(c, handlers) {
+    messageHandler = handlers.onMessage || null
+    // Vela interconnect 的事件回调为属性赋值式（connect.onmessage = fn），非方法调用
+    c.onmessage = (res) => {
+      try {
+        const msg = JSON.parse(res.data)
+        if (messageHandler) messageHandler(msg)
+      } catch (e) {
+        console.error('onmessage parse error', e)
+      }
+    }
+    c.onopen = (data) => {
+      markReady()
+      if (handlers.onOpen) handlers.onOpen(data)
+    }
+    c.onclose = (data) => {
+      connected = false
+      if (handlers.onClose) handlers.onClose(data)
+    }
+    c.onerror = (data) => {
+      connected = false
+      if (handlers.onError) handlers.onError(data)
+    }
+  }
+
+  function init(handlers) {
+    lastHandlers = handlers || null
+    if (conn) {
+      // 注入场景：同步注册，确保事件处理器立即可用
+      registerOn(conn, handlers)
+    } else {
+      // 默认场景：异步惰性建立连接后注册
+      ensureConn().then((c) => registerOn(c, handlers)).catch((e) => console.error('init connect error', e))
+    }
+  }
+
+  let lastHandlers = null
+
+  /**
+   * 冷启动自愈：互联通道断开（onclose/onerror 后 connected=false）时，
+   * 重建实例并重挂回调。长期后台后页面 onShow 调用，避免「再次打开不能用」。
+   */
+  function ensureAlive() {
+    if (connected) return Promise.resolve(true)
+    connPromise = null
+    conn = null
+    return ensureConn()
+      .then((c) => {
+        if (lastHandlers) registerOn(c, lastHandlers)
+        return waitReady().then(() => true, () => false)
+      })
+      .catch(() => Promise.resolve(false))
+  }
+
+  function send(payload) {
+    return new Promise((resolve, reject) => {
+      // 就绪门控：等 onopen 后再发，避免互联通道未开时首帧被丢弃
+      ensureConn()
+        .then((c) => waitReady().then(() => c))
+        .then((c) => c.send({
+          data: payload,
+          success: () => resolve(),
+          fail: (data, code) => {
+            console.log('[BANDQQ] v9 api.send fail', code, JSON.stringify(data && data.ts && {}) )
+            reject({ data, code })
+          }
+        }))
+        .catch((e) => { console.log('[BANDQQ] v9 api.send throw', String(e)) ; reject(e) })
+    })
+  }
+
+  function connectStatus() {
+    return new Promise((resolve, reject) => {
+      ensureConn()
+        .then((c) => waitReady().then(() => c.diagnosis({
+          success: (data) => resolve(data.status === 0),
+          fail: (data, code) => reject({ data, code })
+        })))
+        .catch(reject)
+    })
+  }
+
+  function isConnected() {
+    return connected
+  }
+
+  return { init, send, connectStatus, isConnected, ensureAlive }
+}
+
+const api = createApi()
+export default api

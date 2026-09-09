@@ -1,104 +1,168 @@
+let seq = 0
+
+export function nextSeq() {
+  seq += 1
+  return seq
+}
+
 /**
- * BandQQ 手环端协议层 v1.1.1
- * 帧格式：单条 JSON 文本。
- * 手机->手环：message / list / history(mode=recent|older) / state / login_info / send_failed
- * 手环->手机：hello / send / get_history / refresh
+ * 构造上行发送帧。messageType 必须由调用方传入真实会话类型（private/group），
+ * 不允许默认按 private 发送后再补发纠正——群号走 send_private_msg 必然失败。
  */
-
-import * as store from './store.js'
-
-// ---------- 时间工具 ----------
-export function needTimeSplit(prevMs, curMs) {
-  if (!prevMs) return true
-  return curMs - prevMs >= 5 * 60 * 1000 // Stapxs: >=5 分钟分隔
-}
-
-function pad2(n) { return n < 10 ? '0' + n : '' + n }
-
-export function formatTime(ms) {
-  if (!ms) return ''
-  const d = new Date(ms)
-  const now = new Date()
-  const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
-  if (ms >= todayStart) return pad2(d.getHours()) + ':' + pad2(d.getMinutes())
-  if (ms >= todayStart - 86400000) return '昨天'
-  return (d.getMonth() + 1) + '月' + d.getDate() + '日'
-}
-
-export function formatListTime(ms) {
-  if (!ms) return ''
-  return formatTime(ms)
-}
-
-// ---------- 解析（手机 -> 手环）----------
-/**
- * @return {type:'message', data} | {type:'list', data} | {type:'history', data} |
- *         {type:'state'|'login_info'|'send_failed', data} | null
- */
-export function decodePush(text) {
-  let json
-  try { json = typeof text === 'string' ? JSON.parse(text) : text } catch (e) { return null }
-  const type = json.type
-  switch (type) {
-    case 'message':
-      return {
-        type: 'message',
-        data: {
-          messageId: json.message_id || 0,
-          chatType: json.chat_type || 'group',
-          targetId: json.target_id,
-          senderId: json.sender_id,
-          senderName: json.sender_name,
-          content: json.content,
-          time: json.time,
-          isSelf: !!json.is_self,
-          atMe: !!json.at_me,
-          thumb: json.thumb
-        }
-      }
-    case 'list':
-      return { type: 'list', data: json.contacts || [] }
-    case 'history': {
-      const mode = json.mode === 'older' ? 'older' : 'recent'
-      return {
-        type: 'history',
-        data: {
-          mode,
-          targetId: json.target_id,
-          hasMore: !!json.has_more,
-          messages: json.messages || []
-        }
-      }
-    }
-    case 'state':
-      return { type: 'state', data: { connected: !!json.connected } }
-    case 'login_info':
-      return { type: 'login_info', data: { userId: json.user_id, nickname: json.nickname || json.user_id } }
-    case 'send_failed':
-      return { type: 'send_failed', data: { targetId: json.target_id } }
-    default:
-      return null
+export function sendMessage(messageType, targetId, content) {
+  return {
+    type: 'send_message',
+    seq: nextSeq(),
+    message_type: messageType === 'group' ? 'group' : 'private',
+    target_id: targetId,
+    content: content,
+    time: Date.now()
   }
 }
 
-// ---------- 编码（手环 -> 手机）----------
-export function encodeHello() {
-  return JSON.stringify({ type: 'hello' })
+export function getConversations() {
+  return { type: 'get_conversations', seq: nextSeq() }
 }
 
-export function encodeSend(targetId, chatType, content) {
-  return JSON.stringify({ type: 'send', target_id: String(targetId), chat_type: chatType, content })
+export function getVisibleContacts() {
+  return { type: 'get_visible_contacts', seq: nextSeq() }
 }
 
-export function encodeGetHistory(targetId, chatType, limit, opts) {
-  const frame = { type: 'get_history', target_id: String(targetId), chat_type: chatType, limit: limit || 20 }
-  if (opts && opts.older) {
+export function getConnectState() {
+  return { type: 'get_connect_state', seq: nextSeq() }
+}
+
+export function getHistory(targetId, limit, opts) {
+  const frame = { type: 'get_history', seq: nextSeq(), target_id: targetId, limit: limit || 20 }
+  // 翻页：older=true 表示拉取比 before_time 更早的一页（手机端转发 OneBot 分页历史）
+  if (opts && opts.older && opts.beforeTime) {
     frame.older = true
-    if (opts.beforeTime) frame.before_time = opts.beforeTime
+    frame.before_time = opts.beforeTime
   }
-  return JSON.stringify(frame)
+  return frame
 }
 
-export function encodeRefresh() {
-  return JSON.stringify({ type: 'refresh' })
+export function clearAllHistory() {
+  return { type: 'clear_all_history', seq: nextSeq() }
+}
+
+export function isEmojiCode(c) {
+  return (c >= 0x2600 && c <= 0x27bf) ||
+    (c >= 0x2b00 && c <= 0x2bff) ||
+    (c >= 0x2b50 && c <= 0x2b55) ||
+    c === 0xfe0f || c === 0x200d || c === 0x20e3 ||
+    c === 0x3030 || c === 0x303d ||
+    (c >= 0xa9c2 && c <= 0xa9ff) ||
+    (c >= 0xaa00 && c <= 0xaa5f)
+}
+
+export function transformEmoji(s, replace) {
+  if (typeof s !== 'string') return ''
+  let out = ''
+  for (let i = 0; i < s.length; i++) {
+    const c = s.charCodeAt(i)
+    if (c >= 0xd83c && c <= 0xd83e) {
+      out += replace ? '[表情]' : ''
+      i++
+      continue
+    }
+    if (isEmojiCode(c)) {
+      out += replace ? '[表情]' : ''
+      continue
+    }
+    out += s[i]
+  }
+  return out
+}
+
+export function stripEmoji(s) {
+  return transformEmoji(s, false)
+}
+
+export function markEmoji(s) {
+  return transformEmoji(s, true)
+}
+
+export function degradeContent(raw) {
+  if (typeof raw === 'string') return markEmoji(raw)
+  if (!Array.isArray(raw)) return ''
+  return raw.map((seg) => {
+    if (seg.type === 'text') return markEmoji((seg.data && seg.data.text) || '')
+    if (seg.type === 'face') return '[表情]'
+    if (seg.type === 'image') return '[图片]'
+    if (seg.type === 'record' || seg.type === 'voice') return '[语音]'
+    if (seg.type === 'video') return '[视频]'
+    if (seg.type === 'file') return '[文件]'
+    return '[其他]'
+  }).join('')
+}
+
+/** 聊天页时间分隔条：与上一条间隔 ≥5 分钟时展示（Stapxs 同款规则） */
+export function needTimeSplit(prevTime, curTime) {
+  if (!curTime) return false
+  if (!prevTime) return true
+  return curTime - prevTime >= 5 * 60 * 1000
+}
+
+/** 时间戳 → 展示文本：今天 HH:MM / 昨天 HH:MM / M月D日 HH:MM */
+export function formatTime(ts) {
+  if (!ts) return ''
+  const d = new Date(ts)
+  const pad = (n) => (n < 10 ? '0' + n : '' + n)
+  const hm = pad(d.getHours()) + ':' + pad(d.getMinutes())
+  const now = new Date()
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  if (ts >= dayStart) return hm
+  if (ts >= dayStart - 86400000) return '昨天 ' + hm
+  return (d.getMonth() + 1) + '月' + d.getDate() + '日 ' + hm
+}
+
+/** 列表时间（简短）：今天 HH:MM / 昨天 / M月D日 */
+export function formatListTime(ts) {
+  if (!ts) return ''
+  const d = new Date(ts)
+  const pad = (n) => (n < 10 ? '0' + n : '' + n)
+  const now = new Date()
+  const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+  if (ts >= dayStart) return pad(d.getHours()) + ':' + pad(d.getMinutes())
+  if (ts >= dayStart - 86400000) return '昨天'
+  return (d.getMonth() + 1) + '/' + d.getDate()
+}
+
+export function decodePush(raw) {
+  if (!raw || raw.type !== 'push_message') return null
+  if (typeof raw.target_id !== 'string' || typeof raw.sender_id !== 'string') return null
+  return {
+    type: 'push_message',
+    seq: raw.seq || 0,
+    message_type: raw.message_type === 'group' ? 'group' : 'private',
+    target_id: raw.target_id,
+    sender_id: raw.sender_id,
+    sender_name: stripEmoji(raw.sender_name || ''),
+    target_name: stripEmoji(raw.target_name || ''),
+    content: typeof raw.content === 'string' ? markEmoji(raw.content) : degradeContent(raw.content),
+    is_self: raw.is_self === true,
+    time: raw.time || Date.now(),
+    visible: raw.visible !== false,
+    // 扩展字段：@我标记 与 图片缩略图（data:image/jpeg;base64,...，仅内存态）
+    at_me: raw.at_me === true,
+    thumb: typeof raw.thumb === 'string' ? raw.thumb : ''
+  }
+}
+
+export default {
+  nextSeq,
+  sendMessage,
+  getConversations,
+  getVisibleContacts,
+  getConnectState,
+  getHistory,
+  clearAllHistory,
+  stripEmoji,
+  markEmoji,
+  degradeContent,
+  decodePush,
+  needTimeSplit,
+  formatTime,
+  formatListTime
 }

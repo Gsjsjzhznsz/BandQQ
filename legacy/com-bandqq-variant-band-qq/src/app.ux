@@ -1,0 +1,166 @@
+<script>
+/**
+ * BandQQ 全局入口 v1.1.1
+ * - 建立手环 <-> 手机同步器 WebSocket 通道（经蓝牙隧道）
+ * - 全局消息分发 + 页面事件总线
+ * - v1.1.1: @我长震动、冷启动自愈、消息回放幂等
+ */
+import * as store from './common/store.js'
+import * as protocol from './common/protocol.js'
+import * as api from './common/api.js'
+
+const DEF_WS_URL = 'ws://127.0.0.1:9810'
+
+export default {
+  public: {
+    connected: false,
+    loginUserId: '',
+    loginNickname: ''
+  },
+  listeners: [],       // 页面订阅：fn(pushData)
+  pageHandlers: {},    // 统一处理函数
+  wsUrl: DEF_WS_URL,
+
+  async onCreat() {
+    // storage adapter 注入后加载本地数据
+    await store.loadFromStorage()
+    await this.restoreUrl()
+    this.setupConnection()
+  },
+
+  async restoreUrl() {
+    try {
+      const storage = require('@system.storage')
+      await new Promise((resolve) => {
+        storage.get({
+          key: 'ws_url',
+          success: (v) => { if (v) this.wsUrl = v; resolve() },
+          fail: () => resolve()
+        })
+      })
+    } catch (e) { /* keep default */ }
+  },
+
+  async saveUrl(url) {
+    this.wsUrl = url
+    try {
+      const storage = require('@system.storage')
+      storage.set({ key: 'ws_url', value: url, fail: () => {} })
+    } catch (e) {}
+  },
+
+  onShow() {},
+
+  setupConnection() {
+    api.connect(this.wsUrl, {
+      onMessage: (text) => this.handleRaw(text),
+      onOpen: () => { this.connected = true; this.emit({ type: 'state', data: { connected: true } }) },
+      onClose: () => { this.connected = false; this.emit({ type: 'state', data: { connected: false } }) }
+    }, 10000)
+  },
+
+  /** v1.1.1 冷启动自愈：重连 + 重拉全量状态 */
+  async ensureAlive() {
+    const ok = await api.ensureAlive(this.wsUrl, {
+      onMessage: (text) => this.handleRaw(text),
+      onOpen: () => { this.connected = true; this.emit({ type: 'state', data: { connected: true } }) },
+      onClose: () => { this.connected = false; this.emit({ type: 'state', data: { connected: false } }) }
+    }, () => api.send(protocol.encodeRefresh()))
+    if (ok) api.send(protocol.encodeRefresh())
+    return api.isConnected()
+  },
+
+  reconnect() {
+    api.disconnect()
+    this.setupConnection()
+  },
+
+  subscribe(fn) {
+    this.listeners.push(fn)
+    return () => {
+      const i = this.listeners.indexOf(fn)
+      if (i >= 0) this.listeners.splice(i, 1)
+    }
+  },
+
+  emit(push) {
+    for (const fn of this.listeners.slice()) {
+      try { fn(push) } catch (e) {}
+    }
+  },
+
+  handleRaw(text) {
+    const push = protocol.decodePush(text)
+    if (!push) return
+    switch (push.type) {
+      case 'message': {
+        const m = push.data
+        const result = store.upsertMessage(m)
+        if (result === 'new') {
+          // @我提醒：长震动（回放消息已看过的不重复提醒）
+          if (m.atMe && !m.isSelf) this.vibrateAlert()
+        }
+        this.emit(push)
+        break
+      }
+      case 'list': {
+        for (const c of push.data || []) {
+          const conv = store.conversations[c.id] || (store.conversations[c.id] = {
+            id: c.id, type: c.type || 'group', name: c.name || c.id,
+            lastContent: '', lastTime: 0, unread: 0, atMe: false
+          })
+          if (c.name) conv.name = c.name
+          conv.type = c.type || conv.type
+          if (c.last_content) { conv.lastContent = c.last_content; conv.lastTime = store.normTime(c.last_time || 0) }
+          if (c.at_me) conv.atMe = true
+        }
+        this.emit(push)
+        break
+      }
+      case 'history': {
+        // recent / older 都走幂等合并
+        store.prependOlder(push.data.targetId, push.data.messages)
+        this.emit(push)
+        break
+      }
+      case 'login_info': {
+        store.setMyProfile(push.data.userId, push.data.nickname)
+        this.loginUserId = push.data.userId || ''
+        this.loginNickname = push.data.nickname || ''
+        this.emit(push)
+        break
+      }
+      case 'state': {
+        this.connected = push.data.connected
+        this.emit(push)
+        break
+      }
+      case 'send_failed': {
+        this.emit(push)
+        break
+      }
+    }
+  },
+
+  vibrateAlert() {
+    try {
+      const vibrator = require('@system.vibrator')
+      vibrator.vibrate({ mode: 'long' })
+    } catch (e) {}
+  },
+
+  // 给页面用的发送封装
+  sendText(targetId, chatType, content) {
+    return api.send(protocol.encodeSend(targetId, chatType, content))
+  },
+  requestHistory(targetId, chatType, limit, opts) {
+    return api.send(protocol.encodeGetHistory(targetId, chatType, limit, opts))
+  },
+  refresh() {
+    return api.send(protocol.encodeRefresh())
+  },
+  isConnected() {
+    return api.isConnected()
+  }
+}
+</script>

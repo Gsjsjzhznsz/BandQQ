@@ -1,0 +1,140 @@
+<template>
+  <div class="page">
+    <!-- 状态横幅：固定高度，避免跳动 -->
+    <div class="banner {{connected ? 'banner-ok' : 'banner-err'}}" onclick="onBannerTap">
+      <div class="dot"></div>
+      <text class="banner-text">{{connected ? '已连接' : '未连接 点按重连'}}</text>
+    </div>
+
+    <!-- 会话列表：list-item 定高，角标绝对定位 -->
+    <list class="conv-list">
+      <list-item class="conv-item" for="{{(idx, conv) in convs}}" key="{{conv.id}}" onclick="onConvTap(conv)">
+        <div class="item-row">
+          <div class="avatar" style="background-color: {{conv.avatarBg}};">
+            <text class="avatar-ch">{{conv.avatarCh}}</text>
+          </div>
+          <div class="item-mid">
+            <text class="conv-name">{{conv.name}}</text>
+            <text class="conv-preview">{{conv.preview}}</text>
+          </div>
+          <text class="conv-time">{{conv.timeText}}</text>
+          <!-- 未读角标：绝对定位不占布局 -->
+          <text class="badge" if="{{conv.unread > 0}}">{{conv.badgeText}}</text>
+          <text class="at-tag" if="{{conv.atMe}}">[@我]</text>
+        </div>
+      </list-item>
+      <list-item class="empty-item" if="{{convs.length === 0}}">
+        <text class="empty-text">暂无会话\n等待消息…</text>
+      </list-item>
+    </list>
+  </div>
+</template>
+
+<style>
+  .page { flex-direction: column; background-color: #101216; }
+  .banner {
+    height: 26px; flex-direction: row; align-items: center;
+    padding: 0 8px; flex-shrink: 0;
+  }
+  .banner-ok { background-color: #14351f; }
+  .banner-err { background-color: #3b1717; }
+  .dot { width: 8px; height: 8px; border-radius: 4px; margin-right: 6px; background-color: #34c759; }
+  .banner-text { color: #cfd3da; font-size: 12px; }
+  .conv-list { flex: 1; flex-direction: column; }
+  .conv-item { height: 56px; flex-shrink: 0; }
+  .item-row {
+    flex-direction: row; align-items: center; height: 56px;
+    padding: 0 8px; border-bottom: 1px solid #1d2129;
+  }
+  .avatar {
+    width: 38px; height: 38px; border-radius: 8px;
+    justify-content: center; align-items: center; margin-right: 8px;
+  }
+  .avatar-ch { color: #ffffff; font-size: 17px; }
+  .item-mid { flex: 1; flex-direction: column; justify-content: center; height: 56px; }
+  .conv-name { color: #eef1f6; font-size: 14px; lines: 1; text-overflow: ellipsis; }
+  .conv-preview { color: #7c828e; font-size: 11px; lines: 1; text-overflow: ellipsis; margin-top: 3px; }
+  .conv-time { color: #6a707c; font-size: 10px; margin-left: 4px; }
+  .badge {
+    position: absolute; right: 4px; top: 8px;
+    min-width: 16px; height: 14px; border-radius: 7px;
+    background-color: #e83636; color: #ffffff; font-size: 9px;
+    text-align: center; padding: 0 3px;
+  }
+  .at-tag {
+    position: absolute; right: 4px; top: 30px;
+    height: 13px; border-radius: 3px; background-color: #a03a1e;
+    color: #ffd7bd; font-size: 9px; padding: 0 3px;
+  }
+  .empty-item { height: 120px; justify-content: center; align-items: center; }
+  .empty-text { color: #565b64; font-size: 13px; text-align: center; }
+</style>
+
+<script>
+import * as store from '../../common/store.js'
+import * as protocol from '../../common/protocol.js'
+
+const AVATAR_COLORS = ['#e17076', '#7bc862', '#65aadd', '#a695e7', '#ee7aae', '#faa774', '#6ec9cb', '#c2a074']
+
+function hashStr(s) {
+  let h = 0
+  for (let i = 0; i < (s || '').length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
+  return h
+}
+
+export default {
+  data: {
+    convs: [],
+    connected: false
+  },
+  onInit() {
+    this.$app.subscribe((push) => this.onPush(push))
+  },
+  onShow() {
+    // v1.1.1 冷启动自愈
+    this.$app.ensureAlive().then((alive) => {
+      this.connected = alive
+      this.refreshList()
+    })
+    this.connected = this.$app.isConnected()
+    this.refreshList()
+  },
+  onPush(push) {
+    if (push.type === 'message' || push.type === 'list' || push.type === 'history') {
+      this.refreshList()
+    } else if (push.type === 'state') {
+      this.connected = push.data.connected
+    }
+  },
+  refreshList() {
+    const list = store.getConversationList()
+    const items = list.map((c) => {
+      const h = hashStr(c.name)
+      const unread = c.unread || 0
+      return {
+        id: c.id,
+        type: c.type,
+        name: c.name,
+        preview: c.lastContent || '…',
+        timeText: protocol.formatListTime(c.lastTime),
+        unread: unread,
+        badgeText: unread > 99 ? '99+' : String(unread),
+        atMe: !!c.atMe,
+        avatarBg: AVATAR_COLORS[h % AVATAR_COLORS.length],
+        avatarCh: (c.name || '#').charAt(0).toUpperCase()
+      }
+    })
+    this.convs = items
+  },
+  onConvTap(conv) {
+    require('@system.router').push({
+      uri: 'pages/chat/chat',
+      params: { targetId: conv.id, chatType: conv.type, name: conv.name }
+    })
+  },
+  onBannerTap() {
+    if (!this.connected) this.$app.reconnect()
+    else require('@system.router').push({ uri: 'pages/settings/settings' })
+  }
+}
+</script>

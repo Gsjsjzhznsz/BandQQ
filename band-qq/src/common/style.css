@@ -1,0 +1,43 @@
+.page {
+  flex-direction: column;
+  background-color: #000000;
+}
+
+.title {
+  font-size: 24px;
+  color: #ffffff;
+}
+
+.list {
+  width: 192px;
+  flex: 1;
+}
+
+.item {
+  width: 192px;
+  height: 56px;
+  padding-left: 12px;
+  padding-right: 12px;
+  flex-direction: row;
+  align-items: center;
+  border-bottom: 1px solid #222222;
+}
+
+.item-name {
+  font-size: 22px;
+  color: #ffffff;
+}
+
+.item-sub {
+  font-size: 16px;
+  color: #888888;
+}
+
+.btn {
+  height: 44px;
+  border-radius: 22px;
+  background-color: #07c160;
+  color: #ffffff;
+  font-size: 20px;
+  text-align: center;
+}

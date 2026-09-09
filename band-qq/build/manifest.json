@@ -1,53 +1,67 @@
 {
-  "package": "com.bandqq.watch",
-  "name": "BandQQ",
+  "package": "com.example.bandqq",
+  "name": "QQ助手",
+  "icon": "/common/icon.png",
   "versionName": "1.1.1",
   "versionCode": 3,
-  "type": "watch",
-  "icon": "/common/icon.png",
-  "minPlatformVersion": 1000,
+  "minAPILevel": 1,
+  "deviceTypeList": [
+    "watch"
+  ],
+  "config": {
+    "designWidth": 192,
+    "logLevel": "log"
+  },
   "features": [
     {
-      "name": "system.websocketfactory"
+      "name": "system.interconnect"
     },
     {
       "name": "system.storage"
     },
     {
-      "name": "system.vibrator"
+      "name": "system.router"
     },
     {
-      "name": "system.router"
+      "name": "system.app"
     },
     {
       "name": "system.device"
     },
     {
+      "name": "system.vibrator"
+    },
+    {
       "name": "system.prompt"
     }
   ],
-  "config": {
-    "designWidth": 192,
-    "designHeight": 490
+  "display": {
+    "backgroundColor": "#000000"
   },
   "router": {
     "entry": "pages/index",
     "pages": {
       "pages/index": {
-        "component": "index"
+        "component": "index",
+        "path": "/index"
       },
       "pages/chat": {
-        "component": "chat"
+        "component": "chat",
+        "path": "/chat"
       },
       "pages/settings": {
-        "component": "settings"
+        "component": "settings",
+        "path": "/settings"
+      },
+      "pages/compose": {
+        "component": "compose",
+        "path": "/compose"
       }
     }
   },
-  "minAPILevel": 1,
   "packageInfo": {
     "toolkit": "2.0.5",
-    "timeStamp": "2026-09-09T00:37:13.530Z",
+    "timeStamp": "2026-09-09T09:50:00.807Z",
     "node": "v24.19.0",
     "platform": "linux",
     "arch": "x64",

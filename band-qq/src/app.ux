@@ -1,166 +1,155 @@
+<template>
+  <text class="app-root"></text>
+</template>
+
+<style>
+  .app-root {
+    display: none;
+  }
+</style>
+
 <script>
 /**
- * BandQQ 全局入口 v1.1.1
- * - 建立手环 <-> 手机同步器 WebSocket 通道（经蓝牙隧道）
- * - 全局消息分发 + 页面事件总线
- * - v1.1.1: @我长震动、冷启动自愈、消息回放幂等
+ * 应用入口，暴露全局工具对象
  */
-import * as store from './common/store.js'
-import * as protocol from './common/protocol.js'
-import * as api from './common/api.js'
+import api from './common/api'
+import protocol from './common/protocol'
+import store from './common/store'
 
-const DEF_WS_URL = 'ws://127.0.0.1:9810'
+const listeners = {}
+
+function emit(event, data) {
+  const set = listeners[event]
+  if (set) set.forEach((fn) => { try { fn(data) } catch (e) { console.error('emit error', event, e) } })
+}
+
+function vibrate() {
+  try {
+    const vib = require('@system.vibrator')
+    if (vib && vib.vibrate) vib.vibrate({ mode: 'long' })
+  } catch (e) { console.error('vibrate fail', e) }
+}
+
+function handleMessage(msg) {
+  if (!msg || !msg.type) return
+  try {
+    console.log('[BANDQQ] v10 msg <-', msg.type, msg.target_id || msg.targetId || msg.seq || '')
+  } catch (e) {}
+  switch (msg.type) {
+    case 'ping':
+      api.send({ type: 'pong', seq: msg.seq || 0 })
+      break
+case 'push_message': {
+      // decodePush 统一提取扩展字段（at_me/@我标记、thumb/图片缩略图）
+      const frame = protocol.decodePush(msg)
+      if (!frame) break
+      store.upsertMessage(frame).then(() => { emit('message', frame) }).catch((e) => console.error('upsert fail', e))
+      // @我提醒：绿色高亮在聊天页气泡 + 手环长震一下
+      if (frame.at_me === true && frame.is_self !== true) vibrate()
+      break
+    }
+    case 'login_info':
+      // 手机端 get_login_info 成功后推来的登录账号信息（设置页展示 + 供 @我 判定）
+      store.setMyProfile({ user_id: msg.user_id || '', nickname: protocol.stripEmoji(msg.nickname || '') })
+      emit('login_info', store.getMyProfile())
+      break
+    case 'conversation_list':
+      if (Array.isArray(msg.list)) store.setConversations(msg.list)
+      emit('conversations', msg.list)
+      break
+    case 'history_list':
+      if (Array.isArray(msg.list) && msg.target_id) {
+        store.setMessages(msg.target_id, msg.list)
+        try { console.log('[BANDQQ] v17 history set target=' + msg.target_id + ' n=' + msg.list.length) } catch (e) {}
+        emit('history', msg)
+      } else {
+        try { console.log('[BANDQQ] v17 history BAD target=' + msg.target_id + ' isArr=' + Array.isArray(msg.list)) } catch (e) {}
+      }
+      break
+    case 'connect_state':
+      store.setConnectState(msg)
+      emit('state', msg)
+      break
+    case 'visible_contacts':
+      if (Array.isArray(msg.contacts)) store.setVisibleContacts(msg.contacts)
+      emit('visible_contacts', msg.contacts)
+      break
+    case 'clear_all_history':
+      store.clearAllMessages().then(() => emit('cleared'))
+      break
+    case 'send_result':
+      // 手机端对上行 send_message 的真实投递结果（OneBot retcode 校验后回推）：
+      // 失败时手环聊天页立即显示失败原因，不再静默丢消息
+      store.setSendStatus(msg.ok === true ? '已送达' : '发送失败:' + (msg.error || '未知'))
+      emit('send_status')
+      break
+    default:
+      break
+  }
+}
 
 export default {
-  public: {
-    connected: false,
-    loginUserId: '',
-    loginNickname: ''
+  api,
+  protocol,
+  store,
+  handleMessage,
+  emit,
+  /**
+   * 全局统一上行入口：由 app 层持有的 api 发送，不受页面销毁影响�?   * 返回 Promise，页面可链式观察成功/失败�?   */
+sendUpstream(payload) {
+    console.log('[BANDQQ] v9 upstream ->', JSON.stringify(payload).slice(0, 160))
+    return api.send(payload).then(
+      (r) => { console.log('[BANDQQ] v9 upstream OK') ; return r },
+      (e) => { console.log('[BANDQQ] v9 upstream FAIL', JSON.stringify(e)) ; throw e }
+    )
   },
-  listeners: [],       // 页面订阅：fn(pushData)
-  pageHandlers: {},    // 统一处理函数
-  wsUrl: DEF_WS_URL,
-
-  async onCreat() {
-    // storage adapter 注入后加载本地数据
-    await store.loadFromStorage()
-    await this.restoreUrl()
-    this.setupConnection()
+  on(event, fn) {
+    if (!listeners[event]) listeners[event] = []
+    listeners[event].push(fn)
   },
-
-  async restoreUrl() {
-    try {
-      const storage = require('@system.storage')
-      await new Promise((resolve) => {
-        storage.get({
-          key: 'ws_url',
-          success: (v) => { if (v) this.wsUrl = v; resolve() },
-          fail: () => resolve()
-        })
-      })
-    } catch (e) { /* keep default */ }
-  },
-
-  async saveUrl(url) {
-    this.wsUrl = url
-    try {
-      const storage = require('@system.storage')
-      storage.set({ key: 'ws_url', value: url, fail: () => {} })
-    } catch (e) {}
-  },
-
-  onShow() {},
-
-  setupConnection() {
-    api.connect(this.wsUrl, {
-      onMessage: (text) => this.handleRaw(text),
-      onOpen: () => { this.connected = true; this.emit({ type: 'state', data: { connected: true } }) },
-      onClose: () => { this.connected = false; this.emit({ type: 'state', data: { connected: false } }) }
-    }, 10000)
-  },
-
-  /** v1.1.1 冷启动自愈：重连 + 重拉全量状态 */
-  async ensureAlive() {
-    const ok = await api.ensureAlive(this.wsUrl, {
-      onMessage: (text) => this.handleRaw(text),
-      onOpen: () => { this.connected = true; this.emit({ type: 'state', data: { connected: true } }) },
-      onClose: () => { this.connected = false; this.emit({ type: 'state', data: { connected: false } }) }
-    }, () => api.send(protocol.encodeRefresh()))
-    if (ok) api.send(protocol.encodeRefresh())
-    return api.isConnected()
-  },
-
-  reconnect() {
-    api.disconnect()
-    this.setupConnection()
-  },
-
-  subscribe(fn) {
-    this.listeners.push(fn)
-    return () => {
-      const i = this.listeners.indexOf(fn)
-      if (i >= 0) this.listeners.splice(i, 1)
+  off(event, fn) {
+    const set = listeners[event]
+    if (!set) return
+    if (!fn) {
+      listeners[event] = []
+      return
     }
+    const idx = set.indexOf(fn)
+    if (idx >= 0) set.splice(idx, 1)
   },
-
-  emit(push) {
-    for (const fn of this.listeners.slice()) {
-      try { fn(push) } catch (e) {}
+  /**
+   * 冷启动/长期后台后自愈：互联通道断开时重建实例并重挂回调，
+   * 重新就绪后重拉全量状态。解决「关闭了长时间再次打开不能正常使用」。
+   */
+  ensureAlive() {
+    return api.ensureAlive().then((ok) => {
+      if (ok) {
+        api.send({ type: 'band_state', state: 'connected', seq: 0 })
+        api.send(protocol.getConnectState())
+        api.send(protocol.getVisibleContacts())
+        api.send(protocol.getConversations())
+      }
+      return ok
+    })
+  },
+  onCreate() {
+    console.log('[BANDQQ] v9 app onCreate, protocol=', typeof protocol, 'store=', typeof store, 'api=', typeof api)
+    store.init()
+    const pullAll = () => {
+      api.send(protocol.getConnectState())
+      api.send(protocol.getVisibleContacts())
+      api.send(protocol.getConversations())
     }
-  },
-
-  handleRaw(text) {
-    const push = protocol.decodePush(text)
-    if (!push) return
-    switch (push.type) {
-      case 'message': {
-        const m = push.data
-        const result = store.upsertMessage(m)
-        if (result === 'new') {
-          // @我提醒：长震动（回放消息已看过的不重复提醒）
-          if (m.atMe && !m.isSelf) this.vibrateAlert()
-        }
-        this.emit(push)
-        break
+    api.init({
+      onMessage: handleMessage,
+      onOpen: () => {
+        api.send({ type: 'band_state', state: 'connected', seq: 0 })
+        pullAll()
       }
-      case 'list': {
-        for (const c of push.data || []) {
-          const conv = store.conversations[c.id] || (store.conversations[c.id] = {
-            id: c.id, type: c.type || 'group', name: c.name || c.id,
-            lastContent: '', lastTime: 0, unread: 0, atMe: false
-          })
-          if (c.name) conv.name = c.name
-          conv.type = c.type || conv.type
-          if (c.last_content) { conv.lastContent = c.last_content; conv.lastTime = store.normTime(c.last_time || 0) }
-          if (c.at_me) conv.atMe = true
-        }
-        this.emit(push)
-        break
-      }
-      case 'history': {
-        // recent / older 都走幂等合并
-        store.prependOlder(push.data.targetId, push.data.messages)
-        this.emit(push)
-        break
-      }
-      case 'login_info': {
-        store.setMyProfile(push.data.userId, push.data.nickname)
-        this.loginUserId = push.data.userId || ''
-        this.loginNickname = push.data.nickname || ''
-        this.emit(push)
-        break
-      }
-      case 'state': {
-        this.connected = push.data.connected
-        this.emit(push)
-        break
-      }
-      case 'send_failed': {
-        this.emit(push)
-        break
-      }
-    }
-  },
-
-  vibrateAlert() {
-    try {
-      const vibrator = require('@system.vibrator')
-      vibrator.vibrate({ mode: 'long' })
-    } catch (e) {}
-  },
-
-  // 给页面用的发送封装
-  sendText(targetId, chatType, content) {
-    return api.send(protocol.encodeSend(targetId, chatType, content))
-  },
-  requestHistory(targetId, chatType, limit, opts) {
-    return api.send(protocol.encodeGetHistory(targetId, chatType, limit, opts))
-  },
-  refresh() {
-    return api.send(protocol.encodeRefresh())
-  },
-  isConnected() {
-    return api.isConnected()
+    })
+    api.send(protocol.getConnectState())
+    api.send(protocol.getVisibleContacts())
+    api.send(protocol.getConversations())
   }
 }
 </script>

@@ -12,5 +12,5 @@ dependencyResolutionManagement {
         mavenCentral()
     }
 }
-rootProject.name = "bandqq-sync"
+rootProject.name = "android-sync"
 include(":app")

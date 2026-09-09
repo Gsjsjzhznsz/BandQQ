@@ -1,7 +1,5 @@
-<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">BandQQ同步器</string>
-    <string name="keepalive_label">BandQQ 保活</string>
-    <string name="notif_channel">同步服务</string>
-    <string name="notif_running">QQ 同步服务运行中</string>
+    <string name="app_name">QQ同步器</string>
+    <string name="keepalive_summary">QQ同步器后台保活</string>
+    <string name="keepalive_desc">保持 QQ 同步器在后台稳定运行。本服务不监听任何事件、不读取屏幕内容，仅利用系统高优先级防止后台被杀。</string>
 </resources>

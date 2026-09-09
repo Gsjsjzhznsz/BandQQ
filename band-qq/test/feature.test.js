@@ -1,178 +1,135 @@
-import { test } from 'node:test'
+import { describe, it, beforeEach } from 'node:test'
 import assert from 'node:assert/strict'
-import * as store from '../src/common/store.js'
-import * as protocol from '../src/common/protocol.js'
+import { createStore } from '../src/common/store.js'
+import protocol from '../src/common/protocol.js'
 
-function freshStore() {
-  store.resetAll()
-  store.setMyProfile('', '')
+function mockStorage(initial) {
+  const map = new Map(Object.entries(initial))
+  return {
+    get: (o) => { o.success(map.get(o.key) ?? '') },
+    set: (o) => { map.set(o.key, o.value); o.success({}) },
+    dump: () => map
+  }
 }
 
-const BASE = {
-  messageId: 1001,
-  chatType: 'group',
-  targetId: '802072961',
-  senderId: '555',
-  senderName: '小明',
-  content: '你好',
-  time: 1700000000, // 秒（OneBot）
-  isSelf: false
-}
+describe('旧数据自动清理（schema v2）', () => {
+  it('清除群会话中 private 误判的 is_self 残留记录', async () => {
+    // 模拟旧版 bug 产生的数据：群 194636275 中 private+group 双写「测式」
+    const legacyMsgs = [
+      { message_type: 'group', sender_id: '2308534727', sender_name: '一秋 小号', content: '执行atb', time: 1788875450000, is_self: false },
+      { message_type: 'private', sender_id: '194636275', sender_name: '194636275', content: '测式', time: 1788875535241, is_self: true },
+      { message_type: 'group', sender_id: '194636275', sender_name: '我的世界一秋小镇', content: '测式', time: 1788875535300, is_self: true }
+    ]
+    const convs = [{ id: '194636275', type: 'group', name: '测试群', last_msg: '测式', time: 1788875535300 }]
+    const storage = mockStorage({
+      store_schema_ver: '1',
+      conv_cache: JSON.stringify(convs),
+      msg_cache_194636275: JSON.stringify(legacyMsgs)
+    })
+    const store = createStore(storage)
+    await store.init()
+    const msgs = await store.getMessages('194636275')
+    assert.equal(msgs.length, 2)
+    assert.ok(!msgs.some((m) => m.message_type === 'private'))
+    assert.ok(msgs.some((m) => m.content === '执行atb'))
+    assert.ok(msgs.some((m) => m.message_type === 'group' && m.content === '测式'))
+    // 清理后 schema 版本已升级，不会重复清理
+    assert.equal(storage.dump().get('store_schema_ver'), '2')
+  })
 
-test('normalizeTime: OneBot 秒 -> 毫秒统一', () => {
-  assert.equal(store.normTime(1700000000), 1700000000000)
-  assert.equal(store.normTime(1700000000000), 1700000000000)
+  it('相邻 is_self 双写（一 private 一 group）也清除', async () => {
+    const legacy = [
+      { message_type: 'private', sender_id: 'x', sender_name: 'x', content: '重复', time: 1000, is_self: true },
+      { message_type: 'group', sender_id: 'y', sender_name: 'y', content: '重复', time: 3000, is_self: true }
+    ]
+    const storage = mockStorage({
+      store_schema_ver: '1',
+      conv_cache: JSON.stringify([{ id: 'g1', type: 'group', name: 'g', last_msg: '', time: 3000 }]),
+      msg_cache_g1: JSON.stringify(legacy)
+    })
+    const store = createStore(storage)
+    await store.init()
+    const msgs = await store.getMessages('g1')
+    assert.equal(msgs.length, 1)
+    assert.equal(msgs[0].message_type, 'group')
+  })
 })
 
-test('upsertMessage 基本入库与会话摘要', () => {
-  freshStore()
-  const r = store.upsertMessage(BASE)
-  assert.equal(r, 'new')
-  const convs = store.getConversationList()
-  assert.equal(convs.length, 1)
-  assert.equal(convs[0].id, '802072961')
-  assert.equal(convs[0].lastContent, '你好')
-  assert.equal(convs[0].lastTime, 1700000000000)
-  assert.equal(convs[0].name, '小明')
-  assert.equal(convs[0].unread, 1)
+describe('未读计数与 [@我] 标记', () => {
+  let store
+  beforeEach(async () => {
+    store = createStore(mockStorage({}))
+    await store.init()
+  })
+
+  it('非自己发的消息累计未读', async () => {
+    await store.upsertMessage({ message_type: 'group', target_id: '100', sender_id: '1', sender_name: 'A', content: 'hi', time: 1 })
+    await store.upsertMessage({ message_type: 'group', target_id: '100', sender_id: '1', sender_name: 'A', content: 'hi2', time: 2 })
+    const convs = await store.getConversations()
+    assert.equal(convs[0].unread, 2)
+  })
+
+  it('进会话清零未读；查看中/自己发的不累计', async () => {
+    await store.upsertMessage({ message_type: 'group', target_id: '100', sender_id: '1', sender_name: 'A', content: 'hi', time: 1 })
+    assert.equal(store.getUnread('100'), 1)
+    // 进入会话：未读清零
+    store.setActiveChat('100')
+    assert.equal(store.getUnread('100'), 0)
+    // 查看中来的消息、自己发的消息都不累计
+    await store.upsertMessage({ message_type: 'group', target_id: '100', sender_id: '1', sender_name: 'A', content: '看的时候来', time: 2 })
+    await store.upsertMessage({ message_type: 'group', target_id: '100', sender_id: 'me', sender_name: '我', content: '我发的', time: 3, is_self: true })
+    assert.equal(store.getUnread('100'), 0)
+    store.markRead('100')
+    assert.equal(store.getUnread('100'), 0)
+  })
+
+  it('at_me 标记到会话并可清除', async () => {
+    await store.upsertMessage({ message_type: 'group', target_id: '100', sender_id: '1', sender_name: 'A', content: '@我', time: 1, at_me: true })
+    let convs = await store.getConversations()
+    assert.equal(convs[0].at_me, true)
+    store.clearAtMe('100')
+    convs = await store.getConversations()
+    assert.equal(convs[0].at_me, false)
+  })
 })
 
-test('messageId 去重：回放幂等（v1.1.1 冷启动修复）', () => {
-  freshStore()
-  store.upsertMessage(BASE)
-  const r = store.upsertMessage(BASE) // 重复投递
-  assert.equal(r, 'dup')
-  assert.equal(store.getMessages('802072961').length, 1)
-  const convs = store.getConversationList()
-  assert.equal(convs[0].unread, 1) // 未读不重复累加
-})
+describe('协议扩展字段与时间工具', () => {
+  it('decodePush 透传 at_me 与 thumb', () => {
+    const frame = protocol.decodePush({
+      type: 'push_message', message_type: 'group', target_id: '100', sender_id: '1',
+      sender_name: 'A', target_name: '群', content: 'x', time: 5, is_self: false,
+      at_me: true, thumb: 'data:image/jpeg;base64,QUJD'
+    })
+    assert.equal(frame.at_me, true)
+    assert.equal(frame.thumb, 'data:image/jpeg;base64,QUJD')
+    const plain = protocol.decodePush({
+      type: 'push_message', message_type: 'group', target_id: '100', sender_id: '1',
+      sender_name: 'A', target_name: '群', content: 'x', time: 5, is_self: false
+    })
+    assert.equal(plain.at_me, false)
+    assert.equal(plain.thumb, '')
+  })
 
-test('self-echo 合并：服务器回显并入乐观回显', () => {
-  freshStore()
-  const t = Date.now()
-  // 乐观回显（messageId=0）
-  store.upsertMessage({ ...BASE, messageId: 0, content: '测试', time: t, isSelf: true })
-  // 服务器推回（messageId>0, time 接近）
-  const r = store.upsertMessage({ ...BASE, messageId: 555, content: '测试', time: t + 500, isSelf: true })
-  assert.equal(r, 'updated')
-  const msgs = store.getMessages('802072961')
-  assert.equal(msgs.length, 1)
-  assert.equal(msgs[0].message_id, 555)
-})
+  it('needTimeSplit 按 5 分钟阈值', () => {
+    assert.equal(protocol.needTimeSplit(0, 1000), true)
+    assert.equal(protocol.needTimeSplit(1000, 1000 + 4 * 60 * 1000), false)
+    assert.equal(protocol.needTimeSplit(1000, 1000 + 5 * 60 * 1000), true)
+  })
 
-test('自消息 sender 修正：不使用会话ID（旧 bug）', () => {
-  freshStore()
-  store.setMyProfile('2308534727', '一秋')
-  store.upsertMessage({ ...BASE, content: '6', time: Date.now(), isSelf: true })
-  const msg = store.getMessages('802072961')[0]
-  assert.equal(msg.sender_id, '2308534727')
-  assert.equal(msg.sender_name, '一秋')
-  assert.notEqual(msg.sender_id, '802072961')
-})
+  it('formatListTime 今天/昨天/日期', () => {
+    const now = new Date()
+    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime()
+    const hm = protocol.formatListTime(dayStart + 3600 * 1000 * 9)
+    assert.match(hm, /^\d{2}:\d{2}$/)
+    assert.equal(protocol.formatListTime(dayStart - 86400000 + 1000), '昨天')
+    assert.match(protocol.formatListTime(dayStart - 3 * 86400000), /^\d+\/\d+$/)
+  })
 
-test('@我：会话标记 + 消息标记 + 未读', () => {
-  freshStore()
-  store.upsertMessage({ ...BASE, atMe: true })
-  const convs = store.getConversationList()
-  assert.equal(convs[0].atMe, true)
-  const msg = store.getMessages('802072961')[0]
-  assert.equal(msg.at_me, true)
-  assert.equal(convs[0].unread, 1)
-})
-
-test('活跃会话不累计未读，markRead 清零', () => {
-  freshStore()
-  store.setActiveChat('802072961')
-  store.upsertMessage(BASE)
-  assert.equal(store.getConversationList()[0].unread, 0)
-  store.setActiveChat(null)
-  store.upsertMessage({ ...BASE, messageId: 1002 })
-  assert.equal(store.getConversationList()[0].unread, 1)
-  store.markRead('802072961')
-  assert.equal(store.getConversationList()[0].unread, 0)
-})
-
-test('sanitizeLegacy: 群会话 private+is_self+sender_id==会话ID 残留被清理', async () => {
-  freshStore()
-  // 模拟旧 bug 数据
-  store.messages['194636275'] = [
-    { message_id: 1, message_type: 'private', sender_id: '194636275', sender_name: 'x', content: '测式', time: 1700000000000, is_self: true },
-    { message_id: 2, message_type: 'group', sender_id: '777', sender_name: '我的世界一秋小镇', content: '测式', time: 1700000005000, is_self: false }
-  ]
-  // schema_ver 未设置 -> 会清理
-  const changed = await store.sanitizeLegacy()
-  assert.equal(changed, true)
-  const list = store.messages['194636275']
-  assert.equal(list.length, 1)
-  assert.equal(list[0].message_type, 'group')
-})
-
-test('prependOlder: 翻页合并去重', () => {
-  freshStore()
-  store.upsertMessage(BASE)
-  const added = store.prependOlder('802072961', [
-    { message_id: 900, message_type: 'group', sender_id: '1', sender_name: 'a', content: '旧1', time: 1699999000, is_self: false },
-    { message_id: 1001, message_type: 'group', sender_id: '555', sender_name: '小明', content: '你好', time: 1700000000, is_self: false } // 与现有重复
-  ])
-  assert.equal(added, 1)
-  const list = store.getMessages('802072961')
-  assert.equal(list.length, 2)
-  assert.equal(list[0].content, '旧1') // 时间升序
-})
-
-test('protocol.decodePush: message/history/list/state', () => {
-  const m = protocol.decodePush(JSON.stringify({
-    type: 'message', message_id: 9, chat_type: 'group', target_id: '100',
-    sender_id: '1', sender_name: 'n', content: 'hi', time: 1700000000,
-    is_self: false, at_me: true, thumb: 'AAAA'
-  }))
-  assert.equal(m.type, 'message')
-  assert.equal(m.data.messageId, 9)
-  assert.equal(m.data.atMe, true)
-  assert.equal(m.data.thumb, 'AAAA')
-  assert.equal(store.normTime(m.data.time), 1700000000000)
-
-  const h = protocol.decodePush(JSON.stringify({
-    type: 'history', mode: 'older', target_id: '100', has_more: true,
-    messages: [{ message_id: 1, message_type: 'group', sender_id: '1', sender_name: 'a', content: 'x', time: 1700000000000, is_self: false }]
-  }))
-  assert.equal(h.type, 'history')
-  assert.equal(h.data.mode, 'older')
-  assert.equal(h.data.hasMore, true)
-
-  const l = protocol.decodePush(JSON.stringify({ type: 'list', contacts: [{ id: '1', type: 'group', name: 'g' }] }))
-  assert.equal(l.data.length, 1)
-
-  const s = protocol.decodePush(JSON.stringify({ type: 'state', connected: true }))
-  assert.equal(s.data.connected, true)
-})
-
-test('protocol.needTimeSplit: 5 分钟阈值（Stapxs 逻辑）', () => {
-  assert.equal(protocol.needTimeSplit(0, 1700000000000), true)
-  assert.equal(protocol.needTimeSplit(1700000000000, 1700000000000 + 5 * 60 * 1000), true)
-  assert.equal(protocol.needTimeSplit(1700000000000, 1700000000000 + 5 * 60 * 1000 - 1), false)
-})
-
-test('protocol.formatTime: 今天/昨天', () => {
-  const now = new Date()
-  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 9, 30).getTime()
-  assert.ok(/^\d{2}:\d{2}$/.test(protocol.formatTime(today)))
-  const yesterday = today - 86400000
-  assert.equal(protocol.formatTime(yesterday), '昨天')
-})
-
-test('encodeGetHistory 翻页参数', () => {
-  const f = JSON.parse(protocol.encodeGetHistory('100', 'group', 20, { older: true, beforeTime: 1700000000000 }))
-  assert.equal(f.older, true)
-  assert.equal(f.before_time, 1700000000000)
-  assert.equal(f.limit, 20)
-})
-
-test('会话列表稳定排序（同秒按 id，不抖动）', () => {
-  freshStore()
-  store.upsertMessage({ ...BASE, targetId: '200', time: 1700000000 })
-  store.upsertMessage({ ...BASE, targetId: '100', time: 1700000000 })
-  const convs = store.getConversationList()
-  assert.equal(convs[0].id, '100')
-  assert.equal(convs[1].id, '200')
+  it('getHistory 支持翻页参数且不影响普通帧', () => {
+    const normal = protocol.getHistory('100', 20)
+    assert.equal(normal.older, undefined)
+    const older = protocol.getHistory('100', 20, { older: true, beforeTime: 12345 })
+    assert.equal(older.older, true)
+    assert.equal(older.before_time, 12345)
+  })
 })

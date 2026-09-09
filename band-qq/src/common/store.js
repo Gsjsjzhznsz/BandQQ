@@ -1,311 +1,365 @@
-/**
- * BandQQ 手环端数据层 v1.1.1
- * - 消息/会话持久化（storage key: chat_messages / contact_cache / schema_ver）
- * - v1.1.1: messageId 去重（冷启动回放幂等）、自消息 sender 修正、串行写队列防竞态
- * - v1.1: @我标记、未读计数、缩略图缓存、我的资料
- * - v1.0: schema v2 旧数据自动清理
- */
+import protocol from './protocol.js'
+const { degradeContent, stripEmoji } = protocol
 
-export const SCHEMA_VER = 2
+const MAX_CONVERSATIONS = 50
+const MAX_MESSAGES = 100
+// v1.1.1：持久化上限加大（此前仅 30 条/10 会话，冷启动后丢消息明显）
+const CACHE_CONVERSATIONS = 20
+const CACHE_MESSAGES = 60
+const CONV_KEY = 'conv_cache'
+const MSG_PREFIX = 'msg_cache_'
+const VISIBLE_KEY = 'visible_contacts'
+const SCHEMA_KEY = 'store_schema_ver'
+const PROFILE_KEY = 'my_profile'
+const SCHEMA_VER = 2  // v2: 清理旧版群消息误判 private 的重复记录
 
-let storageImpl = null // { get(key): Promise<string|null>, set(key, value): Promise<void> }
-const memStore = new Map() // Node 测试 / storage 未就绪兜底
-
-function defaultStorage() {
+function createStorageAdapter(storageImpl) {
+  const st = storageImpl || null
   return {
-    get(key) {
-      try {
-        if (typeof require === 'function') {
-          const storage = require('@system.storage')
-          return new Promise((resolve) => {
-            storage.get({ key, success: (v) => resolve(v == null ? null : v), fail: () => resolve(null) })
-          })
-        }
-      } catch (e) { /* Node 环境 */ }
-      return Promise.resolve(memStore.has(key) ? memStore.get(key) : null)
+    get(key, def) {
+      return new Promise((resolve) => {
+        if (st) { st.get({ key: key, default: def, success: (v) => resolve(v), fail: () => resolve(def) }); return }
+        resolveSystemStorage().then((sys) => {
+          sys.get({ key: key, default: def, success: (v) => resolve(v), fail: () => resolve(def) })
+        }).catch(() => resolve(def))
+      })
     },
     set(key, value) {
-      try {
-        if (typeof require === 'function') {
-          const storage = require('@system.storage')
-          return new Promise((resolve) => {
-            storage.set({ key, value, success: () => resolve(), fail: () => resolve() })
-          })
+      return new Promise((resolve) => {
+        if (st) { st.set({ key: key, value: value, success: () => resolve(), fail: () => resolve() }); return }
+        resolveSystemStorage().then((sys) => {
+          sys.set({ key: key, value: value, success: () => resolve(), fail: () => resolve() })
+        }).catch(() => resolve())
+      })
+    }
+  }
+}
+
+let systemStorage = null
+function resolveSystemStorage() {
+  if (!systemStorage) {
+    try {
+      systemStorage = require('@system.storage')
+    } catch (e) {
+      systemStorage = null
+    }
+  }
+  return Promise.resolve(systemStorage)
+}
+
+export function createStore(storageImpl) {
+  const cache = createStorageAdapter(storageImpl)
+  let conversations = []
+  let visibleContacts = []
+  let connectState = null
+  const messagesByTarget = {}
+  let initPromise = null
+  // 未读计数：仅内存态（重启清零等同已读，符合手表轻量习惯）
+  const unreadByTarget = {}
+  // 缩略图内存缓存 key: targetId|time（不持久化）
+  const thumbsByTarget = {}
+  // 当前正在查看的会话：查看中的新消息不计未读
+  let activeChatId = null
+  let myProfile = null
+
+  /**
+   * 旧版 bug 数据清理（schema v2）：
+   * 旧版 compose 硬编码 private 发送，群会话里残留
+   * 「private + is_self + sender_id==会话ID」的错误记录（与紧随的 group 正确记录重复）。
+   * 规则：group 会话中，删除 is_self 且 message_type==='private' 且 sender_id===会话ID 的消息；
+   * 另对相邻 is_self 重复（同内容、|Δt|≤5s、一 private 一 group）删除 private 那条。
+   */
+  async function sanitizeLegacy(targetId) {
+    const raw = await cache.get(MSG_PREFIX + targetId, '[]')
+    let msgs
+    try { msgs = JSON.parse(raw) } catch (e) { return }
+    if (!Array.isArray(msgs) || msgs.length === 0) return
+    const convType = (conversations.find((c) => c.id === targetId) || {}).type
+    const cleaned = []
+    for (let i = 0; i < msgs.length; i++) {
+      const m = msgs[i]
+      const next = msgs[i + 1]
+      const bogusPrivate = m.is_self && m.message_type === 'private' &&
+        ((convType === 'group' && String(m.sender_id) === String(targetId)) ||
+         (next && next.is_self && next.message_type === 'group' &&
+          next.content === m.content && Math.abs((next.time || 0) - (m.time || 0)) <= 5000))
+      if (!bogusPrivate) cleaned.push(m)
+    }
+    if (cleaned.length !== msgs.length) {
+      await cache.set(MSG_PREFIX + targetId, JSON.stringify(cleaned.slice(-CACHE_MESSAGES)))
+    }
+  }
+
+  return {
+    lastTarget: null,
+    setLastTarget(t) {
+      this.lastTarget = t || null
+    },
+    getLastTarget() {
+      return this.lastTarget
+    },
+    sendStatus: { text: '', ts: 0 },
+    setSendStatus(text) {
+      this.sendStatus = { text, ts: Date.now() }
+    },
+    getSendStatus() {
+      return this.sendStatus
+    },
+    async init() {
+      if (initPromise) return initPromise
+      initPromise = (async () => {
+        const convRaw = await cache.get(CONV_KEY, '[]')
+        try {
+          conversations = JSON.parse(convRaw).filter((c) => c && c.id !== '' && c.id !== null && c.id !== undefined && c.id !== 'undefined')
+        } catch (e) {
+          conversations = []
         }
-      } catch (e) { /* Node 环境 */ }
-      memStore.set(key, value)
-      return Promise.resolve()
-    }
-  }
-}
-
-export function setStorageAdapter(impl) { storageImpl = impl }
-
-function getStorage() {
-  if (!storageImpl) storageImpl = defaultStorage()
-  return storageImpl
-}
-
-export function normTime(t) {
-  if (t == null) return 0
-  return t < 100000000000 ? t * 1000 : t // OneBot 秒 -> 毫秒
-}
-
-// ============ 状态 ============
-export const messages = {}        // targetId -> [ {message_id?, message_type, sender_id, sender_name, content, time(ms), is_self} ]
-export const conversations = {}   // targetId -> { id, type, name, lastContent, lastTime, unread, atMe }
-export const unreadByTarget = {}  // 内存：未读计数
-export const thumbsByTarget = {}  // 内存：缩略图 base64
-export const myProfile = { userId: '', nickname: '' }
-let activeChat = null
-let loaded = false
-let saveTimer = null
-let saveChain = Promise.resolve()
-
-export function setMyProfile(userId, nickname) {
-  if (userId) myProfile.userId = String(userId)
-  if (nickname) myProfile.nickname = nickname
-}
-
-export function setActiveChat(targetId) {
-  activeChat = targetId
-  if (targetId && unreadByTarget[targetId]) {
-    unreadByTarget[targetId] = 0
-    const conv = conversations[targetId]
-    if (conv) conv.unread = 0
-  }
-}
-
-export function markRead(targetId) {
-  setActiveChat(targetId)
-}
-
-// ============ 旧数据清理（schema v2）============
-// 旧版 bug：群会话中出现 private+is_self+sender_id==会话ID 的残留条目，
-// 及同一内容相邻双写（|Δt|<=5s，一条 private 一条 group）。删除 private 条目。
-export async function sanitizeLegacy() {
-  const ver = parseInt((await getStorage().get('schema_ver')) || '0', 10)
-  if (ver >= SCHEMA_VER) return false
-  let removed = 0
-  for (const tid in messages) {
-    const list = messages[tid]
-    for (let i = list.length - 1; i >= 0; i--) {
-      const m = list[i]
-      const isGroup = m.message_type === 'group'
-      const legacyPrivate = isGroup === false && m.is_self === true && m.sender_id === tid
-      if (legacyPrivate) { list.splice(i, 1); removed++; continue }
-      // 相邻双写：当前 private + 相邻 group 同内容
-      if (m.message_type === 'private') {
-        const prev = list[i - 1]
-        const next = list[i + 1]
-        const near = [prev, next].find((x) => x && x.message_type === 'group' && x.content === m.content && Math.abs(normTime(x.time) - normTime(m.time)) <= 5000)
-        if (near) { list.splice(i, 1); removed++ }
-      }
-    }
-  }
-  await getStorage().set('schema_ver', String(SCHEMA_VER))
-  await scheduleSave()
-  return removed > 0
-}
-
-// ============ 持久化（串行写队列）============
-function serializeMessages() {
-  const out = {}
-  for (const tid in messages) {
-    out[tid] = (messages[tid] || []).slice(-200).map((m) => {
-      // 持久化剥离 display-only 字段（thumb 走内存），保留 message_id 用于去重
-      const { thumb, ...rest } = m
-      return rest
-    })
-  }
-  return JSON.stringify(out)
-}
-
-function serializeContacts() {
-  const arr = []
-  for (const tid in conversations) {
-    const c = conversations[tid]
-    arr.push({ id: c.id, type: c.type, name: c.name })
-  }
-  return JSON.stringify(arr)
-}
-
-export function scheduleSave() {
-  // 300ms 防抖 + 串行链，避免快速消息竞态覆盖
-  if (saveTimer) return
-  saveTimer = setTimeout(async () => {
-    saveTimer = null
-    const snapshotMsg = serializeMessages()
-    const snapshotContacts = serializeContacts()
-    saveChain = saveChain
-      .then(() => getStorage().set('chat_messages', snapshotMsg))
-      .then(() => getStorage().set('contact_cache', snapshotContacts))
-      .catch(() => {})
-  }, 300)
-}
-
-export async function loadFromStorage() {
-  const rawMsg = await getStorage().get('chat_messages')
-  const rawContacts = await getStorage().get('contact_cache')
-  try {
-    if (rawMsg) {
-      const root = JSON.parse(rawMsg)
-      for (const tid in root) {
-        messages[tid] = (root[tid] || []).map((m) => ({ ...m, time: normTime(m.time) }))
-      }
-    }
-    if (rawContacts) {
-      const arr = JSON.parse(rawContacts)
-      for (const c of arr || []) {
-        if (c && c.id) {
-          conversations[c.id] = conversations[c.id] || {
-            id: c.id, type: c.type || 'group', name: c.name || c.id,
-            lastContent: '', lastTime: 0, unread: 0, atMe: false
+        const visibleRaw = await cache.get(VISIBLE_KEY, '[]')
+        try {
+          visibleContacts = JSON.parse(visibleRaw).filter((c) => c && c.id !== '' && c.id !== null && c.id !== undefined && c.id !== 'undefined')
+        } catch (e) {
+          visibleContacts = []
+        }
+        // schema 版本检查：旧版本数据自动清理一次（升级自动清理）
+        const ver = parseInt(await cache.get(SCHEMA_KEY, '1'), 10) || 1
+        if (ver < SCHEMA_VER) {
+          for (const c of conversations) {
+            try { await sanitizeLegacy(c.id) } catch (e) { console.error('sanitize fail', c.id, e) }
           }
-          conversations[c.id].name = c.name || conversations[c.id].name
-          conversations[c.id].type = c.type || conversations[c.id].type
+          await cache.set(SCHEMA_KEY, String(SCHEMA_VER))
+        }
+        // 我的资料（@我提醒/账号展示用）
+        try { myProfile = JSON.parse(await cache.get(PROFILE_KEY, 'null')) } catch (e) { myProfile = null }
+      })()
+      return initPromise
+    },
+    setMyProfile(p) {
+      myProfile = p || null
+      cache.set(PROFILE_KEY, JSON.stringify(myProfile || null))
+    },
+    getMyProfile() {
+      return myProfile
+    },
+    setActiveChat(targetId) {
+      activeChatId = targetId || null
+      if (activeChatId) unreadByTarget[activeChatId] = 0
+    },
+    markRead(targetId) {
+      unreadByTarget[targetId] = 0
+    },
+    getUnread(targetId) {
+      return unreadByTarget[targetId] || 0
+    },
+    getThumb(targetId, time) {
+      return thumbsByTarget[targetId + '|' + time] || null
+    },
+    clearAtMe(targetId) {
+      const c = conversations.find((x) => x.id === targetId)
+      if (c) c.at_me = false
+    },
+    // 确保任何读取前缓存行初始化完成，避免冷启动时拿到空列表并被清空
+    async ensureInit() {
+      await this.init()
+    },
+    async setConversations(list) {
+      await this.ensureInit()
+      let incoming = Array.isArray(list) ? list.map((c) => Object.assign({}, c, { name: stripEmoji(c.name || '') })) : []
+      incoming = incoming.filter((c) => c.id !== '' && c.id !== null && c.id !== undefined && c.id !== 'undefined')
+      let merged = incoming.slice()
+      const byId = new Map(merged.map((c) => [c.id, c]))
+      for (const vc of visibleContacts) {
+        if (vc.id && vc.id !== '' && !byId.has(vc.id)) {
+          merged.push({ id: vc.id, type: vc.type, name: vc.name, last_msg: '', time: 0, is_temporary: false })
         }
       }
+      conversations = merged
+      conversations.sort((a, b) => (b.time || 0) - (a.time || 0))
+      const slice = conversations.slice(0, CACHE_CONVERSATIONS)
+      await cache.set(CONV_KEY, JSON.stringify(slice))
+    },
+    async getConversations() {
+      await this.ensureInit()
+      const hasUnmatched = visibleContacts.some((vc) => vc.id && vc.id !== '' && !conversations.some((c) => c.id === vc.id))
+      let result = hasUnmatched
+        ? conversations.concat(
+            visibleContacts
+              .filter((vc) => vc.id && vc.id !== '' && !conversations.some((c) => c.id === vc.id))
+              .map((vc) => ({ id: vc.id, type: vc.type, name: vc.name, last_msg: '', time: 0, is_temporary: false }))
+          )
+        : conversations.slice()
+      // Stapxs 式排序：有消息的会话按最新时间降序（自动置顶最新），空会话垫底
+      result.sort((a, b) => {
+        const ta = a.time || 0
+        const tb = b.time || 0
+        if ((ta > 0) !== (tb > 0)) return ta > 0 ? -1 : 1
+        return tb - ta
+      })
+      // 附带未读数与 [@我] 标记（列表角标）
+      return result.map((c) => Object.assign({}, c, {
+        unread: unreadByTarget[c.id] || 0,
+        at_me: !!(c && c.at_me)
+      }))
+    },
+    async getMessages(targetId) {
+      await this.ensureInit()
+      const msgs = messagesByTarget[targetId]
+      if (msgs) {
+        // 读取时也按 time 升序兜底，兼容早期缓存里未排序的数据
+        if (msgs.length > 1) msgs.sort((a, b) => (a.time || 0) - (b.time || 0))
+        return msgs
+      }
+      const raw = await cache.get(MSG_PREFIX + targetId, '[]')
+      try {
+        messagesByTarget[targetId] = JSON.parse(raw)
+        if (messagesByTarget[targetId].length > 1) {
+          messagesByTarget[targetId].sort((a, b) => (a.time || 0) - (b.time || 0))
+        }
+      } catch (e) {
+        messagesByTarget[targetId] = []
+      }
+      return messagesByTarget[targetId]
+    },
+    async setMessages(targetId, list) {
+      await this.ensureInit()
+      // 合并而非覆盖：history_list 可能晚于 push_message 到达，
+      // 直接用历史覆盖会丢失刚到的新消息。按 time+content 去重合并，保留全部。
+      const existing = messagesByTarget[targetId] || []
+      const seen = {}
+      const merged = []
+      for (const m of existing) {
+        const k = (m && m.time) + '|' + (m && m.content !== undefined ? m.content : '')
+        if (!seen[k]) { seen[k] = true; merged.push(m) }
+      }
+      if (Array.isArray(list)) {
+        for (const m of list) {
+          const k = (m && m.time) + '|' + (m && m.content !== undefined ? m.content : '')
+          if (!seen[k]) { seen[k] = true; merged.push(m) }
+        }
+      }
+      merged.sort((a, b) => (a.time || 0) - (b.time || 0))
+      const sliced = merged.slice(-MAX_MESSAGES)
+      messagesByTarget[targetId] = sliced
+      await cache.set(MSG_PREFIX + targetId, JSON.stringify(sliced.slice(-CACHE_MESSAGES)))
+    },
+    async upsertMessage(msg) {
+      await this.ensureInit()
+      const content = typeof msg.content === 'string' ? msg.content : degradeContent(msg.content)
+      const senderName = stripEmoji(msg.sender_name || '')
+      const targetName = stripEmoji(msg.target_name || '')
+      // 统一字符串键：防止手机端数字 id 与本地字符串 id 不一致产生双份会话/消息
+      const key = msg.target_id === undefined || msg.target_id === null ? '' : String(msg.target_id)
+      if (!key || key === '' || key === 'undefined') return
+      const isTemp = !(msg.visible !== false && this.isVisible(msg.target_id))
+      // 缩略图仅内存态：持久化时剔除，避免 base64 撑爆 storage
+      if (msg.thumb) thumbsByTarget[key + '|' + (msg.time || 0)] = msg.thumb
+      const messages = messagesByTarget[key] || []
+      // push 重复时去重（手机端可能因监听器叠加重复推送同一消息）
+      const dk = (msg.time || Date.now()) + '|' + content
+      if (!messages.some((m) => (m.time || '') + '|' + m.content === dk)) {
+        messages.push({
+          message_type: msg.message_type,
+          sender_id: msg.sender_id,
+          sender_name: senderName,
+          content: content,
+          is_self: msg.is_self === true,
+          at_me: msg.at_me === true,
+          time: msg.time || Date.now()
+        })
+        // 按时间升序排列，保证消息顺序不乱（秒/毫秒混用也统一比较）
+        messages.sort((a, b) => (a.time || 0) - (b.time || 0))
+        while (messages.length > MAX_MESSAGES) messages.shift()
+        messagesByTarget[key] = messages
+        // 持久化时剥离缩略图（thumb 不落盘）
+        await cache.set(MSG_PREFIX + key, JSON.stringify(messages.slice(-CACHE_MESSAGES).map((m) => {
+          const c = Object.assign({}, m); delete c.thumb; return c
+        })))
+        // 未读累计：非自己发的、且不在当前查看会话时 +1
+        if (msg.is_self !== true && key !== activeChatId) {
+          unreadByTarget[key] = (unreadByTarget[key] || 0) + 1
+        }
+      } else if (msg.thumb) {
+        // 补图：同一消息第二次携带缩略图到达时合并进内存
+        const hit = messages.find((m) => (m.time || '') + '|' + m.content === dk)
+        if (hit && !hit.thumb) hit.thumb = msg.thumb
+      }
+
+      const idx = conversations.findIndex((c) => c.id === key)
+      const conv = {
+        id: key,
+        type: msg.message_type,
+        name: targetName || (msg.is_self && !targetName ? key : senderName) || key,
+        last_msg: content,
+        time: msg.time || Date.now(),
+        is_temporary: isTemp,
+        // @我 标记（列表显示 [@我] 标签，进会话后清除）
+        at_me: msg.at_me === true && msg.is_self !== true
+      }
+      if (idx >= 0) {
+        // 保留既有 at_me（多人在同一会话 @我 时不清除）
+        conv.at_me = conv.at_me || conversations[idx].at_me === true
+        conversations.splice(idx, 1)
+      }
+      conversations.unshift(conv)
+      while (conversations.length > MAX_CONVERSATIONS) conversations.pop()
+      await cache.set(CONV_KEY, JSON.stringify(conversations.slice(0, CACHE_CONVERSATIONS).map((c) => {
+        const cp = Object.assign({}, c); delete cp.unread; delete cp.at_me; return cp
+      })))
+    },
+    async setVisibleContacts(list) {
+      await this.ensureInit()
+      let incoming = Array.isArray(list)
+        ? list.map((c) => Object.assign({}, c, { name: stripEmoji(c.name || ''), id: c && c.id !== undefined && c.id !== null ? String(c.id) : '' }))
+        : []
+      incoming = incoming.filter((c) => c.id !== '' && c.id !== 'null' && c.id !== 'undefined')
+      // 同步到空列表时不覆盖已存在的联系人骨架，避免未连接/时序问题导致本地联系人被清空
+      if (incoming.length === 0 && visibleContacts.length > 0) return
+      visibleContacts = incoming
+      const visibleIds = new Set(visibleContacts.map((c) => String(c.id)))
+      const remaining = conversations.filter((c) => !c.is_temporary)
+      conversations = remaining.filter((c) => visibleIds.has(String(c.id)))
+      for (const c of visibleContacts) {
+        if (!conversations.some((x) => x.id === c.id)) {
+          conversations.push({ id: c.id, type: c.type, name: c.name, last_msg: '', time: 0, is_temporary: false })
+        }
+      }
+      const msgKeys = Object.keys(messagesByTarget)
+      msgKeys.forEach((k) => {
+        // v1.1.1 防误删：统一 String 比较（数字/字符串 id 混用曾导致全部本地消息被误清）；
+        // 当前查看中的会话消息永不删除
+        if (!visibleIds.has(String(k)) && String(k) !== String(activeChatId || '')) {
+          delete messagesByTarget[k]
+          cache.set(MSG_PREFIX + k, JSON.stringify([]))
+        }
+      })
+      await cache.set(VISIBLE_KEY, JSON.stringify(visibleContacts))
+      await cache.set(CONV_KEY, JSON.stringify(conversations.slice(0, CACHE_CONVERSATIONS)))
+    },
+    async getVisibleContacts() {
+      await this.ensureInit()
+      return visibleContacts
+    },
+    setConnectState(state) {
+      connectState = state || null
+    },
+    getConnectState() {
+      return connectState
+    },
+    isVisible(id) {
+      // String 归一比较：与 setVisibleContacts/upsertMessage 的字符串键保持一致
+      const s = id === undefined || id === null ? '' : String(id)
+      return visibleContacts.some((c) => String(c.id) === s)
+    },
+    async clearAllMessages() {
+      const keys = Object.keys(messagesByTarget)
+      keys.forEach((k) => { delete messagesByTarget[k] })
+      Object.keys(unreadByTarget).forEach((k) => { delete unreadByTarget[k] })
+      Object.keys(thumbsByTarget).forEach((k) => { delete thumbsByTarget[k] })
+      conversations = []
+      await cache.set(CONV_KEY, JSON.stringify([]))
+      for (const k of keys) await cache.set(MSG_PREFIX + k, JSON.stringify([]))
     }
-  } catch (e) { /* 损坏数据忽略 */ }
-  loaded = true
-  await sanitizeLegacy()
-  return true
+  }
 }
 
-export function isLoaded() { return loaded }
-
-// ============ 消息入库 ============
-function touchConversation(m) {
-  const conv = conversations[m.targetId] || (conversations[m.targetId] = {
-    id: m.targetId, type: m.chatType, name: '', lastContent: '', lastTime: 0, unread: 0, atMe: false
-  })
-  conv.type = m.chatType || conv.type
-  // 名称：优先事件携带的 sender_name（群名片），保持稳定（回放不覆盖已有名）
-  if (!conv.name && m.senderName) conv.name = m.senderName
-  if (m.isSelf && !conv.name && m.senderName) conv.name = m.senderName
-  return conv
-}
-
-/**
- * 消息入库（推送 / 回放 / 乐观回显共用）。
- * @param m {messageId?, chatType, targetId, senderId, senderName, content, time, isSelf, atMe?, thumb?}
- * @return 'new' | 'dup' | 'updated'
- */
-export function upsertMessage(m) {
-  const list = messages[m.targetId] || (messages[m.targetId] = [])
-  // 1) messageId 去重：回放与实时重复投递幂等
-  if (m.messageId && m.messageId > 0) {
-    const dup = list.find((x) => x.message_id === m.messageId && x.message_id > 0)
-    if (dup) {
-      // 已看过 -> 仅补缩略图，不加未读
-      if (m.thumb && !thumbsByTarget[m.targetId]) thumbsByTarget[m.targetId] = m.thumb
-      return 'dup'
-    }
-  }
-  // 1.5) self-echo 合并：自己发的内容，服务器回显（message_id>0）应并入 5s 内同内容乐观条目
-  if (m.isSelf && m.messageId && m.messageId > 0) {
-    const t0 = normTime(m.time)
-    const cand = list.find((x) => x.is_self && x.content === (m.content || '') && Math.abs(x.time - t0) <= 5000 && (!x.message_id || x.message_id === 0))
-    if (cand) {
-      cand.message_id = m.messageId
-      cand.time = t0
-      scheduleSave()
-      return 'updated'
-    }
-  }
-  // 2) 自消息 sender 修正：is_self 时用我的资料，避免 sender_id 被填成会话ID（旧 bug）
-  const msg = {
-    message_id: m.messageId || 0,
-    message_type: m.chatType,
-    sender_id: m.isSelf ? (myProfile.userId || '') : m.senderId,
-    sender_name: m.isSelf ? (myProfile.nickname || '我') : (m.senderName || m.senderId || ''),
-    content: m.content || '',
-    time: normTime(m.time),
-    is_self: !!m.isSelf,
-    at_me: !!m.atMe && !m.isSelf
-  }
-  list.push(msg)
-  if (list.length > 200) list.splice(0, list.length - 200)
-
-  // 3) 会话摘要 + 未读 + @我
-  const conv = touchConversation({ ...m, senderName: msg.sender_name })
-  const wasLatest = msg.time >= conv.lastTime
-  if (wasLatest) {
-    conv.lastTime = msg.time
-    conv.lastContent = msg.content
-    if (m.atMe && !m.isSelf) conv.atMe = true
-  }
-  if (!m.isSelf) {
-    if (activeChat !== m.targetId) {
-      unreadByTarget[m.targetId] = (unreadByTarget[m.targetId] || 0) + 1
-      conv.unread = unreadByTarget[m.targetId]
-    } else {
-      unreadByTarget[m.targetId] = 0
-      conv.unread = 0
-    }
-  }
-  if (m.thumb) thumbsByTarget[m.targetId] = m.thumb
-  scheduleSave()
-  return 'new'
-}
-
-// ============ 会话列表 ============
-export function getConversationList() {
-  const arr = []
-  for (const tid in conversations) {
-    const c = conversations[tid]
-    const list = messages[tid] || []
-    const last = list.length ? list[list.length - 1] : null
-    arr.push({
-      id: c.id,
-      type: c.type,
-      name: c.name || c.id,
-      lastContent: last ? last.content : (c.lastContent || ''),
-      lastTime: last ? last.time : (c.lastTime || 0),
-      lastSender: last ? last.sender_name : '',
-      unread: unreadByTarget[tid] || 0,
-      atMe: !!c.atMe
-    })
-  }
-  // 稳定排序：时间降序，同秒按 id 保证不抖动
-  arr.sort((a, b) => (b.lastTime - a.lastTime) || (a.id < b.id ? -1 : 1))
-  return arr
-}
-
-export function getMessages(targetId) {
-  return messages[targetId] || []
-}
-
-/** 翻页合并：mode=older 时将更早消息按 messageId 去重插入头部 */
-export function prependOlder(targetId, incoming) {
-  const list = messages[targetId] || (messages[targetId] = [])
-  let added = 0
-  for (const m of incoming || []) {
-    const t = normTime(m.time)
-    const mid = m.message_id || 0
-    if (mid > 0 && list.some((x) => x.message_id === mid)) continue
-    if (list.some((x) => x.time === t && x.content === m.content && x.sender_id === (m.sender_id || m.senderId))) continue
-    list.push({
-      message_id: mid,
-      message_type: m.message_type || m.chatType,
-      sender_id: m.sender_id || m.senderId || '',
-      sender_name: m.sender_name || m.senderName || '',
-      content: m.content || '',
-      time: t,
-      is_self: !!m.is_self,
-      at_me: !!m.at_me
-    })
-    added++
-  }
-  list.sort((a, b) => a.time - b.time)
-  scheduleSave()
-  return added
-}
-
-export function resetAll() {
-  for (const k in messages) delete messages[k]
-  for (const k in conversations) delete conversations[k]
-  for (const k in unreadByTarget) delete unreadByTarget[k]
-  scheduleSave()
-}
+const store = createStore()
+export default store

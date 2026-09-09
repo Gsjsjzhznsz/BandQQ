@@ -1,240 +1,301 @@
-<import name="input-method" src="../../components/InputMethod/index.ux"></import>
-
 <template>
   <div class="page">
-    <!-- 顶栏 -->
-    <div class="topbar">
-      <text class="back" onclick="goBack">‹</text>
-      <text class="title">{{name}}</text>
+    <div class="top-row">
+      <image class="btn-back" src="../../common/ui/back.png" onclick="goBack"></image>
     </div>
-
-    <!-- 加载更早 -->
-    <text class="older-bar" onclick="loadOlder">{{olderText}}</text>
-
-    <!-- 消息列表 -->
-    <list class="msg-list" id="msgList">
-      <list-item class="msg-item" for="{{(idx, m) in msgs}}" key="{{m.key}}">
-        <text class="time-split" if="{{m.showTime}}">{{m.timeText}}</text>
-        <div class="row {{m.isSelf ? 'row-self' : 'row-other'}}">
-          <text class="sender" if="{{m.needName}}" style="color: {{m.senderColor}};">{{m.senderName}}</text>
-          <text class="bubble {{m.isSelf ? 'bubble-self' : (m.isAtMe ? 'bubble-atme' : 'bubble-other')}}">{{m.content}}</text>
+    <div class="title-bar">
+      <text class="page-title">{{name}}</text>
+    </div>
+    <div class="send-status" show="{{sendStatus}}">
+      <text class="send-status-text {{sendStatusClass}}">{{sendStatus}}</text>
+    </div>
+    <scroll id="msgList" class="msg-area" scroll-y="true" scroll-top="{{scrollTop}}">
+      <div class="load-older" @click="loadOlder" show="{{!olderEnd || loadingOlder}}">
+        <text class="load-older-text">{{loadingOlder ? '加载中…' : (olderEnd ? '没有更早的消息了' : '↑ 加载更早消息')}}</text>
+      </div>
+      <block for="{{item in viewList}}">
+        <div class="time-tip" if="{{item.tip}}">
+          <text class="time-tip-text">{{item.tip}}</text>
         </div>
-      </list-item>
-    </list>
-
-    <!-- 快捷回复 -->
-    <list class="quick-list" scrollpage="false">
-      <list-item class="quick-item" for="{{(idx, q) in quicks}}" onclick="sendQuick(q)">
-        <text class="quick-text">{{q.label}}</text>
-      </list-item>
-    </list>
-
-    <!-- 草稿预览 -->
-    <text class="draft">{{draftText || '　'}}</text>
-
-    <!-- 输入法 -->
-    <input-method onsend="onImSend" oninput="onImInput" onquick="onImQuick"></input-method>
+        <div class="msg-item {{item.is_self ? 'self' : 'other'}}" else>
+          <div class="msg-col {{item.is_self ? 'col-self' : 'col-other'}}">
+            <text class="msg-name {{item.at_me ? 'name-atme' : ''}}" if="{{item.message_type === 'group' && !item.is_self}}">{{item.sender_name}}</text>
+            <image class="bubble-img" if="{{item.thumb}}" src="{{item.thumb}}"></image>
+            <text class="bubble {{item.is_self ? 'bubble-self' : 'bubble-other'}} {{item.at_me ? 'bubble-atme' : ''}}" else>{{item.content}}</text>
+          </div>
+        </div>
+      </block>
+    </scroll>
+    <scroll class="quick-bar" scroll-x="true">
+      <div class="quick-row">
+        <div class="quick-chip" for="{{q in quickReplies}}" @click="sendQuick(q)">
+          <text class="quick-chip-text">{{q}}</text>
+        </div>
+      </div>
+    </scroll>
+    <div class="input-bar" @click="openCompose">
+      <image class="btn" src="../../common/ui/kb_show.png"></image>
+    </div>
   </div>
 </template>
 
 <style>
-  .page { flex-direction: column; background-color: #101216; }
-  .topbar {
-    height: 28px; flex-direction: row; align-items: center;
-    background-color: #181c23; padding: 0 8px; flex-shrink: 0;
-  }
-  .back { color: #9aa2af; font-size: 18px; margin-right: 8px; width: 18px; }
-  .title { color: #eef1f6; font-size: 14px; lines: 1; text-overflow: ellipsis; flex: 1; }
-  .older-bar {
-    height: 22px; background-color: #161a21; color: #5865f2; font-size: 11px;
-    text-align: center; flex-shrink: 0;
-  }
-  .msg-list { flex: 1; flex-direction: column; }
-  .msg-item { flex-direction: column; justify-content: flex-start; }
-  .time-split {
-    color: #565b64; font-size: 10px; text-align: center;
-    margin-top: 6px; margin-bottom: 4px;
-  }
-  .row { flex-direction: row; align-items: flex-start; padding: 0 8px; margin-top: 3px; }
-  .row-other { justify-content: flex-start; }
-  .row-self { justify-content: flex-end; }
-  .sender { color: #6a707c; font-size: 9px; margin-right: 4px; margin-top: 5px; }
-  .bubble {
-    max-width: 150px; border-radius: 10px; padding: 5px 8px;
-    font-size: 13px; lines: 4; text-overflow: ellipsis;
-  }
-  .bubble-other { background-color: #232830; color: #e8ebf0; }
-  .bubble-self { background-color: #1e7f3f; color: #eafff0; }
-  .bubble-atme { background-color: #232830; color: #ffd7bd; border: 1px solid #e8663c; }
-  .quick-list { height: 24px; flex-direction: row; flex-shrink: 0; background-color: #14171d; }
-  .quick-item {
-    height: 24px; justify-content: center; align-items: center;
-    padding: 0 8px; margin: 0 2px; background-color: #1e242e; border-radius: 4px;
-  }
-  .quick-text { color: #9fb6d9; font-size: 11px; }
-  .draft {
-    height: 16px; color: #cfd3da; font-size: 11px;
-    lines: 1; text-overflow: ellipsis; margin: 1px 8px 0 8px; flex-shrink: 0;
-  }
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
+  .top-row { height: 70px; flex-direction: row; align-items: flex-start; justify-content: center; padding-top: 4px; }
+  .btn { width: 102px; height: 66px; }
+  .btn-back { width: 102px; height: 66px; }
+  .title-bar { height: 32px; flex-direction: row; align-items: center; justify-content: center; }
+  .send-status { height: 24px; flex-direction: row; align-items: center; justify-content: center; }
+  .send-status-text { font-size: 16px; color: #07c160; }
+  .send-fail { color: #ff4d4f; }
+  .page-title { font-size: 22px; color: #ffffff; }
+  .msg-area { height: 238px; flex-direction: column; }
+  .load-older { width: 192px; height: 36px; justify-content: center; align-items: center; flex-shrink: 0; }
+  .load-older-text { font-size: 15px; color: rgba(255, 255, 255, 0.45); }
+  .time-tip { width: 192px; height: 30px; justify-content: center; align-items: center; flex-shrink: 0; }
+  .time-tip-text { font-size: 14px; color: rgba(255, 255, 255, 0.35); }
+  .msg-item { width: 192px; padding: 0 8px; margin-top: 8px; flex-direction: row; flex-shrink: 0; }
+  .self { justify-content: flex-end; }
+  .other { justify-content: flex-start; }
+  .msg-col { flex-direction: column; align-items: flex-start; flex-shrink: 0; max-width: 150px; }
+  .col-self { align-items: flex-end; }
+  .col-other { align-items: flex-start; }
+  .msg-name { font-size: 14px; color: rgba(255, 255, 255, 0.55); margin-bottom: 4px; }
+  .name-atme { color: #ff9800; }
+  .bubble { max-width: 150px; padding: 7px 10px; border-radius: 10px; font-size: 18px; line-height: 25px; word-break: break-all; }
+  .bubble-self { background-color: #07c160; color: #ffffff; border-bottom-right-radius: 3px; }
+  .bubble-other { background-color: #1f1f1f; color: #ffffff; border-bottom-left-radius: 3px; }
+  .bubble-atme { border: 1px solid #ff9800; background-color: rgba(255, 152, 0, 0.18); }
+  .bubble-img { max-width: 120px; max-height: 120px; border-radius: 10px; }
+  .quick-bar { height: 52px; flex-direction: row; background-color: rgba(255, 255, 255, 0.04); }
+  .quick-row { flex-direction: row; align-items: center; padding: 0 8px; }
+  .quick-chip { height: 36px; border-radius: 18px; background-color: #262626; border-width: 1px; border-color: #333333; justify-content: center; align-items: center; padding: 0 12px; margin-right: 8px; flex-shrink: 0; }
+  .quick-chip-text { font-size: 16px; color: #0d84ff; }
+  .input-bar { height: 72px; flex-direction: row; align-items: center; justify-content: center; border-top: 1px solid #222222; }
 </style>
 
 <script>
-import * as store from '../../common/store.js'
-import * as protocol from '../../common/protocol.js'
+  import router from '@system.router'
+  import protocol from '../../common/protocol'
 
-const QUICK_REPLIES = [
-  { label: '收到', text: '收到' },
-  { label: '好的', text: '好的' },
-  { label: 'OK', text: 'OK' },
-  { label: '谢谢', text: '谢谢' },
-  { label: '稍等', text: '稍等' },
-  { label: '在忙', text: '在忙，晚点回' },
-  { label: '哈哈', text: '哈哈' },
-  { label: '好的没问题', text: '好的，没问题' },
-  { label: '晚上聊', text: '晚上聊' }
-]
+  // Stapxs 风格：群成员昵称按 ID 稳定着色
+  const NAME_COLORS = ['#4fa1ff', '#35c759', '#ff9f43', '#b07cff', '#ff6b81', '#2dd4bf', '#fbbf24', '#818cf8']
 
-function nameColor(name) {
-  let h = 0
-  for (let i = 0; i < (name || '').length; i++) h = (h * 31 + name.charCodeAt(i)) >>> 0
-  const colors = ['#7bc862', '#65aadd', '#e17076', '#a695e7', '#ee7aae', '#faa774']
-  return colors[h % colors.length]
-}
+  // 快捷回复（Stapxs 表情面板的轻量移植）：label 供手环展示，text 为实际发送内容
+  const QUICK_REPLIES = [
+    { label: '收到', text: '收到' },
+    { label: '好的', text: '好的' },
+    { label: '稍等', text: '稍等' },
+    { label: '哈哈', text: '哈哈哈' },
+    { label: 'OK', text: 'OK' },
+    { label: '晚安', text: '晚安' },
+    { label: '👍', text: '👍' },
+    { label: '❤️', text: '❤️' },
+    { label: '😂', text: '😂' }
+  ]
 
-export default {
-  data: {
-    targetId: '',
-    chatType: 'group',
-    name: '',
-    msgs: [],
-    quicks: QUICK_REPLIES,
-    draftText: '',
-    olderText: '↓ 加载更早的消息',
-    loadingOlder: false,
-    olderEnd: false
-  },
-  onInit() {
-    const params = this.$page ? this.$page.params : {}
-    this.targetId = params.targetId || ''
-    this.chatType = params.chatType || 'group'
-    this.name = params.name || this.targetId
-    this.$app.subscribe((push) => this.onPush(push))
-  },
-  onShow() {
-    store.setActiveChat(this.targetId)
-    // 首次拉取最近消息（本地有就直接渲染）
-    this.renderMessages()
-    if ((store.getMessages(this.targetId) || []).length < 15 && !this.recentAsked) {
-      this.recentAsked = true
-      this.$app.requestHistory(this.targetId, this.chatType, 20, {})
-      this.recentGuard = setTimeout(() => {
-        if (this.msgs.length === 0) this.olderText = '暂无更多消息'
-      }, 6000)
-    }
-  },
-  onHide() {
-    if (this.recentGuard) { clearTimeout(this.recentGuard); this.recentGuard = null }
-    if (this.olderGuard) { clearTimeout(this.olderGuard); this.olderGuard = null }
-  },
-  onPush(push) {
-    if (push.type === 'message') {
-      const m = push.data
-      if (m.targetId !== this.targetId) return
+  export default {
+    protected: {
+      targetId: '',
+      name: '',
+      convType: 'private',
+      messages: []
+    },
+    private: {
+      sendStatus: '',
+      sendStatusClass: '',
+      scrollTop: 0,
+      viewList: [],
+      quickReplies: QUICK_REPLIES,
+      loadingOlder: false,
+      olderEnd: false
+    },
+    onInit(params) {
+      let targetId = (params && params.targetId) || ''
+      let convName = (params && params.name) || ''
+      let convType = (params && params.type) || ''
+      if (!targetId && params && params.uri) {
+        const q = (params.uri.split('?')[1] || '')
+        if (q) {
+          const m = {}
+          q.split('&').forEach((kv) => { const i = kv.indexOf('='); if (i > 0) m[decodeURIComponent(kv.slice(0, i))] = decodeURIComponent(kv.slice(i + 1)) })
+          targetId = m.targetId || ''
+          convName = m.name || ''
+          convType = m.type || convType
+        }
+      }
+      try { if (convName.indexOf('%') >= 0) convName = decodeURIComponent(convName) } catch (e) {}
+      if (!targetId) {
+        const st = this.$app.$def.store
+        const last = st.getLastTarget()
+        if (last && last.targetId) {
+          targetId = last.targetId
+          convName = last.name || convName
+          convType = last.type || convType
+        }
+      }
+      const appDef = this.$app.$def
+      if (!convType) {
+        appDef.store.getConversations().then((convs) => {
+          const c = convs.find((x) => x.id === targetId)
+          if (c && c.type) this.convType = c.type
+        })
+      }
+      this.targetId = targetId
+      this.name = convName || '聊天'
+      this.convType = convType === 'group' ? 'group' : (convType || 'private')
+      // 查看中：新消息不计未读；进入即清未读与 [@我] 标记
+      appDef.store.setActiveChat(this.targetId)
+      const def = this.$app.$def
+      this._handlers = {
+        message: () => this.loadMessages(),
+        history: (msg) => {
+          if (msg.target_id !== this.targetId) return
+          if (msg.mode === 'older') {
+            // 翻页结果：合并后保持位置，不滚到底
+            this.loadingOlder = false
+            if (this._olderTimer) { clearTimeout(this._olderTimer); this._olderTimer = null }
+            if (msg.has_more === false) this.olderEnd = true
+            this.loadMessages(true)
+          } else {
+            this.olderEnd = false
+            this.loadMessages()
+          }
+        },
+        cleared: () => this.loadMessages(),
+        send_status: () => this.refreshSendStatus()
+      }
+      def.on('message', this._handlers.message)
+      def.on('history', this._handlers.history)
+      def.on('cleared', this._handlers.cleared)
+      def.on('send_status', this._handlers.send_status)
+      this.requestHistory()
+      this.loadMessages()
+      this.refreshSendStatus()
+    },
+    onDestroy() {
+      const def = this.$app.$def
+      def.store.setActiveChat(null)
+      if (this._olderTimer) { clearTimeout(this._olderTimer); this._olderTimer = null }
+      if (this._handlers) {
+        def.off('message', this._handlers.message)
+        def.off('history', this._handlers.history)
+        def.off('cleared', this._handlers.cleared)
+        def.off('send_status', this._handlers.send_status)
+        this._handlers = null
+      }
+    },
+    refreshSendStatus() {
+      const store = this.$app.$def.store
+      const st = store.getSendStatus()
+      this.sendStatus = (st && st.text) || ''
+      this.sendStatusClass = this.sendStatus.indexOf('失败') >= 0 ? 'send-fail' : ''
+    },
+    onShow() {
+      const store = this.$app.$def.store
       store.setActiveChat(this.targetId)
-      this.renderMessages()
-    } else if (push.type === 'history') {
-      if (push.data.targetId !== this.targetId) return
-      this.finishHistory(push.data.mode, push.data.messages)
-    } else if (push.type === 'send_failed') {
-      if (push.data.targetId !== this.targetId) return
-      this.olderText = '发送失败，请检查连接'
-      setTimeout(() => { this.olderText = '↓ 加载更早的消息' }, 2000)
-    }
-  },
-  finishHistory(mode, messages) {
-    if (mode === 'older') {
-      this.loadingOlder = false
-      if (this.olderGuard) { clearTimeout(this.olderGuard); this.olderGuard = null }
-      if (!messages || messages.length === 0) {
-        this.olderEnd = true
-        this.olderText = '没有更早的消息了'
-      } else {
-        this.olderText = '↓ 加载更早的消息'
-        this.renderMessages()
-      }
-    } else {
-      if (this.recentGuard) { clearTimeout(this.recentGuard); this.recentGuard = null }
-      this.renderMessages()
-    }
-  },
-  renderMessages() {
-    const raw = store.getMessages(this.targetId) || []
-    const out = []
-    let prevTime = 0
-    for (let i = 0; i < raw.length; i++) {
-      const m = raw[i]
-      const t = m.time
-      const showTime = protocol.needTimeSplit(prevTime, t)
-      prevTime = t
-      const isSelf = !!m.is_self
-      out.push({
-        key: (m.message_id || 0) + '-' + i + '-' + t,
-        isSelf: isSelf,
-        needName: !isSelf && this.chatType === 'group',
-        senderName: m.sender_name || m.sender_id || '',
-        content: m.content || '',
-        timeText: protocol.formatTime(t),
-        showTime: showTime,
-        isAtMe: !!m.at_me && !isSelf,
-        senderColor: nameColor(m.sender_name)
+      store.markRead(this.targetId)
+      store.clearAtMe(this.targetId)
+      this.loadMessages()
+    },
+    goBack() {
+      router.back()
+    },
+    openCompose() {
+      router.push({
+        uri: '/compose',
+        params: { targetId: this.targetId, name: this.name, type: this.convType }
       })
-    }
-    this.msgs = out
-    store.setActiveChat(this.targetId)
-  },
-  loadOlder() {
-    if (this.loadingOlder || this.olderEnd) return
-    const local = store.getMessages(this.targetId) || []
-    const before = local.length ? local[0].time : Date.now()
-    this.loadingOlder = true
-    this.olderText = '加载中…'
-    this.$app.requestHistory(this.targetId, this.chatType, 20, { older: true, beforeTime: before })
-    // 6s 超时兜底（v1.1.0 翻页无响应问题的保护）
-    this.olderGuard = setTimeout(() => {
-      if (this.loadingOlder) {
-        this.loadingOlder = false
-        this.olderText = '加载失败，点按重试'
+    },
+    sendQuick(q) {
+      const text = (q && q.text) || ''
+      if (!text || !this.targetId) return
+      const store = this.$app.$def.store
+      // 乐观回显：立即上屏（手机端回推同 time|content 会去重）
+      const t = Date.now()
+      store.upsertMessage({
+        message_type: this.convType,
+        target_id: this.targetId,
+        target_name: this.name,
+        sender_id: '',
+        sender_name: '我',
+        content: text,
+        is_self: true,
+        time: t
+      })
+      this.$app.$def.sendUpstream(protocol.sendMessage(this.convType, this.targetId, text)).catch(() => {})
+      this.loadMessages()
+    },
+    requestHistory() {
+      const api = this.$app.$def.api
+      api.send(protocol.getHistory(this.targetId, 50))
+    },
+    loadOlder() {
+      if (this.loadingOlder || this.olderEnd || !this.targetId) return
+      const msgs = this.messages || []
+      if (!msgs.length) { this.olderEnd = true; return }
+      this.loadingOlder = true
+      const api = this.$app.$def.api
+      api.send(protocol.getHistory(this.targetId, 20, { older: true, beforeTime: msgs[0].time }))
+      // 超时兜底：手机端无更多或未响应时恢复按钮（history 到达时会清除本计时器）
+      if (this._olderTimer) clearTimeout(this._olderTimer)
+      this._olderTimer = setTimeout(() => { this.loadingOlder = false; this._olderTimer = null }, 6000)
+    },
+    nameColor(senderId) {
+      const s = String(senderId || '')
+      if (!s) return NAME_COLORS[0]
+      let h = 0
+      for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 997
+      return NAME_COLORS[h % NAME_COLORS.length]
+    },
+    async loadMessages(keepPosition) {
+      const store = this.$app.$def.store
+      const msgs = (await store.getMessages(this.targetId)).slice()
+      const convs = await store.getConversations()
+      const conv = convs.find((c) => c.id === this.targetId)
+      if (conv && conv.last_msg && !msgs.some((m) => m.content === conv.last_msg)) {
+        msgs.push({
+          message_type: conv.type || 'private',
+          sender_name: conv.name || '会话',
+          content: conv.last_msg,
+          time: conv.time || Date.now(),
+          is_self: false
+        })
       }
-    }, 6000)
-  },
-  sendQuick(q) {
-    this.sendText(q.text)
-  },
-  onImSend(evt) {
-    const text = (evt && evt.detail && evt.detail.text) || ''
-    if (text) this.sendText(text)
-  },
-  onImInput(evt) {
-    this.draftText = (evt && evt.detail && evt.detail.text) || ''
-  },
-  sendText(text) {
-    // 乐观回显
-    store.upsertMessage({
-      messageId: 0,
-      chatType: this.chatType,
-      targetId: this.targetId,
-      senderId: store.myProfile.userId,
-      senderName: store.myProfile.nickname || '我',
-      content: text,
-      time: Date.now(),
-      isSelf: true
-    })
-    this.renderMessages()
-    this.draftText = ''
-    this.$app.sendText(this.targetId, this.chatType, text)
-  },
-  goBack() {
-    require('@system.router').back()
+      msgs.sort((a, b) => (a.time || 0) - (b.time || 0))
+      this.messages = msgs
+      // 构建视图列表：插入时间分隔条（≥5 分钟，Stapxs 规则）+ 头像色 + 缩略图 + @我 标记
+      const view = []
+      let prev = 0
+      for (const m of msgs) {
+        if (protocol.needTimeSplit(prev, m.time)) {
+          view.push({ tip: protocol.formatTime(m.time) })
+        }
+        prev = m.time
+        view.push({
+          message_type: m.message_type,
+          sender_name: m.sender_name,
+          sender_id: m.sender_id,
+          is_self: m.is_self === true,
+          at_me: m.at_me === true,
+          content: m.content,
+          time: m.time,
+          nameColor: this.nameColor(m.sender_id),
+          thumb: m.thumb || store.getThumb(this.targetId, m.time) || ''
+        })
+      }
+      this.viewList = view
+      // 新消息/首次加载滚到底部；翻页(keepPosition)保持位置
+      if (!keepPosition) {
+        this._scrollTick = (this._scrollTick || 0) + 1
+        this.scrollTop = 999999 + this._scrollTick
+        const el = this.$element && this.$element('msgList')
+        if (el && el.scrollTo) {
+          setTimeout(() => {
+            try { el.scrollTo({ top: 999999 }) } catch (e) {}
+          }, 60)
+        }
+      }
+    }
   }
-}
 </script>

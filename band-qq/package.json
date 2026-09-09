@@ -1,9 +1,14 @@
 {
   "name": "band-qq",
-  "version": "1.1.1",
+  "version": "1.0.0",
+  "description": "小米手环9 QQ 助手（Vela 快应用）",
   "private": true,
-  "type": "module",
   "scripts": {
-    "test": "node --test test/"
+    "build": "aiot build",
+    "release": "aiot release",
+    "test": "node --test"
+  },
+  "devDependencies": {
+    "aiot-toolkit": "^2.0.5"
   }
 }
