@@ -1,0 +1,143 @@
+<template>
+  <div class="im-root">
+    <!-- 候选行 -->
+    <div class="cand-row">
+      <text class="cand-arrow" onclick="prevPage">‹</text>
+      <list class="cand-list" scrollpage="false">
+        <list-item class="cand-item" for="{{(idx, c) in cands}}" onclick="pickCand(c)">
+          <text class="cand-text">{{c}}</text>
+        </list-item>
+        <list-item class="cand-item" if="{{cands.length === 0 && pinyin}}">
+          <text class="cand-hint">{{pinyin}}…</text>
+        </list-item>
+      </list>
+      <text class="cand-arrow" onclick="nextPage">›</text>
+    </div>
+
+    <!-- 键盘 -->
+    <div class="kb-row" for="{{(ri, row) in rows}}">
+      <text class="key {{k === 'DEL' ? 'key-del' : ''}}" for="{{(ki, k) in row}}" onclick="onKey(k)">{{k === 'DEL' ? '⌫' : k}}</text>
+    </div>
+    <div class="kb-row kb-bottom">
+      <text class="key key-fn" onclick="clearComposed">清</text>
+      <text class="key key-space" onclick="onSpace">空格</text>
+      <text class="key key-send" onclick="doSend">发送</text>
+    </div>
+  </div>
+</template>
+
+<style>
+  .im-root { flex-direction: column; background-color: #171b22; flex-shrink: 0; }
+  .cand-row { height: 26px; flex-direction: row; align-items: center; }
+  .cand-arrow { width: 18px; color: #6a707c; font-size: 14px; text-align: center; }
+  .cand-list { flex: 1; flex-direction: row; height: 26px; }
+  .cand-item { justify-content: center; align-items: center; margin: 0 2px; }
+  .cand-text { color: #eef1f6; font-size: 15px; padding: 0 4px; }
+  .cand-hint { color: #565b64; font-size: 12px; }
+  .kb-row { flex-direction: row; justify-content: center; height: 24px; margin-top: 1px; }
+  .key {
+    width: 18px; height: 23px; border-radius: 4px; background-color: #232830;
+    color: #dfe3ea; font-size: 12px; text-align: center; margin: 0 1px;
+  }
+  .key-del { background-color: #3a2626; color: #ff9a9a; width: 30px; }
+  .kb-bottom { height: 26px; }
+  .key-fn { width: 34px; background-color: #2a2f38; }
+  .key-space { width: 84px; background-color: #2a2f38; }
+  .key-send { width: 48px; background-color: #1e5f36; color: #c9f5d6; }
+</style>
+
+<script>
+import { dict } from './assets/dic.js'
+
+const ROWS = [
+  ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+  ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+  ['z', 'x', 'c', 'v', 'b', 'n', 'm', 'DEL']
+]
+const PAGE_SIZE = 8
+
+export default {
+  data: {
+    rows: ROWS,
+    pinyin: '',
+    composed: '',
+    cands: [],
+    page: 0
+  },
+  onInit() {},
+  onKey(k) {
+    if (k === 'DEL') {
+      if (this.pinyin) {
+        this.pinyin = this.pinyin.slice(0, -1)
+        this.updateCands()
+      } else if (this.composed) {
+        this.composed = this.composed.slice(0, -1) // 删除一个汉字（UTF-16 基本区安全）
+        this.emitInput()
+      }
+      return
+    }
+    if (this.pinyin.length >= 7) return
+    this.pinyin += k
+    this.updateCands()
+  },
+  updateCands() {
+    this.page = 0
+    const raw = dict[this.pinyin] || []
+    this.cands = raw.slice(0, 24) // 最多 24 个候选（3 页）
+  },
+  prevPage() {
+    const max = Math.max(0, Math.ceil(this.cands.length / PAGE_SIZE) - 1)
+    this.page = this.page > 0 ? this.page - 1 : max
+    this.rotateCands()
+  },
+  nextPage() {
+    const max = Math.max(0, Math.ceil(this.cands.length / PAGE_SIZE) - 1)
+    this.page = this.page < max ? this.page + 1 : 0
+    this.rotateCands()
+  },
+  rotateCands() {
+    const all = dict[this.pinyin] || []
+    const start = this.page * PAGE_SIZE
+    this.cands = all.slice(start, start + PAGE_SIZE).concat(all.slice(0, start))
+    this.cands = this.cands.slice(0, 24)
+  },
+  pickCand(c) {
+    this.composed += c
+    this.pinyin = ''
+    this.cands = []
+    this.page = 0
+    this.emitInput()
+  },
+  onSpace() {
+    if (this.pinyin) {
+      // 拼音未完成：空格上屏首选字（若有）
+      if (this.cands.length) {
+        this.composed += this.cands[0]
+        this.pinyin = ''
+        this.cands = []
+      }
+    } else {
+      this.composed += ' '
+    }
+    this.emitInput()
+  },
+  clearComposed() {
+    this.composed = ''
+    this.pinyin = ''
+    this.cands = []
+    this.emitInput()
+  },
+  doSend() {
+    const text = this.composed
+    if (!text) return
+    this.$emit('send', { text })
+    this.composed = ''
+    this.pinyin = ''
+    this.cands = []
+    this.emitInput()
+  },
+  emitInput() {
+    this.$emit('input', { text: this.composed + (this.pinyin ? ' ' + this.pinyin : '') })
+  }
+}
+</script>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BandQQ同步器</string>
+    <string name="keepalive_label">BandQQ 保活</string>
+    <string name="notif_channel">同步服务</string>
+    <string name="notif_running">QQ 同步服务运行中</string>
+</resources>

@@ -1,0 +1,15 @@
+# Android
+android-sync/.gradle/
+android-sync/build/
+android-sync/app/build/
+android-sync/local.properties
+*.apk.idsig
+
+# Quickapp
+band-qq/.temp*/
+band-qq/dist/
+band-qq/node_modules/
+
+# Misc
+*.log
+.DS_Store

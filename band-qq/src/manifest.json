@@ -1,0 +1,47 @@
+{
+  "package": "com.bandqq.watch",
+  "name": "BandQQ",
+  "versionName": "1.1.1",
+  "versionCode": 3,
+  "type": "watch",
+  "icon": "/common/icon.png",
+  "minPlatformVersion": 1000,
+  "features": [
+    {
+      "name": "system.websocketfactory"
+    },
+    {
+      "name": "system.storage"
+    },
+    {
+      "name": "system.vibrator"
+    },
+    {
+      "name": "system.router"
+    },
+    {
+      "name": "system.device"
+    },
+    {
+      "name": "system.prompt"
+    }
+  ],
+  "config": {
+    "designWidth": 192,
+    "designHeight": 490
+  },
+  "router": {
+    "entry": "pages/index",
+    "pages": {
+      "pages/index": {
+        "component": "index"
+      },
+      "pages/chat": {
+        "component": "chat"
+      },
+      "pages/settings": {
+        "component": "settings"
+      }
+    }
+  }
+}

@@ -1,0 +1,96 @@
+<template>
+  <div class="page">
+    <text class="title">设置</text>
+
+    <div class="card">
+      <text class="card-title">账号</text>
+      <text class="info">登录：{{profileText}}</text>
+    </div>
+
+    <div class="card">
+      <text class="card-title">连接</text>
+      <text class="info">状态：{{connected ? '已连接' : '未连接'}}</text>
+      <text class="info">服务器：{{wsUrl}}</text>
+      <input class="url-input" type="text" value="{{wsUrl}}" onchange="onUrlChange"></input>
+      <text class="btn" onclick="applyUrl">保存并重连</text>
+    </div>
+
+    <div class="card">
+      <text class="card-title">输入法字库</text>
+      <text class="info">{{dictChars}} 字 / {{dictSyllables}} 音节（CJK 基本区全量）</text>
+    </div>
+
+    <div class="card">
+      <text class="card-title">关于</text>
+      <text class="info">BandQQ v1.1.1</text>
+      <text class="info">手环 ⇄ 手机同步器 ⇄ OneBot</text>
+      <text class="btn btn-danger" onclick="clearData">清除本地数据</text>
+    </div>
+  </div>
+</template>
+
+<style>
+  .page { flex-direction: column; background-color: #101216; padding: 8px; }
+  .title { color: #eef1f6; font-size: 16px; margin-bottom: 6px; }
+  .card {
+    background-color: #181c23; border-radius: 8px; padding: 8px;
+    margin-bottom: 6px; flex-direction: column;
+  }
+  .card-title { color: #5865f2; font-size: 12px; margin-bottom: 4px; }
+  .info { color: #cfd3da; font-size: 11px; margin-bottom: 2px; }
+  .url-input {
+    height: 22px; background-color: #101216; border-radius: 4px;
+    color: #eef1f6; font-size: 11px; padding: 0 6px; margin: 4px 0;
+  }
+  .btn {
+    height: 24px; background-color: #1e242e; border-radius: 5px;
+    color: #9fb6d9; font-size: 12px; text-align: center; margin-top: 4px;
+  }
+  .btn-danger { background-color: #3b1717; color: #ff9a9a; }
+</style>
+
+<script>
+import { dict } from '../../components/InputMethod/assets/dic.js'
+import * as store from '../../common/store.js'
+
+export default {
+  data: {
+    profileText: '未知',
+    connected: false,
+    wsUrl: '',
+    dictChars: 0,
+    dictSyllables: 0
+  },
+  onInit() {
+    let chars = 0
+    for (const k in dict) chars += dict[k].length
+    this.dictChars = chars
+    this.dictSyllables = Object.keys(dict).length
+  },
+  onShow() {
+    this.refresh()
+  },
+  refresh() {
+    const app = this.$app
+    const p = store.myProfile
+    this.profileText = p.nickname ? (p.nickname + ' (' + (p.userId || '…') + ')') : (p.userId || '未知')
+    this.connected = app.isConnected()
+    this.wsUrl = app.wsUrl
+  },
+  onUrlChange(evt) {
+    this.wsUrl = evt.value || evt.text || ''
+  },
+  applyUrl() {
+    const app = this.$app
+    if (this.wsUrl) {
+      app.saveUrl(this.wsUrl)
+      app.reconnect()
+      setTimeout(() => this.refresh(), 1500)
+    }
+  },
+  clearData() {
+    store.resetAll()
+    this.refresh()
+  }
+}
+</script>
