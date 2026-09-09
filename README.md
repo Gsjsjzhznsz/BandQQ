@@ -1,5 +1,7 @@
 # BandQQ v1.1.1 — 小米手环 9 QQ 消息助手（手环快应用 + 安卓同步器）
 
+> 🧠 **AI 协作记忆库**：[`docs/PROJECT-MEMORY.md`](docs/PROJECT-MEMORY.md) — 本项目的跨会话持久记忆（架构 / bug 台账 / 构建配方 / 任务清单）。任何新会话恢复上下文，先读它。
+
 [![Version](https://img.shields.io/badge/version-1.1.1-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
 
 **BandQQ** 是一套开源的「小米手环 QQ 消息助手」双端方案：手环端运行 Vela 快应用（rpk），手机端运行安卓同步器（APK），通过小米互联蓝牙通道把 QQ 消息实时同步到手环，支持直接在手环上**查看 / 回复 / 翻历史消息 / 收图**。
