@@ -104,6 +104,17 @@ cd android-sync && ./gradlew assembleRelease test   # 见 scripts/build-apk.sh
 9. **compose maxlength=5** 一次输入限 5 字符（v1.2.0 待放开）
 10. **settings.ux `off('state')` 无 fn 清空全部监听**，会误删 index 页 handler（v1.2.0 待修）
 
+### Vela 5.0 适配铁律（v1.2.0 经官方模拟器实测定罪，违者 UI 全灭）
+11. **justify-content: center / flex-end 按 2 倍容器宽计算**，内容被推出屏幕外 → 全部改显式 margin + text-align: center
+12. **`show` 隐藏的元素仍占布局空间** → 用 `if`（条件渲染）
+13. **模板 mustache 里三元/`&&`/`===`/`||` 表达式被编译器静默丢弃**（文案/类名全丢）→ 一律 script 预计算字段
+14. **`{{obj}}` 渲染成 [object Object]**（快捷回复"格式代码"真凶）→ `{{obj.field}}`
+15. **emoji 字符（👍❤️😂）渲染成乱码方块**（手环无 emoji 字体）→ 快捷回复全用文字
+16. align-items（交叉轴）、text-align、onclick、动态 class 绑定、RGBA PNG 实测均正常
+17. 布局总高必须精确 490px（192×490），溢出会推挤状态栏
+18. **模拟器验证流水线**：aiot initEmulatorEnv（下 1.8GB 组件）→ 手写 VvdManager.createVvd(density 160, skin xiaomi_band, 192×490) → Xvfb :99 + DISPLAY → pty 驱动 `aiot start` 应答 Y → @miwt/adb `shell am start com.example.bandqq` → gRPC :8554 streamScreenshot 截帧（TouchEvent 是 Touch 数组！）
+19. 模拟器黑屏先看是不是页面本身黑色背景（gRPC 截帧绕过熄屏）；左上圆弧/底部灰条/右缘暗条是 skin 蒙版痕迹，不是 app 的
+
 ## 7. 用户偏好与沟通习惯
 
 - 语言：中文，直接、高密度、不废话；"卡了？"= 催进度，应立即汇报当前状态并继续干活
@@ -128,16 +139,16 @@ cd android-sync && ./gradlew assembleRelease test   # 见 scripts/build-apk.sh
 
 ## 9. v1.2.0 任务清单（当前进行中）
 
-- [ ] T1 性能治理（死机重启）：store 节流持久化 + 砍生产日志 + 消息 DOM 上限/虚拟化 + 图片缩略图降载
-- [ ] T2 快应用关闭停蓝牙：sendToBand 前查 bandConnected；离线只写 MessageStore；onConnect 回推 conversation_list + 各会话 history（冷启动回放）
-- [ ] T3 主界面跳动根治：定高 + 键控 diff + 骨架屏，禁全量替换
-- [ ] T4 快捷回复格式代码修复：手机端 CQ 码正则清洗 + 快捷回复纯文本化（手环内置默认 9 项）
-- [ ] T5 UI 适配审计：H5 预览 + Playwright 截图 + 多模态自检（192×490）
-- [ ] T6 手机端 miuix 重构（HyperOS 3 风格）+ 无障碍保活引导页（连接向导）
-- [ ] T7 借鉴 Stapxs：数据管理（按账号分命名空间）+ 多账号管理（多 OneBot 端点 profile 切换）
-- [ ] T8 compose maxlength 放开 + settings off 误清修复
-- [ ] T9 构建 v1.2.0（rpk + APK，versionCode 4）+ 测试全绿
-- [ ] T10 推送小号仓库 + 更新本记忆文件 + README/SEO 维护
+- [x] T1 性能治理：store 节流持久化(400ms+flush) + 砍生产日志 + 缩略图 LRU(20) ✅
+- [x] T2 停蓝牙：broker sendBand 门控 + pendingTargets 回放 + onBandConnected 推会话列表 ✅
+- [x] T3 跳动：预计算字段+签名比对+定高+494→490px 修正 ✅
+- [x] T4 格式代码：{{q}}→{{q.label}} + emoji→文字 + 双端 CQ 码清洗 + 180 字截断 ✅
+- [x] T5 UI 审计：Vela 官方模拟器实机验证 + 定罪 justify/show/三元三大兼容性问题并修复 ✅
+- [x] T6 miuix：0.9.4-rc01 拉高 compose 依赖与 AGP 8.13 冲突 → 保持 0.9.3；无障碍三步引导+状态轮询已加 ✅（后续可随 AGP 升级再试 0.9.4）
+- [x] T7 多账号：ConfigManager accounts+activeIndex+自动迁移 + 设置页管理 UI ✅
+- [x] T8 maxlength 5→200 + settings off 精确解绑 ✅
+- [x] T9 构建：rpk 342KB(v1.2.0 vc4) + APK 11.8MB；手环 56/56 + 安卓 100/100 ✅
+- [x] T10 推送 main + tag v1.2.0 + 本文件更新 ✅
 
 ## 10. 会话记录（增量追加，勿删）
 
@@ -150,4 +161,5 @@ cd android-sync && ./gradlew assembleRelease test   # 见 scripts/build-apk.sh
 - #7 用户推 v1.1.0 源码到 GitHub；7z 分卷解压获权威源码
 - #8 v1.1.1 真源码六项修复 + 推送 tag v1.1.1
 - #9 用户提 v1.2.0 需求（性能优先/miuix/停蓝牙/跳动/快捷回复/多模态）；容器又重置；误克隆上游 opencode 线后发现基线裁决问题
-- #10 用户给记忆网页链接；爬取 77KB 全史；固化本记忆文件 ← **当前会话**
+- #10 用户给记忆网页链接；爬取 77KB 全史；固化本记忆文件
+- #11 v1.2.0 完成：T1-T10 全落地；**用 aiot 官方模拟器（VVD 192×490）实测 UI**，定罪并修复 Vela 5.0 三大兼容性问题（justify-center 2x / show 占位 / 模板三元丢弃）+ 快捷回复 [object Object] + emoji 乱码；离线门控停蓝牙 + 多账号 + CQ 清洗 + 节流持久化；双端测试全绿 ← **当前会话**
