@@ -23,20 +23,14 @@ class GameProtocolDetectorTest {
 
     @After
     fun tearDown() {
-        try {
-            server.shutdown()
-        } catch (_: java.io.IOException) {
-            // WS 探测连接未完全释放时可能关闭超时，不影响断言结果
-        }
+        server.shutdown()
     }
 
     @Test
     fun `detect 命中标准 HTTP 端点并回填配置,token 为空`() = runBlocking {
         server.enqueue(MockResponse().setBody("""{"status":"ok","data":{"msg":"SnowLuma"}}"""))
-        // 统一 host 形态：MockWebServer.url() 在部分环境返回 localhost 而非 127.0.0.1
-        val preferred = server.url("/").toString().trimEnd('/').replaceFirst("localhost", "127.0.0.1")
         val cfg = GameProtocolDetector.detect(
-            preferred = preferred,
+            preferred = server.url("/").toString().trimEnd('/'),
             hosts = listOf("127.0.0.1"),
             ports = intArrayOf()
         )

@@ -1,116 +1,100 @@
 <template>
   <div class="page">
     <div class="top-row">
-      <image class="btn" src="../../common/ui/more.png" onclick="goSettings"></image>
+      <image class="btn" src="../../common/ui/more.png" @click="goSettings"></image>
     </div>
-    <scroll class="list" scroll-y="true" if="{{hasConversations}}">
-      <div class="card item" for="{{item in conversations}}" tid="item.id" onclick="openItem(item)">
-        <div class="avatar {{item.avatar_cls}}">
-          <text class="avatar-text">{{item.first_char}}</text>
-          <div class="unread" if="{{item.has_unread}}"><text class="unread-text">{{item.unread_text}}</text></div>
+    <scroll class="list" scroll-y="true" show="{{conversations.length}}">
+      <div class="item" for="{{item in conversations}}" tid="id" @click="openChatItem(item)">
+        <div class="avatar" style="background-color: {{item.hueBg}};">
+          <text class="avatar-text">{{item.achar}}</text>
         </div>
-        <div class="body">
+        <div class="mid">
           <div class="name-row">
-            <text class="item-name">{{item.name_text}}</text>
+            <text class="item-name">{{item.n9}}</text>
             <text class="item-tag" if="{{item.is_temporary}}">临时</text>
-            <text class="at-tag" if="{{item.at_me}}">[@我]</text>
-            <text class="item-time">{{item.time_text}}</text>
           </div>
-          <text class="item-preview" if="{{item.preview_text}}">{{item.preview_text}}</text>
+          <text class="item-prev" show="{{item.prev}}">{{item.prev}}</text>
+        </div>
+        <div class="right">
+          <text class="item-time" show="{{item.tstr}}">{{item.tstr}}</text>
+          <div class="badge" show="{{item.unread > 0}}">
+            <text class="badge-text">{{item.unread > 99 ? '99+' : item.unread}}</text>
+          </div>
         </div>
       </div>
     </scroll>
-    <div class="empty-wrap" if="{{showEmpty}}">
+    <div class="empty-wrap" show="{{!conversations.length}}">
       <image class="empty-icon" src="../../common/ui/empty_icon.png"></image>
-      <text class="empty-text">{{emptyText}}</text>
+      <text class="empty-text">{{conversations.length === 0 ? '请在手机端添加联系人' : '暂无会话'}}</text>
     </div>
     <div class="status-bar">
-      <div class="status-dot {{statusClass}}"></div>
       <text class="status-text">{{statusText}}</text>
     </div>
   </div>
 </template>
 
 <style>
-  /* v1.2.0 Vela 5.0 适配铁律：
-     1) justify-content: center 在 5.0 上按 2 倍容器宽计算，内容会被推出屏幕外
-        → 一律改显式 margin 定位 + text-align: center
-     2) 模板里不能有三元/复合表达式（编译器静默丢弃）→ 全部预计算字段
-     3) align-items(交叉轴) 与 text-align 可正常使用 */
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
-  .top-row { height: 70px; align-items: flex-start; }
-  .btn { width: 102px; height: 68px; margin-top: 2px; margin-left: 45px; }
-  .list { height: 362px; padding: 2px 8px 0 8px; flex-direction: column; background-color: #03080d; }
-  .card { border-width: 1px; border-color: #1c1c1e; border-radius: 16px; background-color: #1c1c1e; }
-  .item { height: 84px; width: 176px; flex-direction: row; align-items: center; margin: 4px 0; padding: 0 10px; }
-  .avatar { width: 48px; height: 48px; border-radius: 14px; margin-right: 10px; justify-content: center; align-items: center; }
-  .avatar-c0 { background-color: #0d84ff; }
-  .avatar-c1 { background-color: #07c160; }
-  .avatar-c2 { background-color: #ff9800; }
-  .avatar-c3 { background-color: #ab7dff; }
-  .avatar-c4 { background-color: #e91e63; }
-  .avatar-c5 { background-color: #00bcd4; }
-  .avatar-c6 { background-color: #3f51b5; }
-  .avatar-c7 { background-color: #8bc34a; }
-  .avatar-text { font-size: 22px; color: #ffffff; font-weight: bold; }
-  .unread { position: absolute; top: 0px; right: 0px; min-width: 24px; height: 24px; border-radius: 12px; background-color: #ff4d4f; justify-content: center; align-items: center; padding: 0 4px; border: 1px solid #1c1c1e; }
-  .unread-text { font-size: 15px; color: #ffffff; }
-  .body { flex-direction: column; flex: 1; }
+  .top-row { height: 78px; align-items: flex-start; justify-content: center; padding-top: 6px; }
+  .btn { width: 102px; height: 72px; }
+  /* 列表容器高度固定；列表项定高 + 绝对定位角标，杜绝 flex 重排抖动 */
+  .list { height: 352px; padding: 6px 8px 0 8px; flex-direction: column; background-color: rgba(0, 122, 255, 0.08); }
+  .item { height: 86px; width: 100%; flex-direction: row; align-items: center; margin-bottom: 4px; border-radius: 16px; background-color: #262626; }
+  .avatar { width: 44px; height: 44px; border-radius: 22px; margin-left: 10px; margin-right: 8px; justify-content: center; align-items: center; }
+  .avatar-text { font-size: 20px; color: #ffffff; }
+  .mid { flex: 1; flex-direction: column; justify-content: center; }
   .name-row { flex-direction: row; align-items: center; }
-  .item-name { font-size: 20px; color: #ffffff; }
+  .item-name { font-size: 20px; color: #ffffff; max-width: 88px; lines: 1; text-overflow: ellipsis; }
   .item-tag { font-size: 12px; color: #ffb800; border-width: 1px; border-color: #ffb800; border-radius: 6px; padding: 0 4px; margin-left: 6px; }
-  .at-tag { font-size: 12px; color: #ffffff; background-color: #ff4d4f; border-radius: 6px; padding: 1px 4px; margin-left: 6px; }
-  .item-time { position: absolute; right: 0px; font-size: 14px; color: #999999; }
-  .item-preview { font-size: 16px; color: #999999; margin-top: 4px; lines: 1; text-overflow: ellipsis; }
-  .empty-wrap { height: 362px; flex-direction: column; }
-  .empty-icon { width: 78px; height: 78px; object-fit: contain; margin-top: 100px; margin-left: 57px; }
-  .empty-text { margin-top: 12px; font-size: 20px; color: #aaaaaa; width: 192px; text-align: center; }
-  .status-bar { height: 58px; flex-direction: row; align-items: center; }
-  .status-dot { width: 12px; height: 12px; border-radius: 6px; margin-left: 57px; margin-right: 8px; background-color: #666666; }
-  .dot-ok { background-color: #07c160; }
-  .dot-bad { background-color: #ff4d4f; }
-  .status-text { font-size: 19px; color: #cccccc; }
+  .item-prev { font-size: 15px; color: rgba(255, 255, 255, 0.45); margin-top: 4px; max-width: 96px; lines: 1; text-overflow: ellipsis; }
+  .right { width: 40px; height: 86px; flex-direction: column; align-items: flex-end; justify-content: flex-start; padding: 10px 10px 0 0; position: absolute; right: 0; top: 0; }
+  .item-time { font-size: 13px; color: rgba(255, 255, 255, 0.4); }
+  /* 未读角标绝对定位于右上，不参与布局流（旧版负偏移方案已废弃） */
+  .badge { position: absolute; right: 6px; bottom: 12px; min-width: 24px; height: 22px; border-radius: 11px; background-color: #ff5a5a; justify-content: center; align-items: center; }
+  .badge-text { font-size: 13px; color: #ffffff; padding: 0 5px; }
+  .empty-wrap { flex: 1; height: 352px; flex-direction: column; justify-content: center; align-items: center; }
+  .empty-icon { width: 78px; height: 78px; object-fit: contain; }
+  .empty-text { margin-top: 12px; font-size: 20px; color: rgba(255, 255, 255, 0.5); }
+  .status-bar { height: 60px; justify-content: center; align-items: center; }
+  .status-text { font-size: 20px; color: rgba(255, 255, 255, 0.6); }
 </style>
 
 <script>
   import router from '@system.router'
   import protocol from '../../common/protocol'
 
+  const REFRESH_DEBOUNCE_MS = 120
+
   export default {
     private: {
-      statusText: '连接中',
-      statusClass: '',
-      emptyText: '暂无会话',
-      hasConversations: false,
-      showEmpty: true,
+      statusText: '未连接',
       conversations: []
     },
     onShow() {
-      const def = this.$app.$def
-      // 冷启动自愈：长期后台后通道可能已断，重建后再拉全量状态
-      def.ensureAlive().then(() => {
-        this.refreshStatus()
-        this.pullConnectState()
-        this.loadConversations()
-        this.loadVisibleContacts()
-      })
+      console.log('[BANDQQ] v21 index onShow')
+      this.refreshStatus()
+      this.pullConnectState()
+      this.loadConversations()
+      this.loadVisibleContacts()
     },
     onInit() {
       const def = this.$app.$def
-      // 消息事件防抖：群聊连发时合并为一次列表刷新，避免高频重排抖动
-      this._msgDebounce = null
+      // 抖动根治：所有数据事件统一走 120ms 尾沿防抖 + 签名比对，
+      // 消息风暴时每 120ms 至多渲染一次，内容未变不触发任何渲染
+      this._scheduleRefresh = () => {
+        if (this._refreshTimer) clearTimeout(this._refreshTimer)
+        this._refreshTimer = setTimeout(() => {
+          this._refreshTimer = null
+          this.refreshConversations()
+        }, REFRESH_DEBOUNCE_MS)
+      }
       this._handlers = {
-        conversations: () => this.refreshConversations(),
-        visible_contacts: () => this.refreshConversations(),
-        message: () => {
-          if (this._msgDebounce) clearTimeout(this._msgDebounce)
-          this._msgDebounce = setTimeout(() => {
-            this._msgDebounce = null
-            this.refreshConversations()
-          }, 150)
-        },
+        conversations: () => this._scheduleRefresh(),
+        visible_contacts: () => this._scheduleRefresh(),
+        message: () => this._scheduleRefresh(),
+        quick_replies: () => {},
         state: () => this.refreshStatus(),
-        cleared: () => this.refreshConversations()
+        cleared: () => this._scheduleRefresh()
       }
       def.on('conversations', this._handlers.conversations)
       def.on('visible_contacts', this._handlers.visible_contacts)
@@ -120,7 +104,6 @@
     },
     onDestroy() {
       const def = this.$app.$def
-      if (this._msgDebounce) { clearTimeout(this._msgDebounce); this._msgDebounce = null }
       if (this._handlers) {
         def.off('conversations', this._handlers.conversations)
         def.off('visible_contacts', this._handlers.visible_contacts)
@@ -134,96 +117,58 @@
       const api = this.$app.$def.api
       try {
         await api.send(protocol.getConnectState())
-      } catch (e) {}
+      } catch (e) {
+        console.error('pull connect state failed', e)
+      }
     },
-    async refreshStatus() {
+    refreshStatus() {
       const store = this.$app.$def.store
       const s = store.getConnectState()
-      const ok = s && s.band && s.onebot !== false
-      // v1.2.0：文案缩短（19px 字号下长文案会溢出 192px 屏宽）
-      this.statusText = ok ? '已连接' : (s && s.band ? 'QQ未连' : '未连接')
-      this.statusClass = ok ? 'dot-ok' : (s && s.band ? '' : 'dot-bad')
-    },
-    refreshConnection() {
-      // 点击状态栏手动重试
-      this.statusText = '重连中'
-      this.statusClass = ''
-      this.$app.$def.ensureAlive().then(() => {
-        this.refreshStatus()
-        this.pullConnectState()
-        this.loadConversations()
-      })
+      this.statusText = s && s.band ? '已连接' : '未连接'
     },
     async loadConversations() {
       const store = this.$app.$def.store
-      this.conversations = await store.getConversations()
+      const list = await store.getConversations()
+      this.applyConversations(list)
       const api = this.$app.$def.api
       api.send({ type: 'get_conversations', seq: Date.now() % 100000 })
     },
     async refreshConversations() {
       const store = this.$app.$def.store
-      const next = await store.getConversations()
-      // 空态文案与显隐开关（v1.2.0：从模板表达式迁移到计算字段，绕开编译器丢弃问题）
-      this.emptyText = next.length === 0 ? '请在手机端添加联系人' : '暂无会话'
-      this.hasConversations = next.length > 0
-      this.showEmpty = next.length === 0
-      // 签名比对：内容未变化时不重新赋值，避免无谓的整体重渲染（抖动主因）
-      const sig = next.map((c) => [c.id, c.name, c.last_msg, c.time, c.unread, c.at_me, c.is_temporary].join('~')).join('|')
-      if (this._convSig === sig) return
-      this._convSig = sig
-      // v1.2.0：展示字段预计算（头像色 class/首字/截断名/预览/时间/未读文本），
-      // 模板不再调用任何函数 —— Vela 模板内函数在每次重渲染时都会重新执行，是跳动与卡顿源
-      this.conversations = next.map((c) => ({
-        id: c.id,
-        type: c.type,
-        name: c.name,
-        is_temporary: c.is_temporary,
-        at_me: c.at_me,
-        unread: c.unread,
-        avatar_cls: this.avatarClass(c),
-        first_char: (c.name && typeof c.name === 'string' && c.name.charAt(0)) || '#',
-        name_text: this.shortName(c.name),
-        preview_text: this.shortPreview(c.last_msg),
-        time_text: protocol.formatListTime(c.time),
-        unread_text: c.unread > 99 ? '99+' : String(c.unread),
-        has_unread: c.unread > 0
-      }))
+      const list = await store.getConversations()
+      this.applyConversations(list)
     },
-    openItem(item) {
+    /**
+     * 签名比对后才写 this.conversations：
+     * 未变化的数组引用替换不再进入渲染管线（抖动的第一根因）
+     */
+    applyConversations(list) {
+      const sig = protocol.convSignature(list)
+      if (sig === this._lastSig) {
+        console.log('[index] skip render (same signature)')
+        return
+      }
+      this._lastSig = sig
+      this.conversations = list
+      console.log('[index] applyConversations ->', list.length, 'conv')
+    },
+    openChatItem(item) {
       if (!item) return
       if (!item.id) return
       const store = this.$app.$def.store
-      // 打开会话：清除未读 + [@我] 标记（列表角标随之消失）
-      store.markRead(item.id)
-      store.clearAtMe(item.id)
-      // type 必须随路由透传：群会话（group）直接决定 compose 的 OneBot 动作类型
-      store.setLastTarget({ targetId: item.id, name: item.name, type: item.type })
+      store.setLastTarget({ targetId: item.id, name: item.name })
       router.push({
-        uri: '/chat?targetId=' + encodeURIComponent(item.id) + '&name=' + encodeURIComponent(item.name || '') + '&type=' + encodeURIComponent(item.type || 'private'),
-        params: { targetId: item.id, name: item.name, type: item.type }
+        uri: '/chat?targetId=' + encodeURIComponent(item.id) + '&name=' + encodeURIComponent(item.name || ''),
+        params: { targetId: item.id, name: item.name }
       })
-    },
-    avatarClass(item) {
-      if (!item || !item.id) return 'avatar-c0'
-      let h = 0
-      const s = String(item.id)
-      for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 997
-      return 'avatar-c' + (h % 8)
-    },
-    shortPreview(msg) {
-      if (!msg || typeof msg !== 'string') return ''
-      return msg.length <= 14 ? msg : msg.slice(0, 14) + '…'
-    },
-    shortName(name) {
-      if (!name || typeof name !== 'string') return name || ''
-      if (name.length <= 9) return name
-      return name.slice(0, 9) + '…'
     },
     async loadVisibleContacts() {
       const api = this.$app.$def.api
       try {
         await api.send(protocol.getVisibleContacts())
-      } catch (e) {}
+      } catch (e) {
+        console.error('pull visible contacts failed', e)
+      }
     },
     goSettings() {
       router.push({ uri: '/settings' })

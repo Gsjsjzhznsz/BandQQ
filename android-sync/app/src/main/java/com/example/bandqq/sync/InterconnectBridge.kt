@@ -334,8 +334,8 @@ object InterconnectBridge {
         SyncState.bandConnected = true
         BandStateBus.notify(true)
         broker?.bandSender?.invoke(SyncStatePush.buildFrame())
-        // v1.1.1：连接建立 = 补推可见联系人 + 回推断连期间错过的消息（冷启动/挂后台补齐）
-        broker?.onBandConnected()
+        broker?.pushVisibleContacts()
+        broker?.pushQuickReplies()
     }
 
     fun onDisconnect() {

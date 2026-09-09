@@ -1,6 +1,7 @@
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
 import { nextSeq, sendMessage, getConversations, getHistory, degradeContent, decodePush, getVisibleContacts, getConnectState, stripEmoji, markEmoji } from '../src/common/protocol.js'
+import protocol from '../src/common/protocol.js'
 
 describe('protocol', () => {
   it('seq 自增', () => {
@@ -90,11 +91,37 @@ describe('protocol', () => {
     assert.equal(degradeContent([{ type: 'text', data: { text: '早😊' } }, { type: 'face', data: { id: '178' } }]), '早[表情][表情]')
   })
 
-  it('decodePush 剔除名称并保留内容 emoji 标记', () => {
-    const raw = { type: 'push_message', message_type: 'group', target_id: '9', sender_id: '8', sender_name: '🌟阿杰', target_name: '群名🌺', content: '注意😄', time: 1700000000 }
+  it('decodePush v2：手机端已降级的字段直接透传（热路径零扫描）', () => {
+    const raw = { type: 'push_message', message_type: 'group', target_id: '9', sender_id: '8', sender_name: '阿杰', target_name: '群名', content: '注意[表情]', time: 1700000000, unread: 3 }
     const msg = decodePush(raw)
     assert.equal(msg.sender_name, '阿杰')
     assert.equal(msg.target_name, '群名')
     assert.equal(msg.content, '注意[表情]')
+    assert.equal(msg.unread, 3)
+  })
+
+  it('decodePush 旧端兼容：非字符串内容仍走 degradeContent', () => {
+    const raw = { type: 'push_message', message_type: 'group', target_id: '9', sender_id: '8', sender_name: '张三', content: [{ type: 'text', data: { text: '早' } }, { type: 'image' }] }
+    const msg = decodePush(raw)
+    assert.equal(msg.content, '早[图片]')
+  })
+
+  it('decodePush unread 缺省为 -1（旧端），store 会保守自增兜底', () => {
+    const raw = { type: 'push_message', message_type: 'private', target_id: '9', sender_id: '8', content: 'hi' }
+    const msg = decodePush(raw)
+    assert.equal(msg.unread, -1)
+  })
+
+  it('convSignature：内容相同签名一致，未读/预览变化签名不同', () => {
+    const { convSignature } = protocol
+    const a = [{ id: '1', name: 'A', prev: 'hi', unread: 0, tstr: '10:00', is_temporary: false }]
+    const b = [{ id: '1', name: 'A', prev: 'hi', unread: 0, tstr: '10:00', is_temporary: false }]
+    assert.equal(convSignature(a), convSignature(b))
+    const c = [{ id: '1', name: 'A', prev: 'hi', unread: 2, tstr: '10:00', is_temporary: false }]
+    assert.notEqual(convSignature(a), convSignature(c))
+    const d = [{ id: '1', name: 'A', prev: 'hello', unread: 0, tstr: '10:00', is_temporary: false }]
+    assert.notEqual(convSignature(a), convSignature(d))
+    assert.equal(convSignature([]), '')
+    assert.equal(convSignature(null), '')
   })
 })

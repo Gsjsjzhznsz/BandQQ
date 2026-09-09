@@ -6,32 +6,24 @@
     <div class="title-bar">
       <text class="page-title">{{name}}</text>
     </div>
-    <div class="send-status">
-      <text class="send-status-text {{sendStatusClass}}">{{sendStatus}}</text>
+    <div class="send-status" show="{{sendStatus}}">
+      <text class="send-status-text">{{sendStatus}}</text>
     </div>
     <scroll id="msgList" class="msg-area" scroll-y="true" scroll-top="{{scrollTop}}">
-      <div class="load-older" @click="loadOlder" show="{{showOlder}}">
-        <!-- v1.2.0：嵌套三元会被编译器丢弃，改计算字段 -->
-        <text class="load-older-text">{{olderText}}</text>
+      <div class="older-wrap" show="{{hasMore}}">
+        <text class="older-btn" onclick="loadOlder">{{loadingOlder ? '加载中…' : '加载更早的消息'}}</text>
       </div>
-      <block for="{{item in viewList}}" tid="item.key">
-        <div class="time-tip" if="{{item.tip}}">
-          <text class="time-tip-text">{{item.tip}}</text>
+      <div class="msg-item {{item.is_self ? 'self' : 'other'}}" for="{{item in messages}}" tid="tid">
+        <div class="msg-col {{item.is_self ? 'col-self' : 'col-other'}}">
+          <text class="msg-name" if="{{item.message_type === 'group' && !item.is_self}}">{{item.sender_name}}</text>
+          <text class="bubble {{item.is_self ? 'bubble-self' : 'bubble-other'}}">{{item.content}}</text>
         </div>
-        <!-- v1.2.0：Vela 5.0 编译器丢弃 mustache 三元/复合表达式，全部改预计算字段 -->
-        <div class="msg-item" if="{{item.row_cls}}">
-          <div class="msg-col {{item.col_cls}}">
-            <text class="msg-name" if="{{item.show_name}}" style="color: {{item.name_color}}">{{item.sender_name}}</text>
-            <image class="bubble-img" if="{{item.thumb}}" src="{{item.thumb}}"></image>
-            <text class="bubble {{item.bubble_cls}}" if="{{item.show_bubble}}">{{item.content}}</text>
-          </div>
-        </div>
-      </block>
+      </div>
     </scroll>
-    <scroll class="quick-bar" scroll-x="true">
+    <scroll class="quick-area" scroll-x="true" show="{{quickReplies.length}}">
       <div class="quick-row">
-        <div class="quick-chip" for="{{q in quickReplies}}" @click="sendQuick(q)">
-          <text class="quick-chip-text">{{q.label}}</text>
+        <div class="quick-btn" for="{{q in quickReplies}}" tid="content" @click="quickSend(q)">
+          <text class="quick-text">{{q.label}}</text>
         </div>
       </div>
     </scroll>
@@ -43,79 +35,58 @@
 
 <style>
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
-  .top-row { height: 70px; flex-direction: row; align-items: flex-start; padding-top: 4px; }
-  .btn { width: 102px; height: 66px; margin-left: 45px; }
-  .btn-back { width: 102px; height: 66px; margin-left: 45px; }
-  .title-bar { height: 32px; flex-direction: row; align-items: center; }
-  .send-status { height: 24px; flex-direction: row; align-items: center; }
-  .send-status-text { font-size: 16px; color: #07c160; width: 192px; text-align: center; }
-  .send-fail { color: #ff4d4f; }
-  .page-title { font-size: 22px; color: #ffffff; width: 192px; text-align: center; }
-  .msg-area { flex: 1; flex-direction: column; }
-  .load-older { width: 192px; height: 36px; align-items: center; flex-shrink: 0; }
-  .load-older-text { font-size: 15px; color: #999999; width: 192px; text-align: center; }
-  .time-tip { width: 192px; height: 30px; align-items: center; flex-shrink: 0; }
-  .time-tip-text { font-size: 14px; color: #777777; width: 192px; text-align: center; }
+  .top-row { height: 78px; flex-direction: row; align-items: flex-start; justify-content: center; padding-top: 6px; }
+  .btn { width: 102px; height: 72px; }
+  .btn-back { width: 102px; height: 72px; }
+  .title-bar { height: 30px; flex-direction: row; align-items: center; justify-content: center; }
+  .send-status { height: 22px; flex-direction: row; align-items: center; justify-content: center; }
+  .send-status-text { font-size: 15px; color: #0d84ff; }
+  .page-title { font-size: 22px; color: #ffffff; max-width: 170px; lines: 1; text-overflow: ellipsis; }
+  /* 消息区高度固定，列表项不参与高度计算（抖动根治） */
+  .msg-area { height: 230px; flex-direction: column; }
+  .older-wrap { height: 34px; flex-direction: row; justify-content: center; align-items: center; }
+  .older-btn { font-size: 15px; color: #0d84ff; padding: 4px 12px; }
   .msg-item { width: 192px; padding: 0 8px; margin-top: 8px; flex-direction: row; flex-shrink: 0; }
-  .col-self { margin-left: auto; align-items: flex-end; }
+  .self { justify-content: flex-end; }
+  .other { justify-content: flex-start; }
+  .msg-col { flex-direction: column; align-items: flex-start; flex-shrink: 0; }
+  .col-self { align-items: flex-end; }
   .col-other { align-items: flex-start; }
-  .msg-col { flex-direction: column; align-items: flex-start; flex-shrink: 0; max-width: 150px; }
-  .msg-name { font-size: 14px; color: #bbbbbb; margin-bottom: 4px; }
-  .bubble { max-width: 150px; padding: 7px 10px; border-radius: 10px; font-size: 18px; line-height: 25px; word-break: break-all; }
-  .bubble-self { background-color: #07c160; color: #ffffff; border-bottom-right-radius: 3px; }
-  .bubble-other { background-color: #1f1f1f; color: #ffffff; border-bottom-left-radius: 3px; }
-  .bubble-atme { border: 1px solid #ff9800; background-color: #553311; }
-  .bubble-img { max-width: 120px; max-height: 120px; border-radius: 10px; }
-  .quick-bar { height: 52px; flex-direction: row; background-color: #111111; }
-  .quick-row { flex-direction: row; align-items: center; padding: 0 8px; }
-  .quick-chip { height: 36px; border-radius: 18px; background-color: #262626; border-width: 1px; border-color: #333333; align-items: center; padding: 0 12px; margin-right: 8px; flex-shrink: 0; }
-  .quick-chip-text { font-size: 16px; color: #0d84ff; }
-  .input-bar { height: 72px; flex-direction: row; align-items: center; border-top: 1px solid #222222; }
+  .msg-name { font-size: 14px; color: rgba(255, 255, 255, 0.55); margin-bottom: 4px; }
+  .bubble { max-width: 140px; padding: 7px 9px; border-radius: 10px; font-size: 18px; line-height: 25px; word-break: break-all; }
+  .bubble-self { background-color: #07c160; color: #ffffff; }
+  .bubble-other { background-color: #1f1f1f; color: #ffffff; }
+  /* 快捷回复：横向滚动按钮行，标签为手机端剥离 CQ 码后的纯文本 */
+  .quick-area { height: 56px; flex-direction: row; align-items: center; }
+  .quick-row { flex-direction: row; align-items: center; padding: 0 6px; height: 56px; }
+  .quick-btn { height: 40px; border-radius: 20px; background-color: #262626; border-width: 1px; border-color: #3a3a3a; justify-content: center; align-items: center; margin: 0 4px; padding: 0 12px; flex-shrink: 0; }
+  .quick-text { font-size: 16px; color: #e8e8e8; }
+  .input-bar { height: 74px; flex-direction: row; align-items: center; justify-content: center; border-top: 1px solid #222222; }
 </style>
 
 <script>
   import router from '@system.router'
   import protocol from '../../common/protocol'
 
-  // Stapxs 风格：群成员昵称按 ID 稳定着色
-  const NAME_COLORS = ['#4fa1ff', '#35c759', '#ff9f43', '#b07cff', '#ff6b81', '#2dd4bf', '#fbbf24', '#818cf8']
-
-  // 快捷回复（v1.2.0：全部纯文字。Vela 手环无 emoji 字体，
-  // 👍❤️😂 这类字符会渲染成乱码方块，被用户反馈为「一堆格式代码」）
-  const QUICK_REPLIES = [
-    { label: '收到', text: '收到' },
-    { label: '好的', text: '好的' },
-    { label: '稍等', text: '稍等' },
-    { label: '哈哈', text: '哈哈哈' },
-    { label: 'OK', text: 'OK' },
-    { label: '晚安', text: '晚安' },
-    { label: '赞', text: '赞' },
-    { label: '比心', text: '比心' },
-    { label: '笑死', text: '笑死' }
-  ]
+  const HISTORY_LIMIT = 30
 
   export default {
     protected: {
       targetId: '',
       name: '',
-      convType: 'private',
       messages: []
     },
     private: {
       sendStatus: '',
-      sendStatusClass: '',
       scrollTop: 0,
-      viewList: [],
-      quickReplies: QUICK_REPLIES,
-      loadingOlder: false,
-      olderEnd: false,
-      olderText: '↑ 更早消息',
-      showOlder: true
+      quickReplies: [],
+      hasMore: false,
+      loadingOlder: false
     },
     onInit(params) {
+      console.log('[BANDQQ] v21 chat onInit')
       let targetId = (params && params.targetId) || ''
       let convName = (params && params.name) || ''
-      let convType = (params && params.type) || ''
       if (!targetId && params && params.uri) {
         const q = (params.uri.split('?')[1] || '')
         if (q) {
@@ -123,9 +94,9 @@
           q.split('&').forEach((kv) => { const i = kv.indexOf('='); if (i > 0) m[decodeURIComponent(kv.slice(0, i))] = decodeURIComponent(kv.slice(i + 1)) })
           targetId = m.targetId || ''
           convName = m.name || ''
-          convType = m.type || convType
         }
       }
+      // 系统可能对完整 uri 二次编码，名称出现 %xx 时再解一次
       try { if (convName.indexOf('%') >= 0) convName = decodeURIComponent(convName) } catch (e) {}
       if (!targetId) {
         const st = this.$app.$def.store
@@ -133,75 +104,80 @@
         if (last && last.targetId) {
           targetId = last.targetId
           convName = last.name || convName
-          convType = last.type || convType
         }
-      }
-      const appDef = this.$app.$def
-      if (!convType) {
-        appDef.store.getConversations().then((convs) => {
-          const c = convs.find((x) => x.id === targetId)
-          if (c && c.type) this.convType = c.type
-        })
       }
       this.targetId = targetId
       this.name = convName || '聊天'
-      this.convType = convType === 'group' ? 'group' : (convType || 'private')
-      // 查看中：新消息不计未读；进入即清未读与 [@我] 标记
-      appDef.store.setActiveChat(this.targetId)
       const def = this.$app.$def
       this._handlers = {
-        message: () => this.loadMessages(),
+        message: () => this.loadMessages(false),
         history: (msg) => {
-          if (msg.target_id !== this.targetId) return
-          if (msg.mode === 'older') {
-            // 翻页结果：合并后保持位置，不滚到底
-            this.loadingOlder = false
-            if (this._olderTimer) { clearTimeout(this._olderTimer); this._olderTimer = null }
-            if (msg.has_more === false) this.olderEnd = true
-            this.loadMessages(true)
-          } else {
-            this.olderEnd = false
-            this.loadMessages()
-          }
-          // v1.2.0：翻页按钮文案与显隐（计算字段，避开模板表达式）
-          this.olderText = this.loadingOlder ? '加载中' : '↑ 更早消息'
-          this.showOlder = !this.olderEnd || this.loadingOlder
+          if (msg.target_id === this.targetId) this.onHistoryArrived(msg)
         },
-        cleared: () => this.loadMessages(),
-        send_status: () => this.refreshSendStatus()
+        cleared: () => this.loadMessages(false),
+        send_status: () => this.refreshSendStatus(),
+        quick_replies: () => this.loadQuickReplies()
       }
       def.on('message', this._handlers.message)
       def.on('history', this._handlers.history)
       def.on('cleared', this._handlers.cleared)
       def.on('send_status', this._handlers.send_status)
-      this.requestHistory()
-      this.loadMessages()
+      def.on('quick_replies', this._handlers.quick_replies)
+      this.loadQuickReplies()
+      this.requestHistory(0)
+      this.loadMessages(true)
       this.refreshSendStatus()
+    },
+    onShow() {
+      this.loadMessages(false)
+      // 打开聊天即上报已读，手机端清零未读并回推会话列表
+      this.reportRead()
     },
     onDestroy() {
       const def = this.$app.$def
-      def.store.setActiveChat(null)
-      if (this._olderTimer) { clearTimeout(this._olderTimer); this._olderTimer = null }
       if (this._handlers) {
         def.off('message', this._handlers.message)
         def.off('history', this._handlers.history)
         def.off('cleared', this._handlers.cleared)
         def.off('send_status', this._handlers.send_status)
+        def.off('quick_replies', this._handlers.quick_replies)
         this._handlers = null
       }
+    },
+    loadQuickReplies() {
+      const store = this.$app.$def.store
+      this.quickReplies = store.getQuickReplies()
+    },
+    /** 快捷回复：直接发送手机端下发的 content（CQ 码原文，手机端只负责按钮标签净化） */
+    quickSend(q) {
+      if (!q || !q.content || !this.targetId) return
+      const store = this.$app.$def.store
+      // 群会话用 group 类型发送
+      store.getConversations().then((convs) => {
+        const conv = convs.find((c) => c.id === this.targetId)
+        const mType = (conv && conv.type === 'group') ? 'group' : 'private'
+        store.setSendStatus('发送中…')
+        this.sendStatus = '发送中…'
+        this.$app.$def.sendUpstream(protocol.sendMessage(mType, this.targetId, q.content)).then(() => {
+          store.setSendStatus('已发送')
+          this.sendStatus = '已发送'
+          setTimeout(() => { this.sendStatus = ''; store.setSendStatus('') }, 1500)
+        }, () => {
+          store.setSendStatus('发送失败')
+          this.sendStatus = '发送失败'
+          setTimeout(() => { this.sendStatus = ''; store.setSendStatus('') }, 2500)
+        })
+      })
+    },
+    reportRead() {
+      if (!this.targetId) return
+      const api = this.$app.$def.api
+      api.send(protocol.readChat(this.targetId)).catch(() => {})
     },
     refreshSendStatus() {
       const store = this.$app.$def.store
       const st = store.getSendStatus()
       this.sendStatus = (st && st.text) || ''
-      this.sendStatusClass = this.sendStatus.indexOf('失败') >= 0 ? 'send-fail' : ''
-    },
-    onShow() {
-      const store = this.$app.$def.store
-      store.setActiveChat(this.targetId)
-      store.markRead(this.targetId)
-      store.clearAtMe(this.targetId)
-      this.loadMessages()
     },
     goBack() {
       router.back()
@@ -209,114 +185,101 @@
     openCompose() {
       router.push({
         uri: '/compose',
-        params: { targetId: this.targetId, name: this.name, type: this.convType }
+        params: { targetId: this.targetId, name: this.name }
       })
     },
-    sendQuick(q) {
-      const text = (q && q.text) || ''
-      if (!text || !this.targetId) return
+    /**
+     * 拉取历史。before=0 拉最新一页；>0 为翻页锚点（拉取更早消息）。
+     * 手机端对该组合做 1.5s 去重，这里无需额外节流。
+     */
+    requestHistory(before) {
+      const api = this.$app.$def.api
+      const payload = before > 0
+        ? protocol.getHistoryOlder(this.targetId, before, HISTORY_LIMIT)
+        : protocol.getHistory(this.targetId, HISTORY_LIMIT)
+      api.send(payload).catch((e) => { console.error('requestHistory fail', e) })
+    },
+    /** history_list 到达：翻页时走合并，普通刷新走替换 */
+    onHistoryArrived(msg) {
       const store = this.$app.$def.store
-      // 乐观回显：立即上屏（手机端回推同 time|content 会去重）
-      const t = Date.now()
-      store.upsertMessage({
-        message_type: this.convType,
-        target_id: this.targetId,
-        target_name: this.name,
-        sender_id: '',
-        sender_name: '我',
-        content: text,
-        is_self: true,
-        time: t
-      })
-      this.$app.$def.sendUpstream(protocol.sendMessage(this.convType, this.targetId, text)).catch(() => {})
-      this.loadMessages()
-    },
-    requestHistory() {
-      const api = this.$app.$def.api
-      api.send(protocol.getHistory(this.targetId, 50))
-    },
-    loadOlder() {
-      if (this.loadingOlder || this.olderEnd || !this.targetId) return
-      const msgs = this.messages || []
-      if (!msgs.length) { this.olderEnd = true; return }
-      this.loadingOlder = true
-      this.olderText = '加载中'
-      this.showOlder = true
-      const api = this.$app.$def.api
-      api.send(protocol.getHistory(this.targetId, 20, { older: true, beforeTime: msgs[0].time }))
-      // 超时兜底：手机端无更多或未响应时恢复按钮（history 到达时会清除本计时器）
-      if (this._olderTimer) clearTimeout(this._olderTimer)
-      this._olderTimer = setTimeout(() => {
+      const list = Array.isArray(msg.list) ? msg.list : []
+      if (msg.before > 0) {
         this.loadingOlder = false
-        this.olderText = '↑ 更早消息'
-        this.showOlder = !this.olderEnd
-        this._olderTimer = null
-      }, 6000)
+        if (list.length === 0) {
+          this.hasMore = false
+          return
+        }
+        store.prependMessages(this.targetId, list).then((added) => {
+          this.hasMore = msg.has_more === true
+          console.log('[chat] prepend older added=' + added + ' hasMore=' + this.hasMore)
+          this.loadMessages(false, true)
+        })
+      } else {
+        store.setMessages(this.targetId, list).then(() => {
+          this.hasMore = msg.has_more === true
+          this.loadMessages(true)
+        })
+      }
     },
-    nameColor(senderId) {
-      const s = String(senderId || '')
-      if (!s) return NAME_COLORS[0]
-      let h = 0
-      for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 997
-      return NAME_COLORS[h % NAME_COLORS.length]
+    /** 翻页：以当前窗口最早消息时间为锚点 */
+    loadOlder() {
+      if (this.loadingOlder) return
+      const anchor = this._firstRealTime
+      if (!anchor) {
+        this.hasMore = false
+        return
+      }
+      this.loadingOlder = true
+      this.requestHistory(anchor)
+      // 超时兜底：6s 未响应解除 loading
+      setTimeout(() => { this.loadingOlder = false }, 6000)
     },
-    async loadMessages(keepPosition) {
+    /**
+     * 渲染前签名比对：列表未变化时不写 this.messages（防重渲染）。
+     * 仅在新消息到达（count 增大）时滚动到底部；翻页 prepend 保持阅读位置。
+     */
+    async loadMessages(scrollIfNew, keepPosition) {
       const store = this.$app.$def.store
       const msgs = (await store.getMessages(this.targetId)).slice()
-      const convs = await store.getConversations()
-      const conv = convs.find((c) => c.id === this.targetId)
-      if (conv && conv.last_msg && !msgs.some((m) => m.content === conv.last_msg)) {
-        msgs.push({
-          message_type: conv.type || 'private',
-          sender_name: conv.name || '会话',
-          content: conv.last_msg,
-          time: conv.time || Date.now(),
-          is_self: false
-        })
-      }
-      msgs.sort((a, b) => (a.time || 0) - (b.time || 0))
-      this.messages = msgs
-      // 构建视图列表：插入时间分隔条（≥5 分钟，Stapxs 规则）+ 昵称色 + 缩略图 + @我 标记
-      // v1.2.0：全部展示字段在此预计算（key/色值），模板零函数调用 + tid 键控 diff（跳动/性能双修）
-      const view = []
-      let prev = 0
-      for (const m of msgs) {
-        if (protocol.needTimeSplit(prev, m.time)) {
-          view.push({ key: 't' + m.time, tip: protocol.formatTime(m.time) })
+      // 兜底：本地明细为空但会话有摘要时展示占位（不落库，避免污染翻页锚点）
+      if (msgs.length === 0) {
+        const convs = await store.getConversations()
+        const conv = convs.find((c) => c.id === this.targetId)
+        if (conv && conv.last_msg) {
+          msgs.push({
+            message_type: conv.type || 'private',
+            sender_name: conv.name || '会话',
+            content: conv.last_msg,
+            time: conv.time || Date.now(),
+            is_self: false,
+            _fallback: true
+          })
         }
-        prev = m.time
-        const isSelf = m.is_self === true
-        const showName = m.message_type === 'group' && !isSelf
-        const thumb = m.thumb || store.getThumb(this.targetId, m.time) || ''
-        let bubbleCls = isSelf ? 'bubble-self' : 'bubble-other'
-        if (m.at_me === true) bubbleCls += ' bubble-atme'
-        view.push({
-          key: 'm' + m.time + '|' + (m.content || '').slice(0, 24),
-          message_type: m.message_type,
-          sender_name: m.sender_name,
-          sender_id: m.sender_id,
-          is_self: isSelf,
-          at_me: m.at_me === true,
-          content: m.content,
-          time: m.time,
-          row_cls: isSelf ? 'self' : 'other',
-          col_cls: isSelf ? 'col-self' : 'col-other',
-          bubble_cls: bubbleCls,
-          show_name: showName,
-          show_bubble: !thumb,
-          name_color: isSelf ? 'rgba(255,255,255,0.55)' : this.nameColor(m.sender_id),
-          thumb: thumb
-        })
       }
-      this.viewList = view
-      // 新消息/首次加载滚到底部；翻页(keepPosition)保持位置
-      if (!keepPosition) {
+      for (let i = 0; i < msgs.length; i++) {
+        const m = msgs[i]
+        m.tid = (m.time || 0) + '_' + i + '_' + (m.content || '').length
+      }
+      const last = msgs.length > 0 ? msgs[msgs.length - 1] : null
+      const sig = msgs.length + '|' + (last ? (last.time || 0) + '|' + (last.content || '').length : '')
+      if (sig === this._lastMsgSig && !keepPosition) {
+        return
+      }
+      const prevCount = this._lastCount || 0
+      const firstReal = msgs.find((m) => !m._fallback)
+      this._firstRealTime = firstReal ? (firstReal.time || 0) : 0
+      if (this._firstRealTime === 0) this.hasMore = false
+      this._lastMsgSig = sig
+      this._lastCount = msgs.length
+      this.messages = msgs
+      if (!keepPosition && msgs.length > prevCount) {
+        // 新消息到达：滚动到底部（翻页 prepend 时保持阅读位置不滚动）
         this._scrollTick = (this._scrollTick || 0) + 1
         this.scrollTop = 999999 + this._scrollTick
         const el = this.$element && this.$element('msgList')
         if (el && el.scrollTo) {
           setTimeout(() => {
-            try { el.scrollTo({ top: 999999 }) } catch (e) {}
+            try { el.scrollTo({ top: 999999, behavior: 'smooth' }) } catch (e) {}
           }, 60)
         }
       }

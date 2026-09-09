@@ -4,17 +4,9 @@ import com.example.bandqq.onebot.OneBotMessage
 import com.example.bandqq.onebot.OneBotParser
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
-import org.junit.After
-import org.junit.Before
 import org.junit.Test
 
 class MessageBrokerTest {
-
-    @Before
-    fun setUpOnline() { SyncState.bandConnected = true }
-
-    @After
-    fun tearDownOnline() { SyncState.bandConnected = false }
 
     private val parser = OneBotParser()
 
@@ -28,34 +20,6 @@ class MessageBrokerTest {
         assertEquals("group", sent[0].first)
         assertEquals("123", sent[0].second)
         assertEquals("收到", sent[0].third)
-    }
-
-    @Test
-    fun `send_message 发送成功时回推 send_result ok 帧`() {
-        val broker = MessageBroker(parser, FakeOneBot { _, _, _ -> true }, MessageStore())
-        val out = mutableListOf<String>()
-        broker.bandSender = { out.add(it) }
-        val handled = broker.onBandFrame(
-            """{"type":"send_message","seq":7,"message_type":"group","target_id":"123","content":"收到"}"""
-        )
-        assertTrue(handled)
-        val result = out.first { it.contains("\"type\":\"send_result\"") }
-        assertTrue(result.contains("\"ok\":true"))
-        assertTrue(result.contains("\"seq\":7"))
-    }
-
-    @Test
-    fun `send_message 发送失败时回推 send_result 失败帧并携带原因`() {
-        val broker = MessageBroker(parser, FakeOneBot { _, _, _ -> false }, MessageStore())
-        val out = mutableListOf<String>()
-        broker.bandSender = { out.add(it) }
-        val handled = broker.onBandFrame(
-            """{"type":"send_message","seq":8,"message_type":"private","target_id":"194636275","content":"测式"}"""
-        )
-        assertTrue(handled)
-        val result = out.first { it.contains("\"type\":\"send_result\"") }
-        assertTrue(result.contains("\"ok\":false"))
-        assertTrue(result.contains("fake failure"))
     }
 
     @Test
@@ -269,9 +233,8 @@ class FakeOneBot(private val onSend: (String, String, String) -> Boolean) : Mess
         targetId: String,
         content: String,
         httpUrlOverride: String?,
-        callback: (Boolean, String?, String?) -> Unit
+        callback: (Boolean) -> Unit
     ) {
-        val ok = onSend(messageType, targetId, content)
-        callback(ok, if (ok) null else "fake failure", null)
+        callback(onSend(messageType, targetId, content))
     }
 }

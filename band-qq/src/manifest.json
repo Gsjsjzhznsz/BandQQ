@@ -2,61 +2,28 @@
   "package": "com.example.bandqq",
   "name": "QQ助手",
   "icon": "/common/icon.png",
-  "versionName": "1.2.0",
-  "versionCode": 4,
+  "versionName": "2.1.0",
+  "versionCode": 21,
   "minAPILevel": 1,
-  "deviceTypeList": [
-    "watch"
-  ],
-  "config": {
-    "designWidth": 192,
-    "logLevel": "log"
-  },
+  "deviceTypeList": ["watch"],
+  "config": { "designWidth": 192, "logLevel": "log" },
   "features": [
-    {
-      "name": "system.interconnect"
-    },
-    {
-      "name": "system.storage"
-    },
-    {
-      "name": "system.router"
-    },
-    {
-      "name": "system.app"
-    },
-    {
-      "name": "system.device"
-    },
-    {
-      "name": "system.vibrator"
-    },
-    {
-      "name": "system.prompt"
-    }
+    { "name": "system.interconnect" },
+    { "name": "system.storage" },
+    { "name": "system.router" },
+    { "name": "system.app" },
+    { "name": "system.device" },
+    { "name": "system.vibrator" },
+    { "name": "system.prompt" }
   ],
-  "display": {
-    "backgroundColor": "#000000"
-  },
+  "display": { "backgroundColor": "#000000" },
   "router": {
     "entry": "pages/index",
     "pages": {
-      "pages/index": {
-        "component": "index",
-        "path": "/index"
-      },
-      "pages/chat": {
-        "component": "chat",
-        "path": "/chat"
-      },
-      "pages/settings": {
-        "component": "settings",
-        "path": "/settings"
-      },
-      "pages/compose": {
-        "component": "compose",
-        "path": "/compose"
-      }
+      "pages/index": { "component": "index", "path": "/index" },
+      "pages/chat": { "component": "chat", "path": "/chat" },
+      "pages/settings": { "component": "settings", "path": "/settings" },
+      "pages/compose": { "component": "compose", "path": "/compose" }
     }
   }
 }

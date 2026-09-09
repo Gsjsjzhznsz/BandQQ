@@ -94,7 +94,6 @@ export function createApi(interconnectImpl) {
   }
 
   function init(handlers) {
-    lastHandlers = handlers || null
     if (conn) {
       // 注入场景：同步注册，确保事件处理器立即可用
       registerOn(conn, handlers)
@@ -104,29 +103,9 @@ export function createApi(interconnectImpl) {
     }
   }
 
-  let lastHandlers = null
-
-  /**
-   * 冷启动自愈：互联通道断开（onclose/onerror 后 connected=false）时，
-   * 重建实例并重挂回调。长期后台后页面 onShow 调用，避免「再次打开不能用」。
-   */
-  function ensureAlive() {
-    if (connected) return Promise.resolve(true)
-    connPromise = null
-    conn = null
-    return ensureConn()
-      .then((c) => {
-        if (lastHandlers) registerOn(c, lastHandlers)
-        return waitReady().then(() => true, () => false)
-      })
-      .catch(() => Promise.resolve(false))
-  }
-
   function send(payload) {
     return new Promise((resolve, reject) => {
-      // 就绪门控：等 onopen 后再发，避免互联通道未开时首帧被丢弃
       ensureConn()
-        .then((c) => waitReady().then(() => c))
         .then((c) => c.send({
           data: payload,
           success: () => resolve(),
@@ -154,7 +133,7 @@ export function createApi(interconnectImpl) {
     return connected
   }
 
-  return { init, send, connectStatus, isConnected, ensureAlive }
+  return { init, send, connectStatus, isConnected }
 }
 
 const api = createApi()

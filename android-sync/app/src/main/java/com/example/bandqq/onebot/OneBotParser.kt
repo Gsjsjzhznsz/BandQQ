@@ -13,92 +13,60 @@ data class OneBotMessage(
     val senderName: String,
     val content: String,
     val time: Long,
-    val isSelf: Boolean = false,
-    val atMe: Boolean = false,       // 消息 @ 了登录用户（Stapxs 同款判定：at 段 user_id == self_id）
-    val messageId: String = "",      // OneBot message_id，翻页拉取历史用
-    val messageSeq: String = "",     // 历史响应中的 message_seq（NapCat 翻页锚点，优先于 messageId）
-    val imageUrl: String = ""        // 首个图片段的 URL（缩略图抓取用）
+    val isSelf: Boolean = false
 )
+
+/** 快捷回复：label 为手环按钮上的纯文本（已剥离 CQ 码），content 为实际发送内容（保留 CQ 码） */
+data class QuickReply(val label: String, val content: String)
 
 class OneBotParser {
 
     companion object {
         private val EMOJI = Regex("\\p{So}|\\p{Sk}|[\\x{2600}-\\x{27BF}\\x{2B00}-\\x{2BFF}\\x{1F000}-\\x{1FAFF}\\x{FE0F}\\x{200D}]")
-
-        /** v1.2.0：字符串消息里的 CQ 码（部分协议端 message 字段直接给字符串而非数组） */
-        private val CQ_CODE = Regex("\\[CQ:[^\\]]{0,200}?\\]")
-
-        /** 蓝牙帧瘦身：单条正文截断上限（互联通道单帧 ~15KB，群聊长文直接吃满帧预算） */
-        private const val BAND_CONTENT_MAX = 180
+        private val CQ_CODE = Regex("\\[CQ:[^\\]]*\\]")
 
         fun stripEmoji(s: String): String = s.replace(EMOJI, "")
 
         fun markEmoji(s: String): String = s.replace(EMOJI, "[表情]")
 
-        /** v1.2.0：清洗 CQ 码（字符串消息透传会让手环气泡变成「一堆格式代码」） */
-        fun cleanCqCodes(s: String): String = s.replace(CQ_CODE, "").replace("  +".toRegex(), " ")
+        /** 剥离 CQ 码得到纯文本（用于手环按钮标签，避免显示一堆格式代码） */
+        fun stripCq(s: String): String = s.replace(CQ_CODE, "").trim()
 
-        /** v1.2.0：下发手环前的正文裁剪（在手机端完成，手环不做任何文本处理） */
-        fun truncateForBand(s: String, max: Int = BAND_CONTENT_MAX): String {
-            val t = s.trim()
-            return if (t.length <= max) t else t.take(max) + "…"
-        }
-    }
-
-    /** 消息段提取结果：降级文本 + @我标记 + 首图 URL */
-    data class SegInfo(val content: String, val atMe: Boolean, val imageUrl: String)
-
-    /** 逐段解析消息数组：文本保留、face/image/... 降级为中文标记、at 段还原为 @xxx。 */
-    fun extractSegs(message: com.google.gson.JsonElement?, selfId: String?): SegInfo {
-        if (message == null) return SegInfo("", false, "")
-        if (message.isJsonPrimitive && message.asJsonPrimitive.isString) return SegInfo(cleanCqCodes(message.asString), false, "")
-        if (!message.isJsonArray) return SegInfo("", false, "")
-        val arr: JsonArray = message.asJsonArray
-        val sb = StringBuilder()
-        var atMe = false
-        var imageUrl = ""
-        for (elem in arr) {
-            val seg = if (elem.isJsonObject) elem.asJsonObject else continue
-            when (seg.get("type")?.asString) {
-                "text" -> {
-                    val text = seg.getAsJsonObject("data")?.get("text")?.asString ?: ""
-                    sb.append(markEmoji(text))
-                }
-                "at" -> {
-                    // at 段：@登录用户 → atMe 标记；文本还原为 @QQ号 保留语义（不再落到 [其他]）
-                    val data = seg.getAsJsonObject("data")
-                    val qq = data?.get("qq")?.takeIf { it.isJsonPrimitive }?.asString ?: ""
-                    if (selfId != null && qq.isNotBlank() && qq == selfId) atMe = true
-                    if (qq == "all") sb.append("@全体成员 ") else sb.append("@$qq ")
-                }
-                "face" -> sb.append("[表情]")
-                "image" -> {
-                    sb.append("[图片]")
-                    if (imageUrl.isEmpty()) {
-                        val d = seg.getAsJsonObject("data")
-                        val url = d?.get("url")?.takeIf { it.isJsonPrimitive }?.asString ?: ""
-                        val file = d?.get("file")?.takeIf { it.isJsonPrimitive }?.asString ?: ""
-                        imageUrl = when {
-                            url.startsWith("http") -> url
-                            file.startsWith("http") -> file
-                            else -> ""
-                        }
-                    }
-                }
-                "record", "voice" -> sb.append("[语音]")
-                "video" -> sb.append("[视频]")
-                "file" -> sb.append("[文件]")
-                else -> sb.append("[其他]")
+        /**
+         * 将用户配置的快捷回复原文解析为 QuickReply 列表。
+         * 标签 = 剥离 CQ 码 + 降级 emoji + 截短到 6 字（手环按钮宽度有限）；
+         * 内容 = 保留原文（CQ 码原样发给 OneBot，保证表情等能正确发送）。
+         */
+        fun parseQuickReplies(rawList: List<String>): List<QuickReply> {
+            val out = mutableListOf<QuickReply>()
+            for (raw in rawList) {
+                val text = raw.trim()
+                if (text.isEmpty()) continue
+                var label = stripEmoji(stripCq(text))
+                    .replace("\\s+", " ").trim()
+                if (label.isEmpty()) label = "回复"
+                if (label.length > 6) label = label.take(5) + "…"
+                out.add(QuickReply(label = label, content = text))
+                if (out.size >= 6) break
             }
+            return out
         }
-        return SegInfo(sb.toString(), atMe, imageUrl)
-    }
 
-    /** 条目锚点提取：优先 message_seq（NapCat 历史分页语义），缺失时回退 message_id。 */
-    fun extractAnchor(obj: JsonObject): String {
-        val seq = obj.get("message_seq")?.takeIf { it.isJsonPrimitive }?.asString ?: ""
-        if (seq.isNotBlank() && seq != "null") return seq
-        return obj.get("message_id")?.takeIf { it.isJsonPrimitive }?.asString ?: ""
+        /** 构建下发手环的快捷回复帧 */
+        fun buildQuickRepliesFrame(list: List<QuickReply>, seq: Int): String {
+            val obj = JsonObject()
+            obj.addProperty("type", "quick_replies")
+            obj.addProperty("seq", seq)
+            val arr = JsonArray()
+            for (q in list) {
+                val o = JsonObject()
+                o.addProperty("label", q.label)
+                o.addProperty("content", q.content)
+                arr.add(o)
+            }
+            obj.add("list", arr)
+            return obj.toString()
+        }
     }
 
     fun parseMessageEvent(json: String): OneBotMessage? {
@@ -111,14 +79,14 @@ class OneBotParser {
         if (obj.get("post_type")?.asString != "message") return null
         val messageType = obj.get("message_type")?.asString ?: return null
         val sender = obj.getAsJsonObject("sender")
-        val senderId = obj.get("user_id")?.let { primitiveAsString(it) } ?: return null
+        val senderId = obj.get("user_id")?.asLong?.toString() ?: return null
         val targetId = when (messageType) {
-            "group" -> obj.get("group_id")?.let { primitiveAsString(it) }
+            "group" -> obj.get("group_id")?.asLong?.toString()
             "private" -> senderId
             else -> return null
         } ?: return null
-        val selfId = obj.get("self_id")?.let { primitiveAsString(it) }
-        val segs = extractSegs(obj.get("message"), selfId)
+        val content = degradeContent(obj.get("message"))
+        val selfId = obj.get("self_id")?.let { if (it.isJsonPrimitive) it.asString else it.toString() }
         // OneBot 标准 time 为 Unix 秒（10 位），而本地发送链路使用毫秒（Date.now() 13 位）。
         // 统一转为毫秒，避免同一会话内秒/毫秒混排导致消息顺序跳变。
         val rawTime = obj.get("time")?.asLong ?: 0L
@@ -127,21 +95,15 @@ class OneBotParser {
             targetId = targetId,
             senderId = senderId,
             senderName = stripEmoji(sender?.get("nickname")?.asString ?: senderId),
-            content = segs.content,
+            content = content,
             time = if (rawTime > 0 && rawTime < 100_000_000_000L) rawTime * 1000L else rawTime,
-            isSelf = selfId != null && senderId == selfId,
-            atMe = segs.atMe,
-            messageId = obj.get("message_id")?.let { primitiveAsString(it) } ?: "",
-            imageUrl = segs.imageUrl
+            isSelf = selfId != null && senderId == selfId
         )
     }
 
-    private fun primitiveAsString(el: com.google.gson.JsonElement): String =
-        if (el.isJsonPrimitive) el.asJsonPrimitive.asString else el.toString()
-
     fun degradeContent(message: com.google.gson.JsonElement?): String {
         if (message == null) return ""
-        if (message.isJsonPrimitive && message.asJsonPrimitive.isString) return cleanCqCodes(message.asString)
+        if (message.isJsonPrimitive && message.asJsonPrimitive.isString) return message.asString
         if (!message.isJsonArray) return ""
         val arr: JsonArray = message.asJsonArray
         val sb = StringBuilder()
@@ -163,12 +125,7 @@ class OneBotParser {
         return sb.toString()
     }
 
-    fun toHandBandFrame(
-        msg: OneBotMessage,
-        visible: Boolean = true,
-        targetName: String = msg.senderName,
-        thumb: String? = null
-    ): String {
+    fun toHandBandFrame(msg: OneBotMessage, visible: Boolean = true, targetName: String = msg.senderName): String {
         val obj = JsonObject()
         obj.addProperty("type", "push_message")
         obj.addProperty("seq", 0)
@@ -177,131 +134,30 @@ class OneBotParser {
         obj.addProperty("sender_id", msg.senderId)
         obj.addProperty("sender_name", msg.senderName)
         obj.addProperty("target_name", targetName)
-        // v1.2.0：下发前清洗 CQ 码 + 超长截断（手机端预裁剪，手环零处理 + 帧瘦身）
-        obj.addProperty("content", truncateForBand(cleanCqCodes(msg.content)))
+        obj.addProperty("content", msg.content)
         obj.addProperty("time", msg.time)
         obj.addProperty("is_self", msg.isSelf)
         obj.addProperty("visible", visible)
-        if (msg.atMe) obj.addProperty("at_me", true)
-        if (!thumb.isNullOrBlank()) obj.addProperty("thumb", thumb)
         return obj.toString()
-    }
-
-    /** 解析登录信息响应（get_login_info）：data.user_id + data.nickname。 */
-    fun parseLoginInfo(raw: String?): Pair<String, String>? {
-        if (raw.isNullOrBlank()) return null
-        return try {
-            val obj = JsonParser.parseString(raw).asJsonObject
-            val data = obj.getAsJsonObject("data") ?: return null
-            val uid = data.get("user_id")?.let { primitiveAsString(it) } ?: return null
-            val nick = data.get("nickname")?.takeIf { it.isJsonPrimitive }?.asString ?: ""
-            uid to nick
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    /**
-     * 解析 OneBot 历史消息响应（get_group_msg_history / get_friend_msg_history）。
-     * 兼容 data.messages 数组（NapCat/Lagrange）与 data 直接为数组两种实现；
-     * 历史条目无 post_type，按 group_id 判定会话类型，群名片优先 card。
-     */
-    fun parseHistoryResponse(raw: String?): List<OneBotMessage> {
-        if (raw.isNullOrBlank()) return emptyList()
-        val out = mutableListOf<OneBotMessage>()
-        try {
-            val root = JsonParser.parseString(raw)
-            if (!root.isJsonObject) return emptyList()
-            val data = root.asJsonObject.get("data") ?: return emptyList()
-            val arr: JsonArray = when {
-                data.isJsonArray -> data.asJsonArray
-                data.isJsonObject && data.asJsonObject.get("messages")?.isJsonArray == true -> data.asJsonObject.getAsJsonArray("messages")
-                else -> return emptyList()
-            }
-            for (elem in arr) {
-                val obj = if (elem.isJsonObject) elem.asJsonObject else continue
-                val messageType = if (obj.has("group_id")) "group" else "private"
-                val sender = obj.getAsJsonObject("sender")
-                val senderId = obj.get("user_id")?.let { primitiveAsString(it) } ?: continue
-                val targetId = if (messageType == "group") {
-                    obj.get("group_id")?.let { primitiveAsString(it) } ?: continue
-                } else senderId
-                val selfId = obj.get("self_id")?.let { primitiveAsString(it) }
-                val segs = extractSegs(obj.get("message"), selfId)
-                val nick = sender?.get("card")?.takeIf { it.isJsonPrimitive && it.asString.isNotBlank() }?.asString
-                    ?: sender?.get("nickname")?.takeIf { it.isJsonPrimitive }?.asString
-                    ?: senderId
-                val rawTime = obj.get("time")?.asLong ?: 0L
-                out.add(
-                    OneBotMessage(
-                        messageType = messageType,
-                        targetId = targetId,
-                        senderId = senderId,
-                        senderName = stripEmoji(nick),
-                        content = segs.content,
-                        time = if (rawTime > 0 && rawTime < 100_000_000_000L) rawTime * 1000L else rawTime,
-                        isSelf = selfId != null && senderId == selfId,
-                        atMe = segs.atMe,
-                        messageId = obj.get("message_id")?.let { primitiveAsString(it) } ?: "",
-                        messageSeq = extractAnchor(obj)
-                    )
-                )
-            }
-        } catch (e: Exception) {
-            try { LogBus.log("OneBotParser", LogLevel.WARN, "history parse error: $e") } catch (t: Throwable) {}
-        }
-        return out
-    }
-
-    /**
-     * 从发送动作的 OneBot 响应体中提取 message_id（data.message_id）。
-     * 用于自发消息回填翻页锚点；解析失败/缺失返回空串。
-     */
-    fun parseSentMessageId(raw: String?): String {
-        if (raw.isNullOrBlank()) return ""
-        return try {
-            val obj = JsonParser.parseString(raw).asJsonObject
-            val data = obj.getAsJsonObject("data") ?: return ""
-            data.get("message_id")?.let { primitiveAsString(it) } ?: ""
-        } catch (e: Exception) {
-            ""
-        }
-    }
-
-    /** 构造发送参数（不含 action），供 HTTP 请求体与 WS echo RPC 共用。 */
-    fun buildParams(messageType: String, targetId: String, content: String): JsonObject {
-        val params = JsonObject()
-        val idAsLong = targetId.toLongOrNull()
-        if (messageType == "group") {
-            if (idAsLong != null) params.addProperty("group_id", idAsLong) else params.addProperty("group_id", targetId)
-        } else {
-            if (idAsLong != null) params.addProperty("user_id", idAsLong) else params.addProperty("user_id", targetId)
-        }
-        params.addProperty("message", content)
-        return params
     }
 
     fun buildSendRequest(messageType: String, targetId: String, content: String): String {
         val body = JsonObject()
-        body.addProperty("action", if (messageType == "group") "send_group_msg" else "send_private_msg")
-        body.add("params", buildParams(messageType, targetId, content))
+        val params = JsonObject()
+        val idAsLong = targetId.toLongOrNull()
+        if (messageType == "group") {
+            body.addProperty("action", "send_group_msg")
+            if (idAsLong != null) params.addProperty("group_id", idAsLong) else params.addProperty("group_id", targetId)
+        } else {
+            body.addProperty("action", "send_private_msg")
+            if (idAsLong != null) params.addProperty("user_id", idAsLong) else params.addProperty("user_id", targetId)
+        }
+        params.addProperty("message", content)
+        body.add("params", params)
         return body.toString()
     }
 
     /** 与 buildSendRequest 对应的 OneBot 动作路径名。 */
     fun actionName(messageType: String): String =
         if (messageType == "group") "send_group_msg" else "send_private_msg"
-
-    /**
-     * 构造发送结果回推帧（手机端 -> 手环）。
-     * 手环据此把「发送中…」更新为「已送达 / 发送失败:原因」，让发送失败不再静默。
-     */
-    fun buildSendResultFrame(seq: Int, ok: Boolean, error: String?): String {
-        val obj = JsonObject()
-        obj.addProperty("type", "send_result")
-        obj.addProperty("seq", seq)
-        obj.addProperty("ok", ok)
-        if (!error.isNullOrBlank()) obj.addProperty("error", error)
-        return obj.toString()
-    }
 }

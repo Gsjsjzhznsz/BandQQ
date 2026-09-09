@@ -23,9 +23,6 @@ import kotlinx.coroutines.launch
 object SyncState {
     @Volatile var oneBotConnected: Boolean = false
     @Volatile var bandConnected: Boolean = false
-    // 登录账号信息（get_login_info，连接后拉取）：供界面展示与 @我 判定
-    @Volatile var loginUserId: String = ""
-    @Volatile var loginNickname: String = ""
 }
 
 /** 全局可访问的数据仓（手机端为主存储），供服务与界面共享 */
@@ -108,7 +105,6 @@ class SyncService : Service() {
     private lateinit var parser: OneBotParser
     private lateinit var oneBot: OneBotClient
     private lateinit var broker: MessageBroker
-    private val thumbFetcher = ThumbFetcher()
 
     override fun onCreate() {
         super.onCreate()
@@ -142,8 +138,6 @@ class SyncService : Service() {
                 settled()
             }
         }
-        // 图片缩略图抓取：Android 运行时注入（下载→压缩≤96px→base64→互联下发手环）
-        broker.thumbFetcher = { url, cb -> thumbFetcher.fetch(url, cb) }
         oneBot.startWithListener(broker)
         InterconnectBridge.register(broker)
         InterconnectBridge.init(this)

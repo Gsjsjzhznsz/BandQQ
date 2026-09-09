@@ -3,6 +3,9 @@ package com.example.bandqq.sync
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 data class StoredMessage(
     val messageType: String,
@@ -10,9 +13,7 @@ data class StoredMessage(
     val senderName: String,
     val content: String,
     val time: Long,
-    val isSelf: Boolean = false,
-    val messageId: String = "",
-    val messageSeq: String = ""   // NapCat 历史分页锚点（message_seq），翻页拉取优先用它
+    val isSelf: Boolean = false
 )
 
 data class ConversationInfo(
@@ -33,8 +34,6 @@ interface KvStorage {
     fun get(key: String, default: String): String
     fun set(key: String, value: String)
     fun remove(key: String)
-    /** 全部已存 key（按会话分 key 持久化后，冷启动恢复需要枚举） */
-    fun keys(): Set<String>
 }
 
 class InMemoryKv : KvStorage {
@@ -42,7 +41,6 @@ class InMemoryKv : KvStorage {
     override fun get(key: String, default: String) = map[key] ?: default
     override fun set(key: String, value: String) { map[key] = value }
     override fun remove(key: String) { map.remove(key) }
-    override fun keys(): Set<String> = map.keys.toSet()
 }
 
 class MessageStore(private val storage: KvStorage = InMemoryKv()) {
@@ -52,15 +50,18 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
         private fun normalizeTime(t: Long): Long = if (t in 1 until 100_000_000_000L) t * 1000L else t
     }
 
-    private val MESSAGES_KEY = "chat_messages" // v1.1.0 旧版单 key，仅用于迁移读取
-    private val MSG_KEY_PREFIX = "chat_messages_" // v1.1.1 按会话分 key，避免单 key 过大写入失败/丢失
+    private val MESSAGES_KEY = "chat_messages"
     private val CONVERSATIONS_KEY = "chat_conversations"
     private val VISIBLE_KEY = "visible_contacts"
     private val CACHED_KEY = "contact_cache"
+    private val UNREAD_KEY = "chat_unread"
 
     private val messagesByTarget = LinkedHashMap<String, MutableList<StoredMessage>>()
     private val MAX_MESSAGES = 200
     private val MAX_CONVERSATIONS = 100
+
+    /** 未读计数（手机端为唯一事实源，手环只展示）；按会话持久化 */
+    private val unreadByTarget = LinkedHashMap<String, Int>()
 
     /** 联系人可见性：以手机端为主存储，持久化 */
     private var visibleContacts: MutableList<VisibleContact> = loadVisibleContacts()
@@ -70,99 +71,76 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
     init {
         visibleContacts = loadVisibleContacts()
         cachedContacts = loadCachedContacts()
+        loadUnread()
         loadPersistedMessages()
     }
 
-    /** 解析单个会话的消息数组 JSON */
-    private fun parseMessageList(raw: String): MutableList<StoredMessage> {
-        val list = mutableListOf<StoredMessage>()
-        val arr = JsonParser.parseString(raw).asJsonArray
-        for (e in arr) {
-            val o = e.asJsonObject
-            list.add(
-                StoredMessage(
-                    messageType = o.get("message_type")?.asString ?: "private",
-                    senderId = o.get("sender_id")?.asString ?: "",
-                    senderName = o.get("sender_name")?.asString ?: "",
-                    content = o.get("content")?.asString ?: "",
-                    time = normalizeTime(o.get("time")?.asLong ?: 0L),
-                    isSelf = o.get("is_self")?.asBoolean ?: false,
-                    messageId = o.get("message_id")?.asString ?: "",
-                    messageSeq = o.get("message_seq")?.asString ?: ""
-                )
-            )
+    private fun loadUnread() {
+        try {
+            val raw = storage.get(UNREAD_KEY, "{}")
+            val obj = JsonParser.parseString(raw).asJsonObject
+            for ((k, v) in obj.entrySet()) {
+                val n = v.asInt
+                if (n > 0) unreadByTarget[k] = n.coerceAtMost(99)
+            }
+        } catch (_: Exception) {
         }
-        return list
     }
 
-    /** 从持久化存储恢复全部消息与会话索引（v1.1.1 分 key；首次运行时从旧单 key 迁移） */
+    private fun persistUnread() {
+        val obj = JsonObject()
+        for ((k, v) in unreadByTarget) {
+            if (v > 0) obj.addProperty(k, v)
+        }
+        storage.set(UNREAD_KEY, obj.toString())
+    }
+
+    /** 从持久化存储恢复全部消息与会话索引 */
     private fun loadPersistedMessages() {
         try {
-            // 1) 新版分 key 读取
-            for (k in storage.keys()) {
-                if (!k.startsWith(MSG_KEY_PREFIX)) continue
-                val targetId = k.removePrefix(MSG_KEY_PREFIX)
-                if (targetId.isEmpty()) continue
-                val raw = storage.get(k, "[]")
-                if (raw == "[]") continue
-                val list = try { parseMessageList(raw) } catch (e: Exception) { mutableListOf() }
-                if (list.isNotEmpty()) {
-                    list.sortBy { it.time }
-                    messagesByTarget[targetId] = list
+            val raw = storage.get(MESSAGES_KEY, "{}")
+            val obj = JsonParser.parseString(raw).asJsonObject
+            for ((targetId, el) in obj.entrySet()) {
+                val arr = el.asJsonArray
+                val list = mutableListOf<StoredMessage>()
+                for (e in arr) {
+                    val o = e.asJsonObject
+                    list.add(
+                        StoredMessage(
+                            messageType = o.get("message_type")?.asString ?: "private",
+                            senderId = o.get("sender_id")?.asString ?: "",
+                            senderName = o.get("sender_name")?.asString ?: "",
+                            content = o.get("content")?.asString ?: "",
+                            time = normalizeTime(o.get("time")?.asLong ?: 0L),
+                            isSelf = o.get("is_self")?.asBoolean ?: false
+                        )
+                    )
                 }
-            }
-            // 2) 旧版单 key 迁移：读取后分拆写入并删除旧 key
-            val legacy = storage.get(MESSAGES_KEY, "")
-            if (legacy.isNotBlank()) {
-                try {
-                    val obj = JsonParser.parseString(legacy).asJsonObject
-                    for ((targetId, el) in obj.entrySet()) {
-                        if (messagesByTarget.containsKey(targetId)) continue
-                        val list = try { parseMessageList(el.toString()) } catch (e: Exception) { mutableListOf() }
-                        if (list.isNotEmpty()) {
-                            list.sortBy { it.time }
-                            messagesByTarget[targetId] = list
-                        }
-                    }
-                    persistMessages()
-                } catch (e: Exception) {
-                }
-                storage.remove(MESSAGES_KEY)
+                if (list.isNotEmpty()) messagesByTarget[targetId] = list
             }
         } catch (e: Exception) {
             // 存储损坏时忽略，从空开始
         }
     }
 
-    /** 将全部消息写入持久化存储（按会话分 key，单 key 体积可控） */
+    /** 将全部消息写入持久化存储 */
     private fun persistMessages() {
+        val root = JsonObject()
         for ((targetId, list) in messagesByTarget) {
-            val json = messagesJson(list)
-            val key = MSG_KEY_PREFIX + targetId
-            if (storage.get(key, "") != json) storage.set(key, json)
+            val arr = JsonArray()
+            for (m in list) {
+                val o = JsonObject()
+                o.addProperty("message_type", m.messageType)
+                o.addProperty("sender_id", m.senderId)
+                o.addProperty("sender_name", m.senderName)
+                o.addProperty("content", m.content)
+                o.addProperty("time", m.time)
+                o.addProperty("is_self", m.isSelf)
+                arr.add(o)
+            }
+            root.add(targetId, arr)
         }
-        // 清理已不存在的会话 key
-        val liveKeys = messagesByTarget.keys.map { MSG_KEY_PREFIX + it }.toSet()
-        for (k in storage.keys()) {
-            if (k.startsWith(MSG_KEY_PREFIX) && k !in liveKeys) storage.remove(k)
-        }
-    }
-
-    private fun messagesJson(list: List<StoredMessage>): String {
-        val arr = JsonArray()
-        for (m in list) {
-            val o = JsonObject()
-            o.addProperty("message_type", m.messageType)
-            o.addProperty("sender_id", m.senderId)
-            o.addProperty("sender_name", m.senderName)
-            o.addProperty("content", m.content)
-            o.addProperty("time", m.time)
-            o.addProperty("is_self", m.isSelf)
-            if (m.messageId.isNotBlank()) o.addProperty("message_id", m.messageId)
-            if (m.messageSeq.isNotBlank()) o.addProperty("message_seq", m.messageSeq)
-            arr.add(o)
-        }
-        return arr.toString()
+        storage.set(MESSAGES_KEY, root.toString())
     }
 
     fun addMessage(targetId: String, msg: StoredMessage) {
@@ -174,74 +152,38 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
             senderName = msg.senderName,
             content = msg.content,
             time = normalizeTime(msg.time),
-            isSelf = msg.isSelf,
-            messageId = msg.messageId,
-            messageSeq = msg.messageSeq
+            isSelf = msg.isSelf
         )
         val dedup = "$targetId|${normalized.senderId}|${normalized.time}|${normalized.content}"
-        // 去重集合上限保护：长期运行时防止无限增长
-        if (duplicates.size > 5000) duplicates.clear()
         val existing = list.any { it.time == normalized.time && it.content == normalized.content }
         if (duplicates.add(dedup) || !existing) {
             list.add(normalized)
-        } else if (normalized.messageId.isNotBlank() || normalized.messageSeq.isNotBlank()) {
-            // 补锚点：老数据无 message_id/message_seq，翻页拉取需要锚点，回填到已有记录上
-            val idx = list.indexOfFirst { it.time == normalized.time && it.content == normalized.content }
-            if (idx >= 0) {
-                val old = list[idx]
-                if (old.messageId.isBlank() || old.messageSeq.isBlank()) {
-                    list[idx] = old.copy(
-                        messageId = old.messageId.ifBlank { normalized.messageId },
-                        messageSeq = old.messageSeq.ifBlank { normalized.messageSeq }
-                    )
-                }
+            // 未读计数：仅非自发消息且目标在可见联系人中才累计，封顶 99
+            if (!normalized.isSelf && isVisibleContact(targetId)) {
+                val next = (unreadByTarget[targetId] ?: 0) + 1
+                unreadByTarget[targetId] = next.coerceAtMost(99)
             }
         }
         // 保持按时间升序，历史帧与手环端 upsert 都依赖列表有序
         list.sortBy { it.time }
         while (list.size > MAX_MESSAGES) list.removeAt(0)
         persistMessages()
+        persistUnread()
     }
+
+    /** 手环打开聊天时上报已读：清零未读计数 */
+    fun markRead(targetId: String) {
+        if (unreadByTarget.remove(targetId) != null) {
+            persistUnread()
+        }
+    }
+
+    fun unreadOf(targetId: String): Int = unreadByTarget[targetId] ?: 0
 
     fun getHistory(targetId: String, limit: Int): List<StoredMessage> {
         val list = messagesByTarget[targetId] ?: return emptyList()
         val from = (list.size - limit).coerceAtLeast(0)
         return list.subList(from, list.size)
-    }
-
-    /** 本地更早一页（OneBot 翻页不可用时的回退）：返回时间严格早于 beforeTime 的最末 limit 条 */
-    fun getOlderLocal(targetId: String, beforeTime: Long, limit: Int): List<StoredMessage> {
-        val list = messagesByTarget[targetId] ?: return emptyList()
-        val older = if (beforeTime > 0) list.filter { it.time < beforeTime } else list.toList()
-        return older.takeLast(limit)
-    }
-
-    /** 锚点候选：优先取时间 ≤ beforeTime 且最接近 beforeTime 的带锚点消息；
-     *  本地消息全部晚于 beforeTime 时回退取最旧一条（仍可向更早翻页）；均无锚点字段时返回 null。 */
-    fun pickAnchor(targetId: String, beforeTime: Long): StoredMessage? {
-        val list = messagesByTarget[targetId] ?: return null
-        if (list.isEmpty()) return null
-        val anchored = list.filter { it.messageSeq.isNotBlank() || it.messageId.isNotBlank() }
-        if (anchored.isEmpty()) return null
-        val candidates = if (beforeTime > 0) anchored.filter { it.time <= beforeTime } else anchored
-        if (candidates.isNotEmpty()) {
-            return if (beforeTime > 0) candidates.minByOrNull { kotlin.math.abs(it.time - beforeTime) }
-            else candidates.minByOrNull { it.time }
-        }
-        // 本地没有早于 beforeTime 的锚点消息：回退最旧一条（OneBot 会返回它之前的更早历史）
-        return anchored.minByOrNull { it.time }
-    }
-
-    /** 本地最旧一条（判断手机端历史是否比手环还旧用） */
-    fun oldestMessage(targetId: String): StoredMessage? =
-        messagesByTarget[targetId]?.minByOrNull { it.time }
-
-    /** 会话类型：group / private（历史分页选 action 用） */
-    fun conversationType(targetId: String): String {
-        val last = messagesByTarget[targetId]?.lastOrNull()
-        if (last != null) return last.messageType
-        val cached = cachedContacts.firstOrNull { it.id == targetId }
-        return cached?.type ?: "private"
     }
 
     /** 按会话列出全部历史消息（供手机端查看页） */
@@ -306,7 +248,9 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
     fun clearAllHistory() {
         messagesByTarget.clear()
         duplicates.clear()
+        unreadByTarget.clear()
         persistMessages()
+        persistUnread()
     }
 
     private fun loadCachedContacts(): MutableList<VisibleContact> {
@@ -409,22 +353,39 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
             o.addProperty("id", c.id)
             o.addProperty("type", c.type)
             o.addProperty("name", c.name)
+            // 预计算显示字段：手环端零计算直接渲染（性能架构：重活全在手机端）
+            o.addProperty("n9", Display.shortName(c.name))
+            o.addProperty("achar", Display.avatarChar(c.name, c.id))
+            o.addProperty("hue", Display.hueOf(c.id))
             arr.add(o)
         }
         obj.add("contacts", arr)
         return obj.toString()
     }
 
-    fun buildHistoryFrame(targetId: String, limit: Int, seq: Int): String {
+    /**
+     * 构建历史帧。
+     * @param before 翻页锚点：只返回 time < before 的更早消息（0 表示拉最新一页）
+     * 帧内带 has_more 告知手环是否还有更早消息，避免无效续拉。
+     */
+    fun buildHistoryFrame(targetId: String, limit: Int, seq: Int, before: Long = 0L): String {
         val obj = JsonObject()
         obj.addProperty("type", "history_list")
         obj.addProperty("seq", seq)
         obj.addProperty("target_id", targetId)
+        obj.addProperty("before", before)
+        val all = messagesByTarget[targetId] ?: emptyList()
+        // 取候选：锚点之前的消息（时间升序），取倒数 limit 条（靠近锚点的）
+        val candidates = if (before > 0L) all.filter { it.time < before } else all
+        val candidatesCount = candidates.size
+        val from = (candidatesCount - limit).coerceAtLeast(0)
+        val window = candidates.subList(from, candidatesCount)
+        obj.addProperty("has_more", from > 0)
         val arr = JsonArray()
         // 历史帧过大时可能超出互联通道单帧上限导致下发失败，这里对总帧大小做保护
         val maxBytes = 15000
         var bytes = obj.toString().length
-        for (m in getHistory(targetId, limit)) {
+        for (m in window) {
             val o = JsonObject()
             o.addProperty("message_type", m.messageType)
             o.addProperty("sender_id", m.senderId)
@@ -433,35 +394,10 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
             o.addProperty("time", m.time)
             o.addProperty("is_self", m.isSelf)
             val itemBytes = o.toString().length
-            if (bytes + itemBytes > maxBytes && arr.size() > 0) break
-            arr.add(o)
-            bytes += itemBytes
-        }
-        obj.add("list", arr)
-        return obj.toString()
-    }
-
-    /** 翻页历史帧：mode=older + has_more，手环据此控制「加载更早」按钮状态 */
-    fun buildOlderHistoryFrame(targetId: String, msgs: List<StoredMessage>, seq: Int, hasMore: Boolean): String {
-        val obj = JsonObject()
-        obj.addProperty("type", "history_list")
-        obj.addProperty("seq", seq)
-        obj.addProperty("target_id", targetId)
-        obj.addProperty("mode", "older")
-        obj.addProperty("has_more", hasMore)
-        val arr = JsonArray()
-        val maxBytes = 15000
-        var bytes = obj.toString().length
-        for (m in msgs) {
-            val o = JsonObject()
-            o.addProperty("message_type", m.messageType)
-            o.addProperty("sender_id", m.senderId)
-            o.addProperty("sender_name", m.senderName)
-            o.addProperty("content", m.content)
-            o.addProperty("time", m.time)
-            o.addProperty("is_self", m.isSelf)
-            val itemBytes = o.toString().length
-            if (bytes + itemBytes > maxBytes && arr.size() > 0) break
+            if (bytes + itemBytes > maxBytes && arr.size() > 0) {
+                obj.addProperty("has_more", true)
+                break
+            }
             arr.add(o)
             bytes += itemBytes
         }
@@ -481,9 +417,62 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
             o.addProperty("name", c.name)
             o.addProperty("last_msg", c.lastMsg)
             o.addProperty("time", c.time)
+            // 预计算显示字段：手环零计算直接渲染
+            o.addProperty("n9", Display.shortName(c.name))
+            o.addProperty("achar", Display.avatarChar(c.name, c.id))
+            o.addProperty("hue", Display.hueOf(c.id))
+            o.addProperty("unread", unreadOf(c.id))
+            o.addProperty("prev", Display.previewOf(c.lastMsg))
+            o.addProperty("tstr", Display.timeStr(c.time))
+            o.addProperty("is_temporary", !isVisibleContact(c.id))
             arr.add(o)
         }
         obj.add("list", arr)
         return obj.toString()
+    }
+
+    object Display {
+        /** 会话名截短（手环列表宽度有限） */
+        fun shortName(name: String, max: Int = 10): String {
+            val n = name.trim()
+            return if (n.length <= max) n else n.take(max - 1) + "…"
+        }
+
+        /** 头像字符：名称首字符，空则用问号 */
+        fun avatarChar(name: String, id: String): String {
+            val n = name.trim()
+            return (n.firstOrNull() ?: id.firstOrNull() ?: '?').toString()
+        }
+
+        /** 由 targetId 稳定散列出色相（0-359），手环据此生成头像底色 */
+        fun hueOf(id: String): Int {
+            var h = 0
+            for (ch in id) h = (h * 31 + ch.code) and 0x7FFFFFFF
+            return h % 360
+        }
+
+        /** 预览文本截短（单行展示） */
+        fun previewOf(lastMsg: String, max: Int = 18): String {
+            val s = lastMsg.replace("\n", " ").trim()
+            return if (s.length <= max) s else s.take(max - 1) + "…"
+        }
+
+        /** 时间展示串：今天 HH:mm，今年 M/d，往年 yy/M/d（手机端预算好，手环零日期运算）；秒级时间自动归一化 */
+        fun timeStr(timeMs: Long, nowMs: Long = System.currentTimeMillis()): String {
+            if (timeMs <= 0L) return ""
+            val normalized = if (timeMs < 100_000_000_000L) timeMs * 1000L else timeMs
+            val d = Date(normalized)
+            val calNow = java.util.Calendar.getInstance().apply { timeInMillis = nowMs }
+            val calMsg = java.util.Calendar.getInstance().apply { timeInMillis = normalized }
+            val sameDay = calNow.get(java.util.Calendar.YEAR) == calMsg.get(java.util.Calendar.YEAR) &&
+                calNow.get(java.util.Calendar.DAY_OF_YEAR) == calMsg.get(java.util.Calendar.DAY_OF_YEAR)
+            return if (sameDay) {
+                SimpleDateFormat("HH:mm", Locale.US).format(d)
+            } else if (calNow.get(java.util.Calendar.YEAR) == calMsg.get(java.util.Calendar.YEAR)) {
+                SimpleDateFormat("M/d", Locale.US).format(d)
+            } else {
+                SimpleDateFormat("yy/M/d", Locale.US).format(d)
+            }
+        }
     }
 }

@@ -23,34 +23,17 @@ function emit(event, data) {
   if (set) set.forEach((fn) => { try { fn(data) } catch (e) { console.error('emit error', event, e) } })
 }
 
-function vibrate() {
-  try {
-    const vib = require('@system.vibrator')
-    if (vib && vib.vibrate) vib.vibrate({ mode: 'long' })
-  } catch (e) { console.error('vibrate fail', e) }
-}
-
 function handleMessage(msg) {
   if (!msg || !msg.type) return
-  // v1.2.0：砍掉每帧 console.log（Vela 上同步 IO，群聊高峰直接拖慢渲染线程）
+  try {
+    console.log('[BANDQQ] v10 msg <-', msg.type, msg.target_id || msg.targetId || msg.seq || '')
+  } catch (e) {}
   switch (msg.type) {
     case 'ping':
       api.send({ type: 'pong', seq: msg.seq || 0 })
       break
-
-case 'push_message': {
-      // decodePush 统一提取扩展字段（at_me/@我标记、thumb/图片缩略图），并清洗 CQ 码
-      const frame = protocol.decodePush(msg)
-      if (!frame) break
-      store.upsertMessage(frame).then(() => { emit('message', frame) }).catch((e) => console.error('upsert fail', e))
-      // @我提醒：绿色高亮在聊天页气泡 + 手环长震一下
-      if (frame.at_me === true && frame.is_self !== true) vibrate()
-      break
-    }
-    case 'login_info':
-      // 手机端 get_login_info 成功后推来的登录账号信息（设置页展示 + 供 @我 判定）
-      store.setMyProfile({ user_id: msg.user_id || '', nickname: protocol.stripEmoji(msg.nickname || '') })
-      emit('login_info', store.getMyProfile())
+case 'push_message':
+      store.upsertMessage(msg).then(() => { try { console.log('[BANDQQ] v17 upsert target=' + msg.target_id + ' len=' + (typeof msg.content === 'string' ? msg.content.length : '?') + ' isSelf=' + (msg.is_self === true)) } catch (e) {}; emit('message', msg) }).catch((e) => console.error('upsert fail', e))
       break
     case 'conversation_list':
       if (Array.isArray(msg.list)) store.setConversations(msg.list)
@@ -59,7 +42,10 @@ case 'push_message': {
     case 'history_list':
       if (Array.isArray(msg.list) && msg.target_id) {
         store.setMessages(msg.target_id, msg.list)
+        try { console.log('[BANDQQ] v17 history set target=' + msg.target_id + ' n=' + msg.list.length) } catch (e) {}
         emit('history', msg)
+      } else {
+        try { console.log('[BANDQQ] v17 history BAD target=' + msg.target_id + ' isArr=' + Array.isArray(msg.list)) } catch (e) {}
       }
       break
     case 'connect_state':
@@ -70,14 +56,12 @@ case 'push_message': {
       if (Array.isArray(msg.contacts)) store.setVisibleContacts(msg.contacts)
       emit('visible_contacts', msg.contacts)
       break
+    case 'quick_replies':
+      if (Array.isArray(msg.list)) store.setQuickReplies(msg.list)
+      emit('quick_replies', msg.list)
+      break
     case 'clear_all_history':
       store.clearAllMessages().then(() => emit('cleared'))
-      break
-    case 'send_result':
-      // 手机端对上行 send_message 的真实投递结果（OneBot retcode 校验后回推）：
-      // 失败时手环聊天页立即显示失败原因，不再静默丢消息
-      store.setSendStatus(msg.ok === true ? '已送达' : '发送失败:' + (msg.error || '未知'))
-      emit('send_status')
       break
     default:
       break
@@ -91,11 +75,13 @@ export default {
   handleMessage,
   emit,
   /**
-   * 全局统一上行入口：由 app 层持有的 api 发送，不受页面销毁影响。
-   * 返回 Promise，页面可链式观察成功/失败。
-   */
+   * 全局统一上行入口：由 app 层持有的 api 发送，不受页面销毁影响�?   * 返回 Promise，页面可链式观察成功/失败�?   */
 sendUpstream(payload) {
-    return api.send(payload)
+    console.log('[BANDQQ] v9 upstream ->', JSON.stringify(payload).slice(0, 160))
+    return api.send(payload).then(
+      (r) => { console.log('[BANDQQ] v9 upstream OK') ; return r },
+      (e) => { console.log('[BANDQQ] v9 upstream FAIL', JSON.stringify(e)) ; throw e }
+    )
   },
   on(event, fn) {
     if (!listeners[event]) listeners[event] = []
@@ -111,22 +97,8 @@ sendUpstream(payload) {
     const idx = set.indexOf(fn)
     if (idx >= 0) set.splice(idx, 1)
   },
-  /**
-   * 冷启动/长期后台后自愈：互联通道断开时重建实例并重挂回调，
-   * 重新就绪后重拉全量状态。解决「关闭了长时间再次打开不能正常使用」。
-   */
-  ensureAlive() {
-    return api.ensureAlive().then((ok) => {
-      if (ok) {
-        api.send({ type: 'band_state', state: 'connected', seq: 0 })
-        api.send(protocol.getConnectState())
-        api.send(protocol.getVisibleContacts())
-        api.send(protocol.getConversations())
-      }
-      return ok
-    })
-  },
   onCreate() {
+    console.log('[BANDQQ] v9 app onCreate, protocol=', typeof protocol, 'store=', typeof store, 'api=', typeof api)
     store.init()
     const pullAll = () => {
       api.send(protocol.getConnectState())
@@ -136,15 +108,13 @@ sendUpstream(payload) {
     api.init({
       onMessage: handleMessage,
       onOpen: () => {
-        // 就绪后只在此处拉一次全量（就绪门控会 hold 住 onOpen 前的 send，无需重复发送）
         api.send({ type: 'band_state', state: 'connected', seq: 0 })
         pullAll()
       }
     })
-  },
-  /** v1.2.0：退后台立即落盘节流队列，防快应用被杀丢消息 */
-  onHide() {
-    try { store.flushPersist() } catch (e) {}
+    api.send(protocol.getConnectState())
+    api.send(protocol.getVisibleContacts())
+    api.send(protocol.getConversations())
   }
 }
-</script>
+

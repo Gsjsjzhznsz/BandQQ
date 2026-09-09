@@ -7,13 +7,13 @@
     </div>
     <div class="preview-box">
       <scroll class="preview-scroll" scroll-y="true">
-        <text class="preview-text">{{draftText}}</text>
+        <text class="preview-text">{{draft || '在这里输入内容，点击下方键盘按键'}}</text>
       </scroll>
     </div>
     <input-method
       hide="{{false}}"
       keyboardtype="QWERTY"
-      maxlength="200"
+      maxlength="5"
       vibratemode="short"
       screentype="pill-shaped"
       @complete="onComplete"
@@ -37,18 +37,18 @@
 
 <style>
   .page { flex-direction: column; background-color: #000000; }
-  .top-bar { height: 78px; flex-direction: row; align-items: center;  padding: 0 8px; }
+  .top-bar { height: 78px; flex-direction: row; align-items: center; justify-content: space-between; padding: 0 8px; }
   .btn { width: 48px; height: 34px; }
-  .done-btn { width: 112px; height: 48px; text-align: center; line-height: 48px; font-size: 22px; color: #ffffff; background-color: #07c160; border-radius: 24px; margin-left: auto; }
+  .done-btn { width: 112px; height: 48px; text-align: center; line-height: 48px; font-size: 22px; color: #ffffff; background-color: #07c160; border-radius: 24px; }
   .preview-box { height: 112px; padding: 8px 10px; align-items: flex-start; justify-content: flex-start; }
   .preview-scroll { width: 176px; height: 96px; }
   .preview-text { font-size: 24px; color: #0d84ff; line-height: 34px; text-align: left; word-break: break-all; }
-  .mask { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: #000000; align-items: center;  }
-  .confirm-box { width: 176px; background-color: #2b2b2b; border-radius: 14px; padding: 14px; flex-direction: column; margin-top: 140px; }
-  .confirm-title { font-size: 18px; color: #ffffff; font-weight: bold; text-align: center; margin-bottom: 8px; width: 148px; }
+  .mask { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.65); align-items: center; justify-content: center; }
+  .confirm-box { width: 176px; background-color: #2b2b2b; border-radius: 14px; padding: 14px; flex-direction: column; }
+  .confirm-title { font-size: 18px; color: #ffffff; font-weight: bold; text-align: center; margin-bottom: 8px; }
   .confirm-desc-scroll { width: 144px; height: 120px; }
   .confirm-desc { font-size: 16px; color: #0d84ff; line-height: 24px; text-align: left; word-break: break-all; }
-  .confirm-btns { flex-direction: row;  margin-top: 16px; }
+  .confirm-btns { flex-direction: row; justify-content: space-between; margin-top: 16px; }
   .confirm-cancel { flex: 1; text-align: center; padding: 12px 0; font-size: 20px; color: #999999; background-color: #3a3a3a; border-radius: 16px; margin-right: 12px; }
   .confirm-ok { flex: 1; text-align: center; padding: 12px 0; font-size: 20px; color: #ffffff; background-color: #07c160; border-radius: 16px; }
 </style>
@@ -61,9 +61,7 @@
     protected: {
       targetId: '',
       name: '',
-      convType: 'private',
-      draft: '',
-      draftText: '在这里输入内容，点击下方键盘按键'
+      draft: ''
     },
     private: {
       confirmShow: false
@@ -71,26 +69,15 @@
     onInit(params) {
       this.targetId = (params && params.targetId) || ''
       this.name = (params && params.name) || '聊天'
-      this.convType = (params && params.type) === 'group' ? 'group' : 'private'
       if (!this.targetId) {
         const st = this.$app.$def.store
         const last = st ? st.getLastTarget() : null
         if (last && last.targetId) {
           this.targetId = last.targetId
           this.name = last.name || this.name
-          if (last.type) this.convType = last.type
         }
       }
-      // type 最终兑底：路由未携带时从本地会话反查真实类型。
-      // 群会话必须以 group 发送，否则群号被当成 QQ 号走 send_private_msg 必然失败
-      const appDef = this.$app.$def
-      if (!params || !params.type) {
-        appDef.store.getConversations().then((convs) => {
-          const c = convs.find((x) => x.id === this.targetId)
-          if (c && c.type) this.convType = c.type
-        })
-      }
-      console.log('[BANDQQ] v13 compose target=', this.targetId, 'name=', this.name, 'type=', this.convType)
+      console.log('[BANDQQ] v13 compose target=', this.targetId, 'name=', this.name)
     },
     goBack() {
       router.back()
@@ -98,11 +85,9 @@
     onComplete(e) {
       const c = (e && e.content) || (e && e.detail && e.detail.content) || ''
       this.draft += c
-      this.draftText = this.draft
     },
     onDelete() {
       this.draft = this.draft.slice(0, -1)
-      this.draftText = this.draft || '在这里输入内容，点击下方键盘按键'
     },
     confirmDraft() {
       if (!this.draft.trim()) return
@@ -119,13 +104,12 @@
     async sendMessage(content) {
       const store = this.$app.$def.store
       const { sendUpstream, emit } = this.$app.$def
-      // 用真实会话类型构造上行帧，只发一帧（不再先 private 后补发 group）。手机端会校验
-      // OneBot retcode 并回推 send_result，发送状态由 app 层统一更新（发送中/已送达/失败）
-      const msg = protocol.sendMessage(this.convType || 'private', this.targetId, content)
+      // 先构造上行帧拿到统一 time，手机端回推同 time 以便 upsert 去重，避免重复显示
+      const msg = protocol.sendMessage('private', this.targetId, content)
       // 本地立即回显自己发的消息：发送动作已执行即显示，不被上行成败阻塞
       store.upsertMessage({
         type: 'push_message',
-        message_type: this.convType || 'private',
+        message_type: 'private',
         target_id: this.targetId,
         sender_id: this.targetId,
         sender_name: this.name,
@@ -134,13 +118,12 @@
         is_self: true,
         time: msg.time
       }).then(() => emit && emit('message', {}))
-      console.log('[BANDQQ] v9 send ->', JSON.stringify({ target: this.targetId, name: this.name, type: this.convType || 'private', content: content }))
+      console.log('[BANDQQ] v9 send ->', JSON.stringify({ target: this.targetId, name: this.name, content: content, type: 'private' }))
       store.setSendStatus('发送中…')
       emit && emit('send_status')
       if (sendUpstream) {
         sendUpstream(msg).then(() => {
-          // 此处仅代表帧已送抵手机端；QQ 侧真实投递结果由 send_result 帧更新
-          store.setSendStatus('已提交')
+          store.setSendStatus('已发送')
           emit && emit('send_status')
         }).catch((e) => {
           store.setSendStatus('发送失败:' + (e && e.code ? e.code : '未知'))
@@ -149,6 +132,22 @@
         })
       } else {
         console.error('sendUpstream missing')
+      }
+      // 后台再校正消息类型（仅用于本地显示，不阻塞发送）
+      this.correctConversationType(content)
+    },
+    async correctConversationType(content) {
+      try {
+        const { sendUpstream } = this.$app.$def
+        const store = this.$app.$def.store
+        const convs = await store.getConversations()
+        const c = convs.find((x) => x.id === this.targetId)
+        if (c && c.type && c.type !== 'private' && sendUpstream) {
+          const msg = protocol.sendMessage(c.type, this.targetId, content)
+          sendUpstream(msg).catch((e) => console.error('send retry failed', e))
+        }
+      } catch (e) {
+        console.error('correct type failed', e)
       }
     }
   }

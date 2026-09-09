@@ -181,3 +181,94 @@ describe('store', () => {
     assert.deepEqual(msgs.map((m) => m.content), ['a', 'b'])
   })
 })
+
+describe('store v2（未读/快捷回复/翻页合并/显示字段）', () => {
+  it('push_message 携带 unread 时写入会话', async () => {
+    await store.setVisibleContacts([{ id: 'u1', type: 'private', name: '小明' }])
+    await store.upsertMessage({ type: 'push_message', message_type: 'private', target_id: 'u1', sender_id: 'u1', sender_name: '小明', target_name: '小明', content: '你好', time: 1000, is_self: false, unread: 5 })
+    const convs = await store.getConversations()
+    const c = convs.find((x) => x.id === 'u1')
+    assert.equal(c.unread, 5)
+  })
+
+  it('旧端 push（unread=-1）本地保守自增，仅可见会话', async () => {
+    await store.setVisibleContacts([{ id: 'u2', type: 'private', name: '小红' }])
+    await store.upsertMessage({ type: 'push_message', message_type: 'private', target_id: 'u2', sender_id: 'u2', sender_name: '小红', target_name: '小红', content: 'a', time: 1000, is_self: false, unread: -1 })
+    await store.upsertMessage({ type: 'push_message', message_type: 'private', target_id: 'u2', sender_id: 'u2', sender_name: '小红', target_name: '小红', content: 'b', time: 2000, is_self: false, unread: -1 })
+    const convs = await store.getConversations()
+    assert.equal(convs.find((x) => x.id === 'u2').unread, 2)
+  })
+
+  it('setConversations 合并手机端预计算字段', async () => {
+    await store.setConversations([{ id: 'u3', type: 'group', name: '测试群', last_msg: 'hello', time: 100, unread: 7, n9: '测试群', achar: '测', hue: 100, prev: 'hello', tstr: '10:00' }])
+    const convs = await store.getConversations()
+    const c = convs.find((x) => x.id === 'u3')
+    assert.equal(c.n9, '测试群')
+    assert.equal(c.achar, '测')
+    assert.equal(c.unread, 7)
+    assert.equal(c.tstr, '10:00')
+    assert.ok(typeof c.hueBg === 'string' && c.hueBg[0] === '#')
+  })
+
+  it('decorate 兜底：缺失字段本地计算', async () => {
+    await store.setConversations([{ id: '88', type: 'private', name: '很长很长的名字啊哈哈哈哈哈哈', last_msg: '内容', time: 5 }])
+    const convs = await store.getConversations()
+    const c = convs.find((x) => x.id === '88')
+    assert.equal(c.n9, '很长很长的名字啊哈…')
+    assert.equal(c.achar, '很')
+    assert.ok(c.hueBg.length === 7)
+  })
+
+  it('prependMessages 去重合并更早消息', async () => {
+    await store.setMessages('p1', [
+      { message_type: 'private', sender_id: '1', sender_name: 'A', content: 'new', time: 200 },
+      { message_type: 'private', sender_id: '1', sender_name: 'A', content: 'mid', time: 300 }
+    ])
+    const added = await store.prependMessages('p1', [
+      { message_type: 'private', sender_id: '1', sender_name: 'A', content: 'old', time: 100 },
+      { message_type: 'private', sender_id: '1', sender_name: 'A', content: 'mid', time: 300 }
+    ])
+    assert.equal(added, 1)
+    const msgs = await store.getMessages('p1')
+    assert.deepEqual(msgs.map((m) => m.content), ['old', 'new', 'mid'])
+  })
+
+  it('prependMessages 全重复时 added=0', async () => {
+    await store.setMessages('p2', [
+      { message_type: 'private', sender_id: '1', sender_name: 'A', content: 'a', time: 100 }
+    ])
+    const added = await store.prependMessages('p2', [
+      { message_type: 'private', sender_id: '1', sender_name: 'A', content: 'a', time: 100 }
+    ])
+    assert.equal(added, 0)
+  })
+
+  it('快捷回复：默认值 + 手机端下发覆盖 + 持久化', async () => {
+    assert.equal(store.getQuickReplies().length, 6)
+    store.setQuickReplies([
+      { label: '在', content: '[CQ:face,id=74]' },
+      { label: '稍后', content: '稍后回复你' }
+    ])
+    const qr = store.getQuickReplies()
+    assert.equal(qr.length, 2)
+    assert.equal(qr[0].label, '在')
+    assert.equal(qr[0].content, '[CQ:face,id=74]')
+    // 持久化后新实例恢复
+    const s2 = createStore(mockStorage({ quick_replies: JSON.stringify(qr) }))
+    await s2.init()
+    assert.equal(s2.getQuickReplies().length, 2)
+    assert.equal(s2.getQuickReplies()[1].label, '稍后')
+  })
+
+  it('hsl 色彩换算：hue 0/120/240 输出确定 hex', async () => {
+    await store.setConversations([
+      { id: 'a', type: 'private', name: 'a', last_msg: '', time: 0, hue: 0 },
+      { id: 'b', type: 'private', name: 'b', last_msg: '', time: 0, hue: 120 },
+      { id: 'c', type: 'private', name: 'c', last_msg: '', time: 0, hue: 240 }
+    ])
+    const convs = await store.getConversations()
+    assert.equal(convs.find((x) => x.id === 'a').hueBg, '#9b3131')
+    assert.equal(convs.find((x) => x.id === 'b').hueBg, '#319b31')
+    assert.equal(convs.find((x) => x.id === 'c').hueBg, '#31319b')
+  })
+})

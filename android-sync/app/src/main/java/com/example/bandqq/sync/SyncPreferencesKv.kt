@@ -12,5 +12,4 @@ class SyncPreferencesKv(context: Context) : KvStorage {
     override fun remove(key: String) {
         prefs.edit().remove(key).apply()
     }
-    override fun keys(): Set<String> = prefs.all.keys.toSet()
 }
