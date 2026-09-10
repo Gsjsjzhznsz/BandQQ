@@ -3,6 +3,7 @@ package com.example.bandqq.config
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -26,8 +27,15 @@ data class AppConfig(
     val endpoint: EndpointConfig = EndpointConfig("ws://127.0.0.1:3001", "", "http://127.0.0.1:3000", ""),
     val quickReplies: List<String> = DEFAULT_QUICK_REPLIES,
     val webuiUrl: String = "",
-    val themeMode: Int = 0,
-    val navGlass: Boolean = true
+    // ===== 外观设置（对齐 KernelSU manager Appearance/ColorPalette）=====
+    val themeMode: Int = 0,            // 0跟随系统 1浅色 2深色 3-5 同名 Monet 档
+    val keyColor: Int = 0,             // 0=默认品牌蓝，非 0 为 ARGB 种子色
+    val enableBlur: Boolean = true,    // 顶栏和底栏的模糊效果（Android 13+）
+    val enableFloatingBottomBar: Boolean = true, // Apple 风格悬浮底栏
+    val navGlass: Boolean = true,      // 悬浮底栏的液态玻璃效果（二级选项）
+    val enableNavigationBadge: Boolean = true,   // 导航栏未读角标
+    val enablePredictiveBack: Boolean = false,   // 预测性返回手势（Android 14+）
+    val pageScale: Float = 1.0f        // 界面缩放 0.8 ~ 1.1
 )
 
 object ConfigHolder {
@@ -45,6 +53,12 @@ class ConfigManager(private val context: Context) {
         val WEBUI_URL = stringPreferencesKey("webui_url")
         val THEME_MODE = intPreferencesKey("theme_mode")
         val NAV_GLASS = booleanPreferencesKey("nav_glass")
+        val KEY_COLOR = intPreferencesKey("key_color")
+        val ENABLE_BLUR = booleanPreferencesKey("enable_blur")
+        val ENABLE_FLOATING_BOTTOM_BAR = booleanPreferencesKey("enable_floating_bottom_bar")
+        val ENABLE_NAV_BADGE = booleanPreferencesKey("enable_nav_badge")
+        val ENABLE_PREDICTIVE_BACK = booleanPreferencesKey("enable_predictive_back")
+        val PAGE_SCALE = floatPreferencesKey("page_scale")
     }
 
     suspend fun load(): AppConfig {
@@ -62,7 +76,13 @@ class ConfigManager(private val context: Context) {
             quickReplies = quickReplies,
             webuiUrl = prefs[Keys.WEBUI_URL] ?: "",
             themeMode = prefs[Keys.THEME_MODE] ?: default.themeMode,
-            navGlass = prefs[Keys.NAV_GLASS] ?: default.navGlass
+            keyColor = prefs[Keys.KEY_COLOR] ?: default.keyColor,
+            enableBlur = prefs[Keys.ENABLE_BLUR] ?: default.enableBlur,
+            enableFloatingBottomBar = prefs[Keys.ENABLE_FLOATING_BOTTOM_BAR] ?: default.enableFloatingBottomBar,
+            navGlass = prefs[Keys.NAV_GLASS] ?: default.navGlass,
+            enableNavigationBadge = prefs[Keys.ENABLE_NAV_BADGE] ?: default.enableNavigationBadge,
+            enablePredictiveBack = prefs[Keys.ENABLE_PREDICTIVE_BACK] ?: default.enablePredictiveBack,
+            pageScale = prefs[Keys.PAGE_SCALE] ?: default.pageScale
         )
         ConfigHolder.config = cfg
         return cfg
@@ -77,12 +97,20 @@ class ConfigManager(private val context: Context) {
             prefs[Keys.QUICK_REPLIES] = config.quickReplies.joinToString("\n")
             prefs[Keys.WEBUI_URL] = config.webuiUrl
             prefs[Keys.THEME_MODE] = config.themeMode
+            prefs[Keys.KEY_COLOR] = config.keyColor
+            prefs[Keys.ENABLE_BLUR] = config.enableBlur
+            prefs[Keys.ENABLE_FLOATING_BOTTOM_BAR] = config.enableFloatingBottomBar
             prefs[Keys.NAV_GLASS] = config.navGlass
+            prefs[Keys.ENABLE_NAV_BADGE] = config.enableNavigationBadge
+            prefs[Keys.ENABLE_PREDICTIVE_BACK] = config.enablePredictiveBack
+            prefs[Keys.PAGE_SCALE] = config.pageScale
         }
         ConfigHolder.config = config
     }
 
-    /** 主题模式 Flow（设置页与 MainActivity 共享，写入即全局重组） */
+    // ===== 外观设置：每个开关独立 Flow，写入即全局重组（无需重启） =====
+
+    /** 主题模式 Flow（设置页与 MainActivity 共享） */
     fun observeThemeMode(): Flow<Int> = context.dataStore.data.map { it[Keys.THEME_MODE] ?: 0 }
 
     suspend fun setThemeMode(mode: Int) {
@@ -90,11 +118,62 @@ class ConfigManager(private val context: Context) {
         ConfigHolder.config = ConfigHolder.config.copy(themeMode = mode)
     }
 
-    /** 液态玻璃悬浮栏开关 Flow */
+    /** Monet 关键色（0=默认） */
+    fun observeKeyColor(): Flow<Int> = context.dataStore.data.map { it[Keys.KEY_COLOR] ?: 0 }
+
+    suspend fun setKeyColor(color: Int) {
+        context.dataStore.edit { it[Keys.KEY_COLOR] = color }
+        ConfigHolder.config = ConfigHolder.config.copy(keyColor = color)
+    }
+
+    /** 顶栏和底栏的模糊效果 */
+    fun observeEnableBlur(): Flow<Boolean> = context.dataStore.data.map { it[Keys.ENABLE_BLUR] ?: true }
+
+    suspend fun setEnableBlur(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.ENABLE_BLUR] = enabled }
+        ConfigHolder.config = ConfigHolder.config.copy(enableBlur = enabled)
+    }
+
+    /** 悬浮底栏总开关 */
+    fun observeFloatingBottomBar(): Flow<Boolean> =
+        context.dataStore.data.map { it[Keys.ENABLE_FLOATING_BOTTOM_BAR] ?: true }
+
+    suspend fun setFloatingBottomBar(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.ENABLE_FLOATING_BOTTOM_BAR] = enabled }
+        ConfigHolder.config = ConfigHolder.config.copy(enableFloatingBottomBar = enabled)
+    }
+
+    /** 悬浮底栏的液态玻璃效果（二级选项） */
     fun observeNavGlass(): Flow<Boolean> = context.dataStore.data.map { it[Keys.NAV_GLASS] ?: true }
 
     suspend fun setNavGlass(enabled: Boolean) {
         context.dataStore.edit { it[Keys.NAV_GLASS] = enabled }
         ConfigHolder.config = ConfigHolder.config.copy(navGlass = enabled)
+    }
+
+    /** 导航栏未读角标 */
+    fun observeNavigationBadge(): Flow<Boolean> =
+        context.dataStore.data.map { it[Keys.ENABLE_NAV_BADGE] ?: true }
+
+    suspend fun setNavigationBadge(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.ENABLE_NAV_BADGE] = enabled }
+        ConfigHolder.config = ConfigHolder.config.copy(enableNavigationBadge = enabled)
+    }
+
+    /** 预测性返回手势 */
+    fun observePredictiveBack(): Flow<Boolean> =
+        context.dataStore.data.map { it[Keys.ENABLE_PREDICTIVE_BACK] ?: false }
+
+    suspend fun setPredictiveBack(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.ENABLE_PREDICTIVE_BACK] = enabled }
+        ConfigHolder.config = ConfigHolder.config.copy(enablePredictiveBack = enabled)
+    }
+
+    /** 界面缩放（0.8 ~ 1.1） */
+    fun observePageScale(): Flow<Float> = context.dataStore.data.map { it[Keys.PAGE_SCALE] ?: 1.0f }
+
+    suspend fun setPageScale(scale: Float) {
+        context.dataStore.edit { it[Keys.PAGE_SCALE] = scale }
+        ConfigHolder.config = ConfigHolder.config.copy(pageScale = scale)
     }
 }

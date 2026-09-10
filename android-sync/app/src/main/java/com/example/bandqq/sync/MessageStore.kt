@@ -180,6 +180,9 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
 
     fun unreadOf(targetId: String): Int = unreadByTarget[targetId] ?: 0
 
+    /** 所有会话未读消息总数（导航栏角标数据源） */
+    fun unreadTotal(): Int = unreadByTarget.values.sum()
+
     fun getHistory(targetId: String, limit: Int): List<StoredMessage> {
         val list = messagesByTarget[targetId] ?: return emptyList()
         val from = (list.size - limit).coerceAtLeast(0)

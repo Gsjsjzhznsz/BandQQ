@@ -72,3 +72,10 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 3. **主题页不再用对话框**：0.9.3 WindowDialog 在本工程打不开（未深究，弃用）；ThemeScreen 全屏推入（AnimatedVisibility slideInVertically + BackHandler），TabRow 三档模式 + 动态取色开关，交互与 KernelSU ColorPaletteScreen 对齐
 4. isInDarkTheme 必须标 @Composable（读 CompositionLocal）；BandQQTheme 以 LocalBandQQDarkTheme 提供明暗状态
 5. 设置页保存路径改 ConfigHolder.config.copy(...)，避免把 themeMode/navGlass 重置为默认
+
+## v2.4.1（2026-09-10，versionCode 26）— 颗粒底栏修复 + KSU 全量外观设置
+1. **底栏缩成颗粒根因（必记）**：FloatingBottomBar 外层 `Box.width(IntrinsicSize.Min)` 下，weight(1f) 子项的 intrinsic 宽度=0 → 必须给 FloatingBottomBarItem 传 `Modifier.defaultMinSize(minWidth = 76.dp)`（KSU BottomBarMiuix.kt 同款），否则整条底栏塌缩成一个颗粒
+2. **主界面骨架对齐 KSU MainActivity**：Scaffold(topBar/bottomBar) + HorizontalPager（底栏 animateScrollToPage 联动）+ 双 backdrop：blurBackdrop(rememberBlurBackdrop，13+ 且 enableBlur) 供顶栏/普通底栏 textureBlur（栏本体必须 Color.Transparent）；backdrop(rememberLayerBackdrop 垫 surface) 供悬浮玻璃，仅「悬浮+玻璃」都开才 layerBackdrop 注册
+3. **外观设置 = KSU ColorPaletteScreenMiuix 全项**：预览卡片 / TabRow(跟随系统·浅色·深色) / Monet+关键色(0=品牌蓝,15 色 OverlayDropdownPreference) / 模糊(13+) / 悬浮底栏 → 液态玻璃(二级 AnimatedVisibility) / 导航栏角标(未读数挂聊天记录页签) / 预测性返回(14+，manifest enableOnBackInvokedCallback=true) / 界面缩放(Slider 0.8~1.1 keyPoints 磁吸 + ScaleDialog；实现=BandQQTheme 包 LocalDensity 缩放 density+fontScale)
+4. **miuix 0.9.3 API 坑**：BadgedBox.badge 参数是 `BoxScope.() -> Unit`（receiver lambda），传声明变量须 `badge = { badge() }` 字面包装；MiuixIcons 图标全在 `icon.extended` 包作扩展属性，须逐个 import
+5. **依赖坑**：material-icons-extended（3.5 万类）在 4G 内存容器 mergeDexRelease 必 OOM；miuix-icons extended 图标够用（Theme/Tune/CloudFill/HorizontalSplit/Scan/Pin/Sidebar/GridView），零额外依赖

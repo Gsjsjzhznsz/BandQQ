@@ -10,6 +10,7 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -18,6 +19,10 @@ import androidx.core.content.ContextCompat
 import com.example.bandqq.config.ConfigManager
 import com.example.bandqq.ui.BandQQApp
 import com.example.bandqq.ui.BandQQTheme
+import com.example.bandqq.ui.LocalEnableBlur
+import com.example.bandqq.ui.LocalEnableFloatingBottomBar
+import com.example.bandqq.ui.LocalEnableFloatingBottomBarGlass
+import com.example.bandqq.ui.LocalEnableNavigationBadge
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -28,8 +33,24 @@ class MainActivity : ComponentActivity() {
         setContent {
             // DataStore Flow 直接驱动全局主题：设置页切换立即生效，无需重启
             val themeMode by configManager.observeThemeMode().collectAsState(initial = 0)
+            val keyColor by configManager.observeKeyColor().collectAsState(initial = 0)
+            val enableBlur by configManager.observeEnableBlur().collectAsState(initial = true)
+            val floatingBar by configManager.observeFloatingBottomBar().collectAsState(initial = true)
             val navGlass by configManager.observeNavGlass().collectAsState(initial = true)
-            BandQQTheme(themeMode) { BandQQApp(navGlass = navGlass) }
+            val navBadge by configManager.observeNavigationBadge().collectAsState(initial = true)
+            val pageScale by configManager.observePageScale().collectAsState(initial = 1.0f)
+
+            BandQQTheme(themeMode = themeMode, keyColor = keyColor, pageScale = pageScale) {
+                // 对齐 KernelSU 的 CompositionLocal 注入方式：底栏/顶栏组件按需读取
+                CompositionLocalProvider(
+                    LocalEnableBlur provides enableBlur,
+                    LocalEnableFloatingBottomBar provides floatingBar,
+                    LocalEnableFloatingBottomBarGlass provides navGlass,
+                    LocalEnableNavigationBadge provides navBadge,
+                ) {
+                    BandQQApp()
+                }
+            }
             BluetoothPermissionRequester()
         }
     }

@@ -48,3 +48,23 @@ Work Log:
 Stage Summary:
 - 产物：download/bandqq-sync-release-2.4.0.apk（~12MB）
 - 教训入库：玻璃效果三要素=垫底色+内容穿过底栏+KernelSU 配方；WindowDialog(0.9.3) 在本工程慎用，全屏推入页更稳
+
+---
+Task ID: 6
+Agent: main (Super Z)
+Task: v2.4.1 —— 底栏缩成颗粒修复 + KSU 完整外观设置项（模糊/悬浮二级/角标/预测性返回/界面缩放）+ 动画对齐（用户反馈第四轮）
+
+Work Log:
+- 「底栏缩成一个颗粒」根因定位：FloatingBottomBar 外层 Box 为 width(IntrinsicSize.Min)，Row 内 FloatingBottomBarItem 是 weight(1f) 子项 —— weight 子项在 intrinsic 测量中宽度=0，Row 的 min intrinsic 宽度=0 → 整条底栏塌缩成颗粒。KSU 原版在 BottomBarMiuix.kt 里给 item 传了 Modifier.defaultMinSize(minWidth = 76.dp) 兜底，我们上一轮搬运时漏掉了这一行。修复：BottomBar.kt 补 defaultMinSize(minWidth=76.dp)
+- 对照 KSU MainActivity 重构主界面骨架：BandQQApp 改 Scaffold(topBar/bottomBar) + HorizontalPager（页面横向跟手滑动，底栏点击 animateScrollToPage 联动，替代原 AnimatedContent）+ 双 backdrop（blurBackdrop=rememberBlurBackdrop(enableBlur) 供顶栏/普通底栏 textureBlur；backdrop=rememberLayerBackdrop{drawRect(surface);drawContent()} 供悬浮玻璃，仅悬浮+玻璃开时注册 layerBackdrop）
+- 新增 BottomBar.kt（对齐 KSU BottomBarMiuix 双形态）：非悬浮=BlurredBar 包 NavigationBar（模糊时本体 Color.Transparent）；悬浮=FloatingBottomBar(isBlurEnabled=glass)。未读角标挂「聊天记录」页签（miuix Badge/BadgedBox；注意 0.9.3 BadgedBox 的 badge 参数是 BoxScope.() -> Unit，声明变量须包装成字面 lambda badge={badge()}，否则类型不匹配）
+- ThemeScreen 按用户清单对齐 KSU ColorPaletteScreenMiuix 全项：主题预览卡片（迷你手机框实时反映 模式/Monet/悬浮/玻璃 状态）+ TabRow 三档 + Monet 开关 + 关键色 OverlayDropdownPreference(默认+15 色) + 「模糊」开关(13+) + 「悬浮底栏」总开关 + 「液态玻璃」二级开关(AnimatedVisibility 悬浮&&13+，KSU 同款从属关系) + 「导航栏角标」+ 「预测性返回手势」(14+) + 「界面缩放」ArrowPreference 内嵌 Slider(0.8~1.1 keyPoints 磁吸+Step 触感) + ScaleDialog 数值输入(80~110%)
+- ConfigManager 扩展 6 配置项：keyColor/enableBlur/enableFloatingBottomBar/enableNavigationBadge/enablePredictiveBack/pageScale(float)，各配 observe Flow + suspend setter + save/load 持久化
+- MainActivity 全量 collectAsState + CompositionLocalProvider(LocalEnableBlur/LocalEnableFloatingBottomBar/LocalEnableFloatingBottomBarGlass/LocalEnableNavigationBadge)，对齐 KSU theme/Theme.kt 的 Local 定义；Theme.kt BandQQTheme 增加 keyColor(种子色) 与 pageScale(包 LocalDensity 缩放全局密度+字宽) 参数
+- 图标依赖教训：material-icons-extended 3.5 万类导致 mergeDexRelease OOM daemon 被杀（4G 内存容器无 root 不能加 swap）→ 改用 miuix-icons extended 已有图标映射：Wallpaper→Theme、Colorize→Tune、BlurOn→CloudFill、CallToAction→HorizontalSplit、WaterDrop→Scan、Pin→Pin、MenuOpen→Sidebar、AspectRatio→GridView；material-icons-extended 依赖已回退删除
+- manifest 加 android:enableOnBackInterceptCallback 系……实为 enableOnBackInvokedCallback="true"（预测性返回硬条件）；versionCode 26 / versionName 2.4.1；构建两次 daemon OOM 后成功（icons-extended 移除后稳定）
+- 交付验证：aapt2 vc26/2.4.1，apksigner SHA-256 af8819e2 同源可覆盖装
+
+Stage Summary:
+- 产物：download/bandqq-sync-release-2.4.1.apk（12MB）
+- 核心教训入库：① FloatingBottomBarItem 必须 defaultMinSize(minWidth) 否则 IntrinsicSize.Min 塌缩成颗粒 ② 0.9.3 BadgedBox.badge 是 BoxScope receiver lambda ③ icons-extended 在 4G 内存容器 dex OOM，用 miuix icons 替代

@@ -4,10 +4,13 @@ import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.core.view.WindowInsetsControllerCompat
 import top.yukonga.miuix.kmp.theme.ColorSchemeMode
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -41,7 +44,12 @@ enum class ThemeMode(val value: Int, val label: String) {
 private val FALLBACK_KEY_COLOR = Color(0xFF3482FF)
 
 @Composable
-fun BandQQTheme(themeMode: Int, content: @Composable () -> Unit) {
+fun BandQQTheme(
+    themeMode: Int,
+    keyColor: Int = 0,
+    pageScale: Float = 1.0f,
+    content: @Composable () -> Unit,
+) {
     val mode = ThemeMode.fromValue(themeMode)
     val darkTheme = mode.isDark || (mode.isSystem && isSystemInDarkTheme())
 
@@ -54,29 +62,41 @@ fun BandQQTheme(themeMode: Int, content: @Composable () -> Unit) {
         ThemeMode.MONET_DARK -> ColorSchemeMode.MonetDark
     }
 
-    // Monet 模式下 keyColor 为空时，miuix 会读取系统动态色板（Android 13+ 系统调色板 / 12+ 系统 Md3 角色）
-    val keyColor: Color? =
-        if (mode.isMonet && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) FALLBACK_KEY_COLOR else null
+    // keyColor：0 = 跟随系统动态色板（Android 13+ 系统调色板 / 12+ 系统 Md3 角色）；
+    // 非 0 = 用户在设置页选定的 ARGB 种子色。12 以下无系统色板，回退 miuix 品牌蓝。
+    val seedColor: Color? = when {
+        keyColor != 0 -> Color(keyColor)
+        mode.isMonet && Build.VERSION.SDK_INT < Build.VERSION_CODES.S -> FALLBACK_KEY_COLOR
+        else -> null
+    }
 
-    val controller = remember(schemeMode, darkTheme, keyColor) {
+    val controller = remember(schemeMode, darkTheme, seedColor) {
         ThemeController(
             colorSchemeMode = schemeMode,
-            keyColor = keyColor,
+            keyColor = seedColor,
             isDark = darkTheme,
         )
     }
 
-    MiuixTheme(controller = controller) {
-        val activity = LocalContext.current as? Activity
-        LaunchedEffect(darkTheme) {
-            val window = activity?.window ?: return@LaunchedEffect
-            WindowInsetsControllerCompat(window, window.decorView).apply {
-                isAppearanceLightStatusBars = !darkTheme
-                isAppearanceLightNavigationBars = !darkTheme
+    // 界面缩放：按比例缩放全局密度与字宽（KernelSU PageScale 同款 80% ~ 110%）
+    val base = LocalDensity.current
+    val scaledDensity = remember(base, pageScale) {
+        Density(base.density * pageScale, base.fontScale * pageScale)
+    }
+
+    CompositionLocalProvider(LocalDensity provides scaledDensity) {
+        MiuixTheme(controller = controller) {
+            val activity = LocalContext.current as? Activity
+            LaunchedEffect(darkTheme) {
+                val window = activity?.window ?: return@LaunchedEffect
+                WindowInsetsControllerCompat(window, window.decorView).apply {
+                    isAppearanceLightStatusBars = !darkTheme
+                    isAppearanceLightNavigationBars = !darkTheme
+                }
             }
-        }
-        androidx.compose.runtime.CompositionLocalProvider(LocalBandQQDarkTheme provides darkTheme) {
-            content()
+            CompositionLocalProvider(LocalBandQQDarkTheme provides darkTheme) {
+                content()
+            }
         }
     }
 }
