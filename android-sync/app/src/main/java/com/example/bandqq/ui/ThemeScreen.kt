@@ -41,6 +41,7 @@ import com.example.bandqq.config.ConfigManager
 import com.example.bandqq.ui.component.ScaleDialog
 import com.example.bandqq.ui.util.BlurredBar
 import com.example.bandqq.ui.util.rememberBlurBackdrop
+import kotlin.math.roundToInt
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
@@ -58,9 +59,11 @@ import top.yukonga.miuix.kmp.icon.extended.CloudFill
 import top.yukonga.miuix.kmp.icon.extended.GridView
 import top.yukonga.miuix.kmp.icon.extended.HorizontalSplit
 import top.yukonga.miuix.kmp.icon.extended.Pin
+import top.yukonga.miuix.kmp.icon.extended.Play
 import top.yukonga.miuix.kmp.icon.extended.Scan
 import top.yukonga.miuix.kmp.icon.extended.Sidebar
 import top.yukonga.miuix.kmp.icon.extended.Theme
+import top.yukonga.miuix.kmp.icon.extended.Timer
 import top.yukonga.miuix.kmp.icon.extended.Tune
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.preference.OverlayDropdownPreference
@@ -97,6 +100,8 @@ fun ThemeScreen(onBack: () -> Unit) {
     val navBadge by configManager.observeNavigationBadge().collectAsState(initial = true)
     val pageScale by configManager.observePageScale().collectAsState(initial = 1.0f)
     val predictiveBack by configManager.observePredictiveBack().collectAsState(initial = false)
+    val motionSpeed by configManager.observeMotionSpeed().collectAsState(initial = 1.0f)
+    val motionStagger by configManager.observeMotionStagger().collectAsState(initial = 100)
 
     val mode = ThemeMode.fromValue(themeMode)
     val isDark = mode.isDark || (mode.isSystem && isSystemInDarkTheme())
@@ -129,6 +134,8 @@ fun ThemeScreen(onBack: () -> Unit) {
     ) { innerPadding ->
         val showScaleDialog = rememberSaveable { mutableStateOf(false) }
         var sliderValue by remember(pageScale) { mutableFloatStateOf(pageScale) }
+        var speedValue by remember(motionSpeed) { mutableFloatStateOf(motionSpeed) }
+        var staggerValue by remember(motionStagger) { mutableFloatStateOf(motionStagger.toFloat()) }
 
         Box(
             modifier = if (blurBackdrop != null) Modifier.layerBackdrop(blurBackdrop) else Modifier
@@ -343,6 +350,81 @@ fun ThemeScreen(onBack: () -> Unit) {
                         volumeState = { pageScale },
                         onVolumeChange = { scale ->
                             scope.launch { configManager.setPageScale(scale) }
+                        },
+                    )
+                }
+
+                // ===== 动画：速度 / 级联延迟（实时生效） =====
+                SmallTitle(text = "动画")
+                Card(
+                    modifier = Modifier
+                        .padding(top = 12.dp)
+                        .fillMaxWidth(),
+                ) {
+                    ArrowPreference(
+                        title = "动画速度",
+                        summary = "页面推入与列表入场的播放速度（0.5x 慢速 ~ 2.0x 极速）",
+                        startAction = {
+                            Icon(
+                                MiuixIcons.Play,
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = "动画速度",
+                                tint = colorScheme.onBackground,
+                            )
+                        },
+                        endActions = {
+                            Text(
+                                text = "${(speedValue * 10).roundToInt() / 10.0}x",
+                                color = colorScheme.onSurfaceVariantActions,
+                            )
+                        },
+                        bottomAction = {
+                            Slider(
+                                value = speedValue,
+                                onValueChange = { speedValue = it },
+                                onValueChangeFinished = {
+                                    scope.launch {
+                                        configManager.setMotionSpeed((speedValue * 100).roundToInt() / 100f)
+                                    }
+                                },
+                                valueRange = 0.5f..2f,
+                                showKeyPoints = true,
+                                keyPoints = listOf(0.5f, 1f, 1.5f, 2f),
+                                magnetThreshold = 0.01f,
+                                hapticEffect = SliderDefaults.SliderHapticEffect.Step,
+                            )
+                        },
+                    )
+                    ArrowPreference(
+                        title = "动画延迟",
+                        summary = "列表卡片级联入场的逐项间隔",
+                        startAction = {
+                            Icon(
+                                MiuixIcons.Timer,
+                                modifier = Modifier.padding(end = 6.dp),
+                                contentDescription = "动画延迟",
+                                tint = colorScheme.onBackground,
+                            )
+                        },
+                        endActions = {
+                            Text(
+                                text = "${staggerValue.roundToInt()}ms",
+                                color = colorScheme.onSurfaceVariantActions,
+                            )
+                        },
+                        bottomAction = {
+                            Slider(
+                                value = staggerValue,
+                                onValueChange = { staggerValue = it },
+                                onValueChangeFinished = {
+                                    scope.launch { configManager.setMotionStagger(staggerValue.roundToInt()) }
+                                },
+                                valueRange = 0f..200f,
+                                showKeyPoints = true,
+                                keyPoints = listOf(0f, 50f, 100f, 150f, 200f),
+                                magnetThreshold = 1f,
+                                hapticEffect = SliderDefaults.SliderHapticEffect.Step,
+                            )
                         },
                     )
                 }

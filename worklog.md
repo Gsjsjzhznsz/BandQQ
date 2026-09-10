@@ -86,3 +86,21 @@ Work Log:
 Stage Summary:
 - 产物：download/bandqq-sync-release-2.4.2.apk（~12MB）
 - 经验入库 MEMORY.md v2.4.2 节：KSU「每页自带 Scaffold」架构、backdrop 分层（页内顶栏/外层底栏各一个）、悬浮栏 inset padding、预测性返回反射配方
+
+---
+Task ID: 8
+Agent: main (Super Z)
+Task: v2.4.3 —— UI 排版优化 + 后台保活向导（多品牌）+ 动画速度/延迟设置（用户反馈第六轮）
+
+Work Log:
+- 主页排版重构：状态卡/快捷操作/实时日志三区 SmallTitle 分节；4 个全宽堆叠按钮改为「快捷操作」Card 内 2×2 网格（启动服务为主色），按钮文案精简（检查手环/测试连接）；删除 HomeScreen 私有 enterReveal
+- 动画系统：UiMotion.kt 重写为 LocalMotionSpeed/LocalMotionStagger CompositionLocal + 统一 listItemReveal(entered,index)（时长=基础/速度，延迟=index×间隔/速度）；ConfigManager 新增 motionSpeed(0.5~2.0)/motionStagger(0~200ms) 两键 + Flow/setter；MainActivity collectAsState 注入；BandQQApp 推入页 tween 时长跟随速度
+- ThemeScreen 新增「动画」设置区：动画速度（Play 图标，0.5x~2.0x keyPoints 磁吸）+ 动画延迟（Timer 图标，0~200ms keyPoints），均为 ArrowPreference+bottomAction Slider（界面缩放同款模式，onClick 留空不响应点击）
+- KeepAliveScreen 后台保活向导：一键申请电池优化白名单（ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS，失败回退优化列表页）+ 打开应用信息（ACTION_APPLICATION_DETAILS_SETTINGS）；白名单状态 PowerManager.isIgnoringBatteryOptimizations，LifecycleEventObserver ON_RESUME 自动刷新；品牌 FlowRow chips 按 Build.MANUFACTURER 自动识别（xiaomi/huawei/honor/oppo/oneplus/vivo/samsung→对应方案，未匹配回「通用」）；六套分步教程（自启动/省电策略无限制/锁屏清理从不/最近任务锁定/神隐模式/应用速冻/后台高耗电/深度睡眠等，每步含老版本路径兜底）
+- SettingsScreen 新增「后台保活」区块 ArrowPreference；BandQQApp 挂 KeepAliveScreen 推入（与 ThemeScreen 同款 AnimatedVisibility，BackHandler 优先级 keepAlive > theme）
+- 编译两处报错速修：HomeScreen 误删 tween 导入（StatusCard 呼吸动画还在用）；androidx.annotation.SuppressLint 不可用直接删除
+- 构建 v2.4.3（versionCode 28）成功；aapt2/apksigner 验证 af8819e2 同源覆盖装
+
+Stage Summary:
+- 产物：download/bandqq-sync-release-2.4.3.apk（~12MB）
+- 经验入库 MEMORY.md v2.4.3 节：动画 CompositionLocal 注入模式、ArrowPreference.onClick 可空、SuppressLint 不可用、Button 无 text 具名参数

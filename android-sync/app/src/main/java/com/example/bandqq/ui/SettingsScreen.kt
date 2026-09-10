@@ -42,6 +42,7 @@ import top.yukonga.miuix.kmp.preference.ArrowPreference
 fun SettingsScreen(
     bottomInnerPadding: Dp,
     onOpenThemeSettings: () -> Unit = {},
+    onOpenKeepAlive: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -94,6 +95,15 @@ fun SettingsScreen(
                 title = "主题与外观",
                 summary = "主题模式、动态取色、液态玻璃",
                 onClick = onOpenThemeSettings,
+            )
+        }
+
+        SmallTitle(text = "后台保活")
+        Card(modifier = Modifier.fillMaxWidth()) {
+            ArrowPreference(
+                title = "后台保活向导",
+                summary = "自启动、电池优化、锁屏清理等主流品牌分步教程",
+                onClick = onOpenKeepAlive,
             )
         }
 

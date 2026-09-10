@@ -35,7 +35,9 @@ data class AppConfig(
     val navGlass: Boolean = true,      // 悬浮底栏的液态玻璃效果（二级选项）
     val enableNavigationBadge: Boolean = true,   // 导航栏未读角标
     val enablePredictiveBack: Boolean = true,    // 预测性返回手势（Android 14+，运行时动态开关）
-    val pageScale: Float = 1.0f        // 界面缩放 0.8 ~ 1.1
+    val pageScale: Float = 1.0f,       // 界面缩放 0.8 ~ 1.1
+    val motionSpeed: Float = 1.0f,     // 动画速度 0.5 ~ 2.0（越大越快）
+    val motionStagger: Int = 100       // 列表级联入场的逐项间隔 0 ~ 200ms
 )
 
 object ConfigHolder {
@@ -59,6 +61,8 @@ class ConfigManager(private val context: Context) {
         val ENABLE_NAV_BADGE = booleanPreferencesKey("enable_nav_badge")
         val ENABLE_PREDICTIVE_BACK = booleanPreferencesKey("enable_predictive_back")
         val PAGE_SCALE = floatPreferencesKey("page_scale")
+        val MOTION_SPEED = floatPreferencesKey("motion_speed")
+        val MOTION_STAGGER = intPreferencesKey("motion_stagger")
     }
 
     suspend fun load(): AppConfig {
@@ -82,7 +86,9 @@ class ConfigManager(private val context: Context) {
             navGlass = prefs[Keys.NAV_GLASS] ?: default.navGlass,
             enableNavigationBadge = prefs[Keys.ENABLE_NAV_BADGE] ?: default.enableNavigationBadge,
             enablePredictiveBack = prefs[Keys.ENABLE_PREDICTIVE_BACK] ?: default.enablePredictiveBack,
-            pageScale = prefs[Keys.PAGE_SCALE] ?: default.pageScale
+            pageScale = prefs[Keys.PAGE_SCALE] ?: default.pageScale,
+            motionSpeed = prefs[Keys.MOTION_SPEED] ?: default.motionSpeed,
+            motionStagger = prefs[Keys.MOTION_STAGGER] ?: default.motionStagger
         )
         ConfigHolder.config = cfg
         return cfg
@@ -104,6 +110,8 @@ class ConfigManager(private val context: Context) {
             prefs[Keys.ENABLE_NAV_BADGE] = config.enableNavigationBadge
             prefs[Keys.ENABLE_PREDICTIVE_BACK] = config.enablePredictiveBack
             prefs[Keys.PAGE_SCALE] = config.pageScale
+            prefs[Keys.MOTION_SPEED] = config.motionSpeed
+            prefs[Keys.MOTION_STAGGER] = config.motionStagger
         }
         ConfigHolder.config = config
     }
@@ -175,5 +183,21 @@ class ConfigManager(private val context: Context) {
     suspend fun setPageScale(scale: Float) {
         context.dataStore.edit { it[Keys.PAGE_SCALE] = scale }
         ConfigHolder.config = ConfigHolder.config.copy(pageScale = scale)
+    }
+
+    /** 动画速度（0.5 ~ 2.0，越大越快） */
+    fun observeMotionSpeed(): Flow<Float> = context.dataStore.data.map { it[Keys.MOTION_SPEED] ?: 1.0f }
+
+    suspend fun setMotionSpeed(speed: Float) {
+        context.dataStore.edit { it[Keys.MOTION_SPEED] = speed }
+        ConfigHolder.config = ConfigHolder.config.copy(motionSpeed = speed)
+    }
+
+    /** 列表级联入场的逐项间隔（0 ~ 200ms） */
+    fun observeMotionStagger(): Flow<Int> = context.dataStore.data.map { it[Keys.MOTION_STAGGER] ?: 100 }
+
+    suspend fun setMotionStagger(staggerMs: Int) {
+        context.dataStore.edit { it[Keys.MOTION_STAGGER] = staggerMs }
+        ConfigHolder.config = ConfigHolder.config.copy(motionStagger = staggerMs)
     }
 }

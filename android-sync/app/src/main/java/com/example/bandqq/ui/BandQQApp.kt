@@ -29,6 +29,7 @@ import com.example.bandqq.ui.component.PageScaffold
 import com.example.bandqq.ui.util.rememberBlurBackdrop
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 import top.yukonga.miuix.kmp.basic.Scaffold
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
@@ -58,6 +59,12 @@ fun BandQQApp() {
     val pagerState = rememberPagerState(pageCount = { AppTab.entries.size })
     val scope = rememberCoroutineScope()
     var showThemeScreen by rememberSaveable { mutableStateOf(false) }
+    var showKeepAlive by rememberSaveable { mutableStateOf(false) }
+
+    // 推入页动画时长跟随「动画速度」设置（速度越快时长越短）
+    val motionSpeed = LocalMotionSpeed.current.coerceIn(0.5f, 2f)
+    val pushIn = (260 / motionSpeed).roundToInt()
+    val pushOut = (200 / motionSpeed).roundToInt()
 
     val surfaceColor = MiuixTheme.colorScheme.surface
 
@@ -123,6 +130,7 @@ fun BandQQApp() {
                         AppTab.Settings -> SettingsScreen(
                             bottomInnerPadding = bottomInnerPadding,
                             onOpenThemeSettings = { showThemeScreen = true },
+                            onOpenKeepAlive = { showKeepAlive = true },
                         )
                     }
                 },
@@ -133,12 +141,23 @@ fun BandQQApp() {
     // 主题与外观：全屏推入页（对齐 KernelSU 导航交互），置于最上层
     AnimatedVisibility(
         visible = showThemeScreen,
-        enter = slideInVertically { it } + fadeIn(tween(220)),
-        exit = slideOutVertically { it } + fadeOut(tween(180)),
+        enter = slideInVertically { it } + fadeIn(tween(pushIn)),
+        exit = slideOutVertically { it } + fadeOut(tween(pushOut)),
         modifier = Modifier.fillMaxSize(),
     ) {
         ThemeScreen(onBack = { showThemeScreen = false })
     }
 
-    BackHandler(enabled = showThemeScreen) { showThemeScreen = false }
+    // 后台保活向导：同款全屏推入
+    AnimatedVisibility(
+        visible = showKeepAlive,
+        enter = slideInVertically { it } + fadeIn(tween(pushIn)),
+        exit = slideOutVertically { it } + fadeOut(tween(pushOut)),
+        modifier = Modifier.fillMaxSize(),
+    ) {
+        KeepAliveScreen(onBack = { showKeepAlive = false })
+    }
+
+    BackHandler(enabled = showKeepAlive) { showKeepAlive = false }
+    BackHandler(enabled = showThemeScreen && !showKeepAlive) { showThemeScreen = false }
 }

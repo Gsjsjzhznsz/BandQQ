@@ -23,6 +23,8 @@ import com.example.bandqq.ui.LocalEnableBlur
 import com.example.bandqq.ui.LocalEnableFloatingBottomBar
 import com.example.bandqq.ui.LocalEnableFloatingBottomBarGlass
 import com.example.bandqq.ui.LocalEnableNavigationBadge
+import com.example.bandqq.ui.LocalMotionSpeed
+import com.example.bandqq.ui.LocalMotionStagger
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,6 +43,8 @@ class MainActivity : ComponentActivity() {
             val navGlass by configManager.observeNavGlass().collectAsState(initial = true)
             val navBadge by configManager.observeNavigationBadge().collectAsState(initial = true)
             val pageScale by configManager.observePageScale().collectAsState(initial = 1.0f)
+            val motionSpeed by configManager.observeMotionSpeed().collectAsState(initial = 1.0f)
+            val motionStagger by configManager.observeMotionStagger().collectAsState(initial = 100)
 
             BandQQTheme(themeMode = themeMode, keyColor = keyColor, pageScale = pageScale) {
                 // 对齐 KernelSU 的 CompositionLocal 注入方式：底栏/顶栏组件按需读取
@@ -49,6 +53,8 @@ class MainActivity : ComponentActivity() {
                     LocalEnableFloatingBottomBar provides floatingBar,
                     LocalEnableFloatingBottomBarGlass provides navGlass,
                     LocalEnableNavigationBadge provides navBadge,
+                    LocalMotionSpeed provides motionSpeed,
+                    LocalMotionStagger provides motionStagger,
                 ) {
                     BandQQApp()
                 }

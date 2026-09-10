@@ -86,3 +86,9 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 3. **悬浮底栏偏下根因**：BottomBar 悬浮分支漏了 KSU BottomBarMiuix 的 padding——`WindowInsets.navigationBars + (inset>0 ? 8dp+inset : 28dp)` + start/end 28dp，外加容器 pointerInput{detectTapGestures{}} 吞掉栏外空白点击防穿透
 4. **预测性返回无效果根因（KSU 配方，必记）**：manifest 静态 enableOnBackInvokedCallback=true 会让设置开关永远无效。正确做法=**manifest 不写，Application.onCreate 里 HiddenApiBypass.addHiddenApiExemptions("Landroid/content/pm/ApplicationInfo;->setEnableOnBackInvokedCallback") + 反射 setEnableOnBackInvokedCallback(appInfo, enable)**（API 34+；方法不在公开 SDK，编译期必须反射）；MainActivity.onCreate 幂等重应用以覆盖温启动；切换后需重启/重进生效
 5. PaddingValues.calculateBottomPadding() 是成员函数，没有顶层 import（androidx.compose.foundation.layout.calculateBottomPadding 不存在，写了必炸）
+
+## v2.4.3（2026-09-10，versionCode 28）— 主页排版重构 + 后台保活向导 + 动画速度/延迟可调
+1. **主页排版**：4 个全宽堆叠按钮（观感散乱）→「快捷操作」Card 内 2×2 网格（启动/停止/检查手环/测试连接），配 SmallTitle 分区（运行状态/快捷操作/实时日志），对齐 miuix 卡片节奏
+2. **动画系统统一（UiMotion.kt）**：LocalMotionSpeed(0.5~2.0x) + LocalMotionStagger(0~200ms) 两个 CompositionLocal，MainActivity 按 DataStore 注入；listItemReveal(entered,index) 统一四屏入场（时长=300/速度，逐项延迟=index×间隔/速度）；BandQQApp 推入页时长也跟随速度。ThemeScreen 新增「动画」区两个 ArrowPreference+内嵌 Slider（keyPoints 磁吸+Step 触感，同界面缩放模式）
+3. **后台保活向导（KeepAliveScreen.kt）**：设置页入口推入；顶部「电池优化白名单」直接动作卡（ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS 系统弹窗全品牌通用+应用信息页，PowerManager.isIgnoringBatteryOptimizations 状态经 LifecycleEventObserver ON_RESUME 刷新）+ 品牌 chips（FlowRow，按 Build.MANUFACTURER 自动选中：小米/华为荣耀/OPPO一加/vivo/三星/通用）+ 分品牌分步教程卡（自启动/省电策略/锁屏清理内存/最近任务锁定等，老版本路径括号兜底）
+4. **API 坑**：ArrowPreference.onClick 可空（纯 Slider 行传 null 不给点击反馈）；androidx.annotation.SuppressLint 在本工程 compile classpath 不可用（未直接依赖，别用）；miuix Button 无 text 具名参数（用内容 lambda { Text(...) }）
