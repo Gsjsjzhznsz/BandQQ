@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">QQ同步器</string>
+    <color name="bandqq_window_background">#FFFFFF</color>
 </resources>

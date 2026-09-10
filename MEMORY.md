@@ -9,7 +9,7 @@
 
 ## 版本线
 - v1.1.x：旧 lineage（stapxs 移植版，源码已失传，legacy/ 有 7z 分卷）
-- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.1.0**（versionCode 21）
+- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.3.0**（versionCode 23）
 - 签名一致性：rpk 与 APK 同源证书，APK SHA-256 = af8819e27a6ec8d84537ec86937cf016e780376305328abaa4eb79e8c626b004
 
 ## v2.1.0 已完成（2026-09-09）
@@ -56,3 +56,12 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
    - 4 个 Screen 根 padding bottom=96dp 给悬浮栏留穿透空间
 4. **构建环境脚本化**：`scripts/setup-buildenv.sh` 一键重建（JDK17+Gradle8.13+SDK+android-37 目录陷阱修复），容器重置后直接跑
 - rpk 签名 sign/release/{private,certificate}.pem；APK 签名根目录 keystore.jks（SHA-256 af8819e2... 与 v1.x/v2.1.0 同源，覆盖安装兼容）
+
+## v2.3.0（2026-09-10，versionCode 23）— 渲染修复 + KernelSU 同款主题设置
+1. **渲染差异根因（两条铁律，勿再犯）**：
+   - 裸 `MiuixTheme(content)` 走 colors 默认值重载 = **永远浅色**，不跟随系统深色、状态栏图标不联动 → 必须走 `ThemeController(colorSchemeMode, isDark)` + `MiuixTheme(controller)`（KernelSU manager 即此方案，其同为 miuix 0.9.3）
+   - `rememberLayerBackdrop` 采集层**必须先 drawRect 垫不透明底色再 drawContent()**；背景画在登记层外会让玻璃栏模糊采样到透明像素 → 发黑/花屏
+2. **主题系统**：ThemeMode 六模式（跟随系统/浅色/深色/动态取色×3）存 DataStore，设置页 ArrowPreference+WindowDialog 单选，MainActivity collectAsState 直驱 BandQQTheme 即时生效；Monet 模式：Android 13+ 系统色板 / 12+ 系统 Md3 角色 / <12 回退 miuix 蓝种子(0xFF3482FF)；LaunchedEffect 同步 isAppearanceLightStatus/NavigationBars
+3. **液态玻璃配方换 KernelSU 同款**：`textureBlur(blurRadius=25f, BlurColors(blendColors=[surface 87%]))`，弃用自试 drawBackdrop+colorControls+BloomStroke；设置页 SwitchPreference 可关（关/低版本回退 FloatingNavigationBar）；miuix-blur 所有效果（含 textureBlur）门控 isRuntimeShaderSupported → 实际生效 Android 13+
+4. **依赖**：build.gradle.kts 曾在 v2.x 重写时漏掉 miuix-preference-android:0.9.3（ArrowPreference/SwitchPreference 编译不过），已补回
+5. 其他：enableEdgeToEdge（miuix SmallTopAppBar defaultWindowInsetsPadding=true 自处理状态栏 inset，已验证安全）+ values(-night) windowBackground 防深色闪白 + manifest 重复 xmlns:tools 修复

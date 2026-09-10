@@ -22,7 +22,6 @@ import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -39,17 +38,13 @@ import top.yukonga.miuix.kmp.basic.FloatingNavigationBarItem
 import top.yukonga.miuix.kmp.basic.Icon
 import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.basic.Text
+import top.yukonga.miuix.kmp.blur.BlendColorEntry
+import top.yukonga.miuix.kmp.blur.BlurColors
 import top.yukonga.miuix.kmp.blur.LayerBackdrop
-import top.yukonga.miuix.kmp.blur.drawBackdrop
-import top.yukonga.miuix.kmp.blur.blur
-import top.yukonga.miuix.kmp.blur.colorControls
 import top.yukonga.miuix.kmp.blur.isRuntimeShaderSupported
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
-import top.yukonga.miuix.kmp.blur.highlight.BloomStroke
-import top.yukonga.miuix.kmp.blur.highlight.Highlight
-import top.yukonga.miuix.kmp.blur.highlight.LightPosition
-import top.yukonga.miuix.kmp.blur.highlight.LightSource
+import top.yukonga.miuix.kmp.blur.textureBlur
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.Contacts
 import top.yukonga.miuix.kmp.icon.extended.Home
@@ -64,32 +59,20 @@ enum class AppTab(val label: String) {
     Settings("设置"),
 }
 
-/** 液态玻璃边缘高光（引自 miuix 官方 LiquidGlass 示例参数）。 */
-private val glassEdgeHighlight = Highlight(
-    width = 1.dp,
-    alpha = 0.9f,
-    style = BloomStroke(
-        color = Color.White.copy(alpha = 0.12f),
-        innerBlurRadius = 2.0.dp,
-        primaryLight = LightSource(
-            position = LightPosition(0.5f, -0.3f, -0.05f),
-            color = Color.White,
-            intensity = 1f,
-        ),
-        secondaryLight = LightSource(
-            position = LightPosition(0.5f, 0.8f, -0.5f),
-            color = Color.White,
-            intensity = 0.4f,
-        ),
-        dualPeak = true,
-    ),
-)
-
 @Composable
-fun BandQQApp() {
+fun BandQQApp(navGlass: Boolean = true) {
     var selected by rememberSaveable { mutableStateOf(AppTab.Home) }
-    val backdrop = rememberLayerBackdrop()
     val glassSupported = isRuntimeShaderSupported()
+    val layerBaseColor = MiuixTheme.colorScheme.background
+
+    // 液态玻璃模糊源：必须先垫不透明背景色再画内容。
+    // 旧实现直接 layerBackdrop 登记内容层，层内背景透明（背景画在外层 Box），
+    // 玻璃栏采样到大量透明像素 → 模糊合成后发黑/花屏，这是渲染问题根因之一。
+    // （对齐 KernelSU rememberBlurBackdrop：drawRect(surface) + drawContent()）
+    val backdrop = rememberLayerBackdrop {
+        drawRect(layerBaseColor)
+        drawContent()
+    }
 
     Box(
         modifier = Modifier
@@ -124,12 +107,12 @@ fun BandQQApp() {
             }
         }
 
-        // 底部悬浮栏：Android 13+ 液态玻璃（实时模糊取景），低版本回退 miuix 悬浮导航
+        // 底部悬浮栏：Android 13+ 液态玻璃（KernelSU 同款 textureBlur 配方），低版本回退 miuix 悬浮导航
         val navInsets = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
         val navModifier = Modifier
             .align(Alignment.BottomCenter)
             .padding(start = 24.dp, end = 24.dp, bottom = 16.dp + navInsets)
-        if (glassSupported) {
+        if (navGlass && glassSupported) {
             LiquidGlassNavBar(
                 backdrop = backdrop,
                 selected = selected,
@@ -153,7 +136,11 @@ fun BandQQApp() {
     }
 }
 
-/** 液态玻璃悬浮导航：内容实时穿透模糊 + 边缘高光 + 选中指示 pill。 */
+/**
+ * 液态玻璃悬浮导航：KernelSU manager 同款配方——
+ * textureBlur(blurRadius=25f) + surface 87% 叠色，磨砂通透不偏色。
+ * （旧配方 drawBackdrop+colorControls+BloomStroke 为自行试验参数，渲染异常）
+ */
 @Composable
 private fun LiquidGlassNavBar(
     backdrop: LayerBackdrop,
@@ -161,25 +148,22 @@ private fun LiquidGlassNavBar(
     onSelect: (AppTab) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val containerColor = MiuixTheme.colorScheme.surfaceContainer.copy(alpha = 0.4f)
     val accent = MiuixTheme.colorScheme.primary
     val onSurface = MiuixTheme.colorScheme.onSurface
-    val pillShape = CircleShape
 
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(64.dp)
-            .drawBackdrop(
+            .textureBlur(
                 backdrop = backdrop,
-                shape = { pillShape },
-                effects = {
-                    blur(4.dp.toPx(), 4.dp.toPx())
-                    // 参数顺序：brightness, contrast, saturation（基准 0/1/1）
-                    colorControls(0.02f, 1.03f, 1.4f)
-                },
-                highlight = { glassEdgeHighlight },
-                onDrawSurface = { drawRect(containerColor) },
+                shape = RoundedCornerShape(32.dp),
+                blurRadius = 25f,
+                colors = BlurColors(
+                    blendColors = listOf(
+                        BlendColorEntry(color = MiuixTheme.colorScheme.surface.copy(alpha = 0.87f))
+                    )
+                ),
             )
             .padding(4.dp),
         verticalAlignment = Alignment.CenterVertically,

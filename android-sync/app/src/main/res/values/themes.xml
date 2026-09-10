@@ -1,3 +1,6 @@
 <resources>
-    <style name="Theme.BandQQ" parent="Theme.AppCompat.DayNight" />
+    <!-- 沉浸式 + 深浅色窗口背景：避免深色模式下冷启动闪白（对齐 KernelSU 处理思路） -->
+    <style name="Theme.BandQQ" parent="Theme.AppCompat.DayNight">
+        <item name="android:windowBackground">@color/bandqq_window_background</item>
+    </style>
 </resources>
