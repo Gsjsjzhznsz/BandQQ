@@ -9,7 +9,7 @@
 
 ## 版本线
 - v1.1.x：旧 lineage（stapxs 移植版，源码已失传，legacy/ 有 7z 分卷）
-- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.3.0**（versionCode 23）
+- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.4.0**（versionCode 24）
 - 签名一致性：rpk 与 APK 同源证书，APK SHA-256 = af8819e27a6ec8d84537ec86937cf016e780376305328abaa4eb79e8c626b004
 
 ## v2.1.0 已完成（2026-09-09）
@@ -65,3 +65,10 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 3. **液态玻璃配方换 KernelSU 同款**：`textureBlur(blurRadius=25f, BlurColors(blendColors=[surface 87%]))`，弃用自试 drawBackdrop+colorControls+BloomStroke；设置页 SwitchPreference 可关（关/低版本回退 FloatingNavigationBar）；miuix-blur 所有效果（含 textureBlur）门控 isRuntimeShaderSupported → 实际生效 Android 13+
 4. **依赖**：build.gradle.kts 曾在 v2.x 重写时漏掉 miuix-preference-android:0.9.3（ArrowPreference/SwitchPreference 编译不过），已补回
 5. 其他：enableEdgeToEdge（miuix SmallTopAppBar defaultWindowInsetsPadding=true 自处理状态栏 inset，已验证安全）+ values(-night) windowBackground 防深色闪白 + manifest 重复 xmlns:tools 修复
+
+## v2.4.0（2026-09-10，versionCode 24）— KernelSU 液态玻璃栈整体移植 + 全屏主题页
+1. **玻璃效果三要素（缺一不可）**：① backdrop 垫底色 drawRect(background) ② 内容必须能穿过底栏（滚动容器去 bottom 内边距 + 末尾 Spacer，v2.3.0 四屏 96dp 内边距导致玻璃"无物可糊"=实色条）③ 用 KernelSU 同款效果链 vibrancy+blur+lens
+2. **移植清单**（源=KernelSU manager，包名映射 me.weishu.kernelsu.ui.component.*→com.example.bandqq.ui.*）：liquid/{Vibrancy,CombinedBackdrop,Lens,InnerShadow}.kt、animation/{DampedDragAnimation,InteractiveHighlight,DragGestureInspector}.kt（注意 InteractiveHighlight 的 android.graphics.RuntimeShader 是字段初始化，**只能在 isRuntimeShaderSupported()=true 分支组合**）、component/FloatingBottomBar.kt（含 LocalFloatingBottomBarTabScale）
+3. **主题页不再用对话框**：0.9.3 WindowDialog 在本工程打不开（未深究，弃用）；ThemeScreen 全屏推入（AnimatedVisibility slideInVertically + BackHandler），TabRow 三档模式 + 动态取色开关，交互与 KernelSU ColorPaletteScreen 对齐
+4. isInDarkTheme 必须标 @Composable（读 CompositionLocal）；BandQQTheme 以 LocalBandQQDarkTheme 提供明暗状态
+5. 设置页保存路径改 ConfigHolder.config.copy(...)，避免把 themeMode/navGlass 重置为默认

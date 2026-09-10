@@ -1,30 +1,29 @@
 package com.example.bandqq.ui
 
 import android.content.Intent
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bandqq.WebUiActivity
 import com.example.bandqq.config.AppConfig
+import com.example.bandqq.config.ConfigHolder
 import com.example.bandqq.config.ConfigManager
 import com.example.bandqq.config.EndpointConfig
 import com.example.bandqq.onebot.GameProtocolDetector
@@ -32,23 +31,16 @@ import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
-import top.yukonga.miuix.kmp.basic.RadioButton
 import top.yukonga.miuix.kmp.basic.SmallTitle
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.preference.ArrowPreference
-import top.yukonga.miuix.kmp.preference.SwitchPreference
-import top.yukonga.miuix.kmp.theme.MiuixTheme
-import top.yukonga.miuix.kmp.window.WindowDialog
 
 @Composable
-fun SettingsScreen() {
+fun SettingsScreen(onOpenThemeSettings: () -> Unit = {}) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val configManager = remember { ConfigManager(context) }
-    val themeMode by configManager.observeThemeMode().collectAsState(initial = 0)
-    val navGlass by configManager.observeNavGlass().collectAsState(initial = true)
-    var showThemeDialog by remember { mutableStateOf(false) }
     var wsUrl by remember { mutableStateOf("") }
     var wsToken by remember { mutableStateOf("") }
     var httpUrl by remember { mutableStateOf("") }
@@ -80,28 +72,21 @@ fun SettingsScreen() {
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 96.dp),
+            .padding(start = 16.dp, end = 16.dp, top = 16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         if (!loaded) {
             SmallTitle(text = "正在读取配置…")
+            Spacer(modifier = Modifier.height(112.dp))
             return@Column
         }
 
         SmallTitle(text = "主题与外观")
         Card(modifier = Modifier.fillMaxWidth()) {
             ArrowPreference(
-                title = "主题模式",
-                summary = ThemeMode.fromValue(themeMode).label,
-                onClick = { showThemeDialog = true },
-            )
-        }
-        Card(modifier = Modifier.fillMaxWidth()) {
-            SwitchPreference(
-                checked = navGlass,
-                onCheckedChange = { v -> scope.launch { configManager.setNavGlass(v) } },
-                title = "液态玻璃悬浮栏",
-                summary = "Android 13+ 底栏实时模糊穿透；关闭后使用普通悬浮栏",
+                title = "主题与外观",
+                summary = "主题模式、动态取色、液态玻璃",
+                onClick = onOpenThemeSettings,
             )
         }
 
@@ -126,8 +111,9 @@ fun SettingsScreen() {
         Button(
             onClick = {
                 scope.launch {
+                    // 从 ConfigHolder.copy 保留主题/玻璃等未在此页编辑的字段
                     configManager.save(
-                        AppConfig(
+                        ConfigHolder.config.copy(
                             endpoint = EndpointConfig(
                                 wsUrl = wsUrl.trim(),
                                 wsToken = wsToken.trim(),
@@ -136,8 +122,6 @@ fun SettingsScreen() {
                             ),
                             quickReplies = quickReplies.split("\n").map { it.trim() }.filter { it.isNotEmpty() },
                             webuiUrl = webuiUrl.trim(),
-                            themeMode = themeMode,
-                            navGlass = navGlass,
                         )
                     )
                     toast(context, "配置已保存")
@@ -215,47 +199,8 @@ fun SettingsScreen() {
                 fontSize = 13.sp,
             )
         }
-    }
 
-    WindowDialog(
-        show = showThemeDialog,
-        title = "主题模式",
-        onDismissRequest = { showThemeDialog = false },
-    ) {
-        Column {
-            ThemeMode.entries.forEach { mode ->
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable {
-                            scope.launch { configManager.setThemeMode(mode.value) }
-                            showThemeDialog = false
-                        }
-                        .padding(horizontal = 4.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        text = mode.label,
-                        fontSize = 16.sp,
-                        color = if (themeMode == mode.value) {
-                            MiuixTheme.colorScheme.primary
-                        } else {
-                            MiuixTheme.colorScheme.onSurface
-                        },
-                        modifier = Modifier.weight(1f),
-                    )
-                    RadioButton(
-                        selected = themeMode == mode.value,
-                        onClick = null,
-                    )
-                }
-            }
-            Text(
-                text = "动态取色：Android 12+ 跟随系统壁纸取色，更低版本使用 miuix 蓝",
-                fontSize = 12.sp,
-                color = MiuixTheme.colorScheme.onSurface.copy(alpha = 0.55f),
-                modifier = Modifier.padding(top = 8.dp),
-            )
-        }
+        // 底部留白：内容可从玻璃悬浮栏下穿过，列表尽头仍可滚出底栏
+        Spacer(modifier = Modifier.height(112.dp))
     }
 }

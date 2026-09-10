@@ -30,3 +30,21 @@ Work Log:
 Stage Summary:
 - 产物：download/bandqq-sync-release-2.3.0.apk（~12MB）
 - 关键知识入库 MEMORY.md：KernelSU 主题配方（ThemeController）、backdrop 垫底色铁律、textureBlur 配方、miuix-blur 所有效果均门控 isRuntimeShaderSupported（13+）
+
+---
+Task ID: 5
+Agent: main (Super Z)
+Task: v2.4.0 —— 液态玻璃无效/主题设置打不开/交互对齐 KernelSU（用户反馈第三轮）
+
+Work Log:
+- 问题定位：① v2.3.0 玻璃栏 textureBlur 配方虽修复采样，但各屏滚动容器自带 bottom=96dp 内边距 → 内容永远不会出现在底栏后方，玻璃无东西可模糊 ≈ 实色条；② 0.9.3 WindowDialog 在本项目窗口体系下无法弹出（组件依赖较重，弃用对话框方案）；③ 操作逻辑与 KernelSU 不一致源于自绘简化底栏
+- 整体移植 KernelSU 已验证的液态玻璃栈（7 文件，包名映射 me.weishu→com.example.bandqq）：ui/liquid/{Vibrancy,CombinedBackdrop,Lens,InnerShadow} + ui/animation/{DampedDragAnimation,InteractiveHighlight,DragGestureInspector} + ui/component/FloatingBottomBar（可拖拽 pill/镜头折射/重力感应高光/按键交互）；KernelSU 针对同样的 miuix 0.9.3 适配过（InteractiveHighlight 用 android.graphics.RuntimeShader + asBrush 替代方案）
+- 主题设置改为 KernelSU 式全屏推入页 ThemeScreen（TabRow 三档 + 动态取色 Switch + 液态玻璃 Switch + 返回箭头/BackHandler），BandQQApp 顶层 AnimatedVisibility 推入，置于底栏之上（z 序最末）——彻底绕开对话框问题
+- BandQQApp 接 FloatingBottomBar：33+ 时 isBlurEnabled=navGlass（关闭=实色拖拽 pill，同 KernelSU 交互），<33 回退 FloatingNavigationBar；InteractiveHighlight 内 RuntimeShader 为字段初始化，<33 构造必崩 → 必须只在 glassActive 分支组合
+- 四屏底部改造：滚动容器 padding 去掉 bottom=96dp + 末尾 Spacer(112dp)，内容从底栏下穿过，玻璃有东西可模糊
+- 主题页由设置页 ArrowPreference「主题与外观」推入；SettingsScreen 保存改用 ConfigHolder.config.copy 保留未编辑字段
+- 构建途中 daemon OOM 被杀一次，重跑成功；v2.4.0（versionCode 24）验签 af8819e2 同源
+
+Stage Summary:
+- 产物：download/bandqq-sync-release-2.4.0.apk（~12MB）
+- 教训入库：玻璃效果三要素=垫底色+内容穿过底栏+KernelSU 配方；WindowDialog(0.9.3) 在本工程慎用，全屏推入页更稳

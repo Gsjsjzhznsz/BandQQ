@@ -75,6 +75,8 @@ fun BandQQTheme(themeMode: Int, content: @Composable () -> Unit) {
                 isAppearanceLightNavigationBars = !darkTheme
             }
         }
-        content()
+        androidx.compose.runtime.CompositionLocalProvider(LocalBandQQDarkTheme provides darkTheme) {
+            content()
+        }
     }
 }
