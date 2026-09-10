@@ -1,4 +1,7 @@
 <resources>
     <string name="app_name">QQ同步器</string>
     <color name="bandqq_window_background">#FFFFFF</color>
+    <!-- 无障碍保活锚点服务（系统无障碍列表中展示，v2.4.6） -->
+    <string name="accessibility_service_label">BandQQ 后台保活</string>
+    <string name="accessibility_service_desc">BandQQ 的后台保活服务：不读取屏幕内容、不监听任何操作，仅作为无障碍常驻锚点，降低本应用被系统省电策略和一键清理杀掉的概率，提升手环消息同步的稳定性。</string>
 </resources>

@@ -9,7 +9,7 @@
 
 ## 版本线
 - v1.1.x：旧 lineage（stapxs 移植版，源码已失传，legacy/ 有 7z 分卷）
-- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.4.0**（versionCode 24）
+- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.4.6**（versionCode 31）
 - 签名一致性：rpk 与 APK 同源证书，APK SHA-256 = af8819e27a6ec8d84537ec86937cf016e780376305328abaa4eb79e8c626b004
 
 ## v2.1.0 已完成（2026-09-09）
@@ -117,3 +117,8 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
    - **@我 高亮**：OneBotParser 检测 CQ:at qq=selfId/all → StoredMessage.atMe；历史帧/实时推送带 at=1，手环气泡金色高亮（.bubble-at）；会话帧带 cat=1（未读@我），手环列表绿「@我」角标，read_chat 后手机端清标志自动消失；convSignature 纳入 cat。
 7. **SnowLuma 原生安卓调研定论（docs/snowluma-native-android-research.md）**：仍是 native 注入桌面 NTQQ（manual map .so + 闭源 .node），Android 无注入目标+seccomp 禁 ptrace+4.1万行 TS+闭源 addon → 进程内嵌/Kotlin 重写均不可行；**推荐落地=Termux+proot 跑本机**，新增 scripts/snowluma-termux.sh 一键脚本（Ubuntu+Xvfb+Node22+官方 arm64 发行包），设置页文案已更新。
 8. 构建：vc30/2.4.5 两端同版本；apksigner af8819e2 同源；本机 Termux 指引进 App。
+
+## v2.4.6（2026-09-10，versionCode 31）— 弹窗崩溃真根因（activity 1.12）+ 无障碍保活服务
+1. **Monet/预测性返回点击崩溃真根因（必记，v2.4.5 三层防御方向猜错）**：用户实测再崩并提供堆栈——`IllegalStateException: No NavigationEventDispatcher was provided via LocalNavigationEventDispatcherOwner`，抛点=miuix 弹窗链 MiuixPopupHost → PopupEntry → NavigationBackHandler（androidx.navigationevent.compose）。真因 = `androidx.activity:activity-compose:1.9.1` 过老：navigationevent-compose 的 Local 默认 null + ViewTree 兜底，而 ViewTree owner 仅 activity 1.12+ 的 ComponentActivity 提供（implements NavigationEventDispatcherOwner + initializeViewTreeOwners 挂 decorView，`navigationEventDispatcher = onBackPressedDispatcher.eventDispatcher` 统一管线）。**凡点击后弹弹窗/下拉的选项必崩**（Monet 下拉、预测性返回 SuperDialog、保活确认等）——与选项自身处理器无关。修复 = activity-compose 1.12.4（POM 只要求 compose-runtime 1.7.0，与 BOM 2024.09.03/compose 1.7.2 无冲突，自动携带 navigationevent 1.0.2/lifecycle 2.9.4/core 1.16）+ MainActivity setContent 显式 `LocalNavigationEventDispatcherOwner provides this`（CompositionLocal 传播进 Popup/Dialog 子树，双保险）。验证手段：下载 google maven sources jar rg 确认，勿靠记忆猜版本行为
+2. **无障碍权限「没有申请」真因**：v2.4.5 只有「无障碍干扰检查」行（查他人清理工具），应用自身未声明 AccessibilityService → 系统无障碍列表根本没有 BandQQ 可开。新增 sync/KeepAliveAccessibilityService（空实现 + canRetrieveWindowContent=false + typeWindowStateChanged 最小配置）+ manifest BIND_ACCESSIBILITY_SERVICE + res/xml/keep_alive_accessibility_config.xml + strings(label/desc)；KeepAliveScreen 新增「无障碍保活（本应用）」行：Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES 判定自身组件 + ON_RESUME 刷新 + 直达系统无障碍设置；「干扰检查」改 enabledForeignServiceCount 排除自身，开启后不误报
+3. 构建：vc31/2.4.6；daemon 再次 OOM（GRADLE_OPTS 降堆 -Xmx1400m + kotlin daemon -Xmx900m 重试即过）；aapt2 验证 service 已打包、apksigner af8819e2 同源可覆盖装

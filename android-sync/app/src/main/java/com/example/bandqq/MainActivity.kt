@@ -16,6 +16,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.navigationevent.NavigationEventDispatcherOwner
+import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import com.example.bandqq.config.ConfigManager
 import com.example.bandqq.ui.BandQQApp
 import com.example.bandqq.ui.BandQQTheme
@@ -35,31 +37,39 @@ class MainActivity : ComponentActivity() {
         (application as? BandQQApplication)?.applyPredictiveBackFlag()
         val configManager = ConfigManager(applicationContext)
         setContent {
-            // DataStore Flow 直接驱动全局主题：设置页切换立即生效，无需重启
-            val themeMode by configManager.observeThemeMode().collectAsState(initial = 0)
-            val keyColor by configManager.observeKeyColor().collectAsState(initial = 0)
-            val enableBlur by configManager.observeEnableBlur().collectAsState(initial = true)
-            val floatingBar by configManager.observeFloatingBottomBar().collectAsState(initial = true)
-            val navGlass by configManager.observeNavGlass().collectAsState(initial = true)
-            val navBadge by configManager.observeNavigationBadge().collectAsState(initial = true)
-            val pageScale by configManager.observePageScale().collectAsState(initial = 1.0f)
-            val motionSpeed by configManager.observeMotionSpeed().collectAsState(initial = 1.0f)
-            val motionStagger by configManager.observeMotionStagger().collectAsState(initial = 100)
+            // activity 1.12+ 的 ComponentActivity 已实现 NavigationEventDispatcherOwner；
+            // 这里再显式注入一次 CompositionLocal，确保 miuix 弹窗系统的
+            // NavigationBackHandler 在任意 Popup/Dialog 子树内都能解析到
+            // （缺它时点击 Monet/预测性返回等弹窗选项直接崩溃，v2.4.6 根治）。
+            CompositionLocalProvider(
+                LocalNavigationEventDispatcherOwner provides this@MainActivity as NavigationEventDispatcherOwner,
+            ) {
+                // DataStore Flow 直接驱动全局主题：设置页切换立即生效，无需重启
+                val themeMode by configManager.observeThemeMode().collectAsState(initial = 0)
+                val keyColor by configManager.observeKeyColor().collectAsState(initial = 0)
+                val enableBlur by configManager.observeEnableBlur().collectAsState(initial = true)
+                val floatingBar by configManager.observeFloatingBottomBar().collectAsState(initial = true)
+                val navGlass by configManager.observeNavGlass().collectAsState(initial = true)
+                val navBadge by configManager.observeNavigationBadge().collectAsState(initial = true)
+                val pageScale by configManager.observePageScale().collectAsState(initial = 1.0f)
+                val motionSpeed by configManager.observeMotionSpeed().collectAsState(initial = 1.0f)
+                val motionStagger by configManager.observeMotionStagger().collectAsState(initial = 100)
 
-            BandQQTheme(themeMode = themeMode, keyColor = keyColor, pageScale = pageScale) {
-                // 对齐 KernelSU 的 CompositionLocal 注入方式：底栏/顶栏组件按需读取
-                CompositionLocalProvider(
-                    LocalEnableBlur provides enableBlur,
-                    LocalEnableFloatingBottomBar provides floatingBar,
-                    LocalEnableFloatingBottomBarGlass provides navGlass,
-                    LocalEnableNavigationBadge provides navBadge,
-                    LocalMotionSpeed provides motionSpeed,
-                    LocalMotionStagger provides motionStagger,
-                ) {
-                    BandQQApp()
+                BandQQTheme(themeMode = themeMode, keyColor = keyColor, pageScale = pageScale) {
+                    // 对齐 KernelSU 的 CompositionLocal 注入方式：底栏/顶栏组件按需读取
+                    CompositionLocalProvider(
+                        LocalEnableBlur provides enableBlur,
+                        LocalEnableFloatingBottomBar provides floatingBar,
+                        LocalEnableFloatingBottomBarGlass provides navGlass,
+                        LocalEnableNavigationBadge provides navBadge,
+                        LocalMotionSpeed provides motionSpeed,
+                        LocalMotionStagger provides motionStagger,
+                    ) {
+                        BandQQApp()
+                    }
                 }
+                BluetoothPermissionRequester()
             }
-            BluetoothPermissionRequester()
         }
     }
 }

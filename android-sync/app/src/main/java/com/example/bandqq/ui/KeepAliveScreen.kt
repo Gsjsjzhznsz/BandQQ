@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.app.NotificationManagerCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.example.bandqq.sync.KeepAliveAccessibilityService
 import com.example.bandqq.sync.SyncService
 import com.example.bandqq.ui.util.BlurredBar
 import com.example.bandqq.ui.util.rememberBlurBackdrop
@@ -258,14 +259,9 @@ private fun canRequestNotificationRuntime(context: Context): Boolean {
     }.getOrDefault(false)
 }
 
-/** 已启用的无障碍服务数（第三方自动清理工具通常靠无障碍服务常驻，是杀后台元凶之一） */
-private fun enabledAccessibilityCount(context: Context): Int = runCatching {
-    val raw = Settings.Secure.getString(
-        context.contentResolver,
-        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-    ).orEmpty()
-    raw.split(':').map { it.trim() }.count { it.isNotEmpty() }
-}.getOrDefault(0)
+/** 已启用的无障碍服务数（第三方自动清理工具通常靠无障碍服务常驻，是杀后台元凶之一）；排除本应用自身的保活锚点服务 */
+private fun enabledAccessibilityCount(context: Context): Int =
+    KeepAliveAccessibilityService.enabledForeignServiceCount(context)
 
 /** 逐个尝试品牌自启动管理页直达 Intent，全部失败返回 false（降级应用详情页） */
 private fun tryOpenAutoStart(context: Context, brand: KeepAliveBrand): Boolean {
@@ -406,6 +402,7 @@ fun KeepAliveScreen(onBack: () -> Unit) {
     // ===== 权限检测状态（ON_RESUME 实时刷新，从系统页返回后立即更新）=====
     var batteryWhitelisted by remember { mutableStateOf(isIgnoringBatteryOptimizations(context)) }
     var notificationsOn by remember { mutableStateOf(notificationsEnabled(context)) }
+    var accessibilityAlive by remember { mutableStateOf(KeepAliveAccessibilityService.isEnabled(context)) }
     var accessibilityCount by remember { mutableStateOf(enabledAccessibilityCount(context)) }
     var serviceRunning by remember { mutableStateOf(SyncService.isRunning) }
     // Android 13+ 通知权限运行时申请：系统弹窗；拒绝后降级跳系统通知设置页
@@ -421,6 +418,7 @@ fun KeepAliveScreen(onBack: () -> Unit) {
             if (event == Lifecycle.Event.ON_RESUME) {
                 batteryWhitelisted = isIgnoringBatteryOptimizations(context)
                 notificationsOn = notificationsEnabled(context)
+                accessibilityAlive = KeepAliveAccessibilityService.isEnabled(context)
                 accessibilityCount = enabledAccessibilityCount(context)
                 serviceRunning = SyncService.isRunning
             }
@@ -515,6 +513,25 @@ fun KeepAliveScreen(onBack: () -> Unit) {
                 )
                 Spacer(Modifier.height(8.dp))
                 PermCheckRow(
+                    title = "无障碍保活（本应用）",
+                    icon = {
+                        Icon(
+                            MiuixIcons.Sidebar, contentDescription = "无障碍保活",
+                            tint = colorScheme.primary, modifier = Modifier.size(18.dp),
+                        )
+                    },
+                    state = if (accessibilityAlive) PermState.Ok else PermState.Manual,
+                    hint = if (accessibilityAlive)
+                        "保活锚点服务已开启，系统会显著降低本应用被一键清理/省电策略杀掉的概率。"
+                    else
+                        "开启本应用的无障碍保活服务（不读屏、不监听任何内容），系统会将其视为无障碍常驻应用，大幅降低被清理的概率，全品牌通用。",
+                    actionText = if (accessibilityAlive) "管理无障碍服务" else "开启无障碍保活",
+                    onAction = { openAccessibilitySettings(context) },
+                    entered = entered,
+                    index = 2,
+                )
+                Spacer(Modifier.height(8.dp))
+                PermCheckRow(
                     title = "无障碍干扰检查",
                     icon = {
                         Icon(
@@ -524,13 +541,13 @@ fun KeepAliveScreen(onBack: () -> Unit) {
                     },
                     state = if (accessibilityCount == 0) PermState.Ok else PermState.Manual,
                     hint = if (accessibilityCount == 0)
-                        "当前无启用的无障碍服务，不会被清理类工具误杀。"
+                        "当前无其他启用的无障碍服务，不会被清理类工具误杀（不含本应用保活服务）。"
                     else
-                        "已启用 $accessibilityCount 项无障碍服务；若包含会「自动清理后台」的工具，请将本应用加白或关闭。",
+                        "已启用 $accessibilityCount 项其他无障碍服务；若包含会「自动清理后台」的工具，请将本应用加白或关闭。",
                     actionText = "打开无障碍设置",
                     onAction = { openAccessibilitySettings(context) },
                     entered = entered,
-                    index = 2,
+                    index = 3,
                 )
                 Spacer(Modifier.height(8.dp))
                 PermCheckRow(
@@ -548,7 +565,7 @@ fun KeepAliveScreen(onBack: () -> Unit) {
                         if (!tryOpenAutoStart(context, brand)) openAppDetails(context)
                     },
                     entered = entered,
-                    index = 3,
+                    index = 4,
                 )
                 Spacer(Modifier.height(8.dp))
                 PermCheckRow(
@@ -569,7 +586,7 @@ fun KeepAliveScreen(onBack: () -> Unit) {
                         }
                     },
                     entered = entered,
-                    index = 4,
+                    index = 5,
                 )
 
                 // ===== 品牌选择 =====
@@ -578,7 +595,7 @@ fun KeepAliveScreen(onBack: () -> Unit) {
                     modifier = Modifier
                         .padding(top = 12.dp)
                         .fillMaxWidth()
-                        .listItemReveal(entered, 5),
+                        .listItemReveal(entered, 6),
                 ) {
                     FlowRow(
                         modifier = Modifier.padding(12.dp),
@@ -610,7 +627,7 @@ fun KeepAliveScreen(onBack: () -> Unit) {
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .listItemReveal(entered, index + 6),
+                                .listItemReveal(entered, index + 7),
                         ) {
                             Row(modifier = Modifier.padding(14.dp)) {
                                 Box(

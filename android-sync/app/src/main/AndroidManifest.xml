@@ -42,5 +42,20 @@
             android:name=".sync.SyncService"
             android:exported="false"
             android:foregroundServiceType="connectedDevice" />
+
+        <!-- 无障碍保活锚点：不读屏、不监听事件（canRetrieveWindowContent=false），
+             仅在系统无障碍列表占一个可开关位置，降低被省电策略/一键清理杀掉的概率（v2.4.6） -->
+        <service
+            android:name=".sync.KeepAliveAccessibilityService"
+            android:exported="false"
+            android:label="@string/accessibility_service_label"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/keep_alive_accessibility_config" />
+        </service>
     </application>
 </manifest>

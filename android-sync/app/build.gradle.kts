@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.bandqq"
         minSdk = 26
         targetSdk = 34
-        versionCode = 30
-        versionName = "2.4.5"
+        versionCode = 31
+        versionName = "2.4.6"
     }
 
     signingConfigs {
@@ -67,7 +67,12 @@ dependencies {
     implementation("androidx.compose.material3:material3")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
-    implementation("androidx.activity:activity-compose:1.9.1")
+    // ⚠️ 1.12+ 是 miuix 0.9.3 弹窗系统的硬性要求：MiuixPopupHost → PopupEntry →
+    // NavigationBackHandler（androidx.navigationevent.compose）依赖
+    // LocalNavigationEventDispatcherOwner / ViewTree owner，只有 activity 1.12+ 的
+    // ComponentActivity 才会提供。1.9.1 时点击 Monet/预测性返回等一切弹弹窗的选项直接
+    // IllegalStateException 崩溃（v2.4.6 根治）。
+    implementation("androidx.activity:activity-compose:1.12.4")
 
     implementation("top.yukonga.miuix.kmp:miuix-ui-android:0.9.3")
     implementation("top.yukonga.miuix.kmp:miuix-icons-android:0.9.3")

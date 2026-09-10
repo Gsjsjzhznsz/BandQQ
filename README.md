@@ -1,8 +1,8 @@
-# BandQQ v2.1.0 — 小米手环 9 QQ 消息助手（手环快应用 + 安卓同步器）
+# BandQQ v2.4.6 — 小米手环 9 QQ 消息助手（手环快应用 + 安卓同步器）
 
 > 🧠 **AI 协作记忆库**：[`MEMORY.md`](MEMORY.md) — 本项目的跨会话持久记忆（架构 / bug 台账 / 构建配方 / 任务清单）。任何新会话恢复上下文，先读它。
 
-[![Version](https://img.shields.io/badge/version-2.1.0-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-2.4.6-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
 
 **BandQQ** 是一套开源的「小米手环 QQ 消息助手」双端方案：手环端运行 Vela 快应用（rpk），手机端运行安卓同步器（APK），通过小米互联蓝牙通道把 QQ 消息实时同步到手环，支持直接在手环上**查看 / 回复 / 翻历史消息 / 收图**。
 
@@ -10,7 +10,24 @@
 
 > 关键词：小米手环9 / Mi Band 9 / 小米手环QQ / 小米手环9 Pro / Redmi Watch / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / Stapxs-QQ-Lite-X / wearable QQ / smartband chat / Mi Band QQ client
 
-## v2.1.0 更新日志（当前版本）
+## v2.4.6 更新日志（当前版本）
+
+### 修复
+1. **主题设置两个选项点击崩溃（Monet 关键色 / 预测性返回开关）根治**：真根因是 `androidx.activity:activity-compose:1.9.1` 过老——miuix 0.9.3 弹窗系统（MiuixPopupHost → PopupEntry → NavigationBackHandler）依赖 `LocalNavigationEventDispatcherOwner`，只有 activity 1.12+ 的 ComponentActivity 才会提供；此前点击一切会弹窗/下拉的选项都直接 `IllegalStateException: No NavigationEventDispatcher…` 崩溃。升级 activity 1.12.4 + `setContent` 显式注入 owner 双保险根治，并顺带接入完整预测性返回事件管线。
+2. **无障碍权限无法申请修复**：v2.4.5 只有「无障碍干扰检查」行（检测他人清理工具），应用自身没有可开启的无障碍服务，系统设置里根本找不到 BandQQ。新增最小化 `KeepAliveAccessibilityService`（不读屏、不监听任何内容、`canRetrieveWindowContent=false`），系统无障碍列表出现「BandQQ 后台保活」开关；保活向导新增「无障碍保活（本应用）」检测行，实时显示开启状态并一键直达系统无障碍设置。开启后系统对该应用极为宽容，是全品牌通用的保活锚点。
+3. **保活向导「无障碍干扰检查」口径修正**：统计时排除本应用自身的保活锚点服务，开启保活服务后不再误报「发现干扰源」。
+
+### 保持不变
+- APK 签名同源（SHA-256 `af8819e2…b004`），可**直接覆盖安装**。
+
+## v2.4.2 → v2.4.5 更新日志（历史版本，详细根因见 MEMORY.md）
+
+- **v2.4.2**：修复顶栏遮挡内容（每页自带 PageScaffold，KSU 同构）；悬浮底栏导航栏 inset 偏下修复；预测性返回运行时开关（HiddenApiBypass 反射配方）。
+- **v2.4.3**：主页 2×2 快捷操作重构；后台保活向导（品牌自动识别 + 一键电池白名单 + 六品牌分步教程）；动画速度/延迟在主题设置内可调。
+- **v2.4.4**：预测性返回开关立即生效终修；Monet 关键色下拉被推入页遮挡根因修复；保活 4 项权限检测 + 品牌自启动直达；动画补全（isActive/级联封顶/二级展开）；Stapxs 撤回提示移植（手机端替换内容）；OkHttp 共享/状态总线等性能优化。
+- **v2.4.5**：崩溃三层防御（动画回退 KSU 默认 + 推入页 remember + CrashGuard 崩溃落盘查看）；通知权限 manifest + 串行运行时请求；动画延迟根治（currentPage）；图标白边根治（圆裁切去描边环）；**手环端新功能：撤回消息实时原位灰显、@我金色高亮 + 列表角标**（手机端预算、手环零计算零流量）；SnowLuma 原生安卓可行性调研（结论：hook 型协议端受 Android seccomp 限制不可直接内嵌，提供 `scripts/snowluma-termux.sh` 一键本机部署）。
+
+## v2.1.0 更新日志（历史版本）
 
 ### 性能与体验
 1. **性能架构重构（防重启死机）**：所有非渲染必需的处理全部移到手机端——CQ 码剥离、emoji 降级、名称截短、头像字符与色相、预览截短、时间格式化、未读计数均在 APK 完成后随帧下发，手环端只做字段透传与渲染，热路径零字符扫描、零日期运算。
