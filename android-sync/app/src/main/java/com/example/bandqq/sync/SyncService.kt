@@ -57,6 +57,28 @@ object BandStateBus {
     }
 }
 
+/** OneBot（协议端）连接状态变化回调，供界面实时刷新（原先只能手动测试/轮询感知） */
+object OneBotStateBus {
+    private val listeners = java.util.concurrent.CopyOnWriteArrayList<(Boolean) -> Unit>()
+
+    fun add(listener: (Boolean) -> Unit) {
+        listeners.add(listener)
+    }
+
+    fun remove(listener: (Boolean) -> Unit) {
+        listeners.remove(listener)
+    }
+
+    fun notify(connected: Boolean) {
+        for (l in listeners) {
+            try {
+                l(connected)
+            } catch (_: Exception) {
+            }
+        }
+    }
+}
+
 /** 新消息到达回调，供聊天记录页实时刷新（参数为收到消息的会话 targetId） */
 object MessageBus {
     private val listeners = java.util.concurrent.CopyOnWriteArrayList<(String) -> Unit>()
@@ -89,7 +111,12 @@ class SyncService : Service() {
         const val ACTION_START = "com.example.bandqq.action.START"
         const val ACTION_STOP = "com.example.bandqq.action.STOP"
         private const val CHANNEL_ID = "sync_channel"
-        private const val NOTIFICATION_ID = 1001
+        const val NOTIFICATION_ID = 1001
+
+        /** 前台服务是否在运行（供保活向导权限检测展示；非精确生命周期，仅指示性） */
+        @Volatile
+        var isRunning: Boolean = false
+            private set
 
         fun start(context: Context) {
             context.startForegroundService(Intent(context, SyncService::class.java).setAction(ACTION_START))
@@ -108,6 +135,7 @@ class SyncService : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        isRunning = true
         createChannel()
         configManager = ConfigManager(this)
         parser = OneBotParser()
@@ -165,6 +193,7 @@ class SyncService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        isRunning = false
         oneBot.stop()
         InterconnectBridge.unregister(broker)
         scope.cancel()

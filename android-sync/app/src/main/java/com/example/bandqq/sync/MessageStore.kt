@@ -13,7 +13,8 @@ data class StoredMessage(
     val senderName: String,
     val content: String,
     val time: Long,
-    val isSelf: Boolean = false
+    val isSelf: Boolean = false,
+    val messageId: String = ""  // OneBot message_id（旧持久化数据无此字段，默认空，撤回定位用）
 )
 
 data class ConversationInfo(
@@ -48,6 +49,9 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
     companion object {
         /** 统一时间戳为毫秒：小于 100 000 000 000（约 1973 年）视为 Unix 秒，转为毫秒。 */
         private fun normalizeTime(t: Long): Long = if (t in 1 until 100_000_000_000L) t * 1000L else t
+
+        /** 撤回消息的展示文案（借鉴 Stapxs 撤回提示；会话预览同步显示） */
+        const val RECALL_MARK = "[消息已撤回]"
     }
 
     private val MESSAGES_KEY = "chat_messages"
@@ -112,7 +116,8 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
                             senderName = o.get("sender_name")?.asString ?: "",
                             content = o.get("content")?.asString ?: "",
                             time = normalizeTime(o.get("time")?.asLong ?: 0L),
-                            isSelf = o.get("is_self")?.asBoolean ?: false
+                            isSelf = o.get("is_self")?.asBoolean ?: false,
+                            messageId = o.get("message_id")?.asString ?: ""
                         )
                     )
                 }
@@ -136,6 +141,7 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
                 o.addProperty("content", m.content)
                 o.addProperty("time", m.time)
                 o.addProperty("is_self", m.isSelf)
+                if (m.messageId.isNotEmpty()) o.addProperty("message_id", m.messageId)
                 arr.add(o)
             }
             root.add(targetId, arr)
@@ -152,7 +158,8 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
             senderName = msg.senderName,
             content = msg.content,
             time = normalizeTime(msg.time),
-            isSelf = msg.isSelf
+            isSelf = msg.isSelf,
+            messageId = msg.messageId
         )
         val dedup = "$targetId|${normalized.senderId}|${normalized.time}|${normalized.content}"
         val existing = list.any { it.time == normalized.time && it.content == normalized.content }
@@ -167,6 +174,8 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
         // 保持按时间升序，历史帧与手环端 upsert 都依赖列表有序
         list.sortBy { it.time }
         while (list.size > MAX_MESSAGES) list.removeAt(0)
+        // 去重集合上限：防长期运行时缓慢增长（清空后最坏情况重复入库一条，可接受）
+        if (duplicates.size > 1000) duplicates.clear()
         persistMessages()
         persistUnread()
     }
@@ -176,6 +185,22 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
         if (unreadByTarget.remove(targetId) != null) {
             persistUnread()
         }
+    }
+
+    /**
+     * 标记一条消息被撤回：将内容替换为撤回标记（保留原占位，会话预览同步变化）。
+     * 只改手机端存储，手环端下次拉取/签名 diff 自动反映；找不到（旧数据无 id / 已过期）返回 false。
+     */
+    fun recallMessage(targetId: String, messageId: String): Boolean {
+        if (messageId.isBlank()) return false
+        val list = messagesByTarget[targetId] ?: return false
+        val idx = list.indexOfFirst { it.messageId == messageId }
+        if (idx < 0) return false
+        val old = list[idx]
+        if (old.content == RECALL_MARK) return false
+        list[idx] = old.copy(content = RECALL_MARK)
+        persistMessages()
+        return true
     }
 
     fun unreadOf(targetId: String): Int = unreadByTarget[targetId] ?: 0

@@ -48,7 +48,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-fun HomeScreen(bottomInnerPadding: Dp) {
+fun HomeScreen(bottomInnerPadding: Dp, isActive: Boolean = true) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val bandConnected by useBandConnected()
@@ -56,7 +56,9 @@ fun HomeScreen(bottomInnerPadding: Dp) {
     val oneBotConnected by useOneBotConnected(refreshKey = oneBotRefreshKey)
     var entered by remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) { entered = true }
+    // HorizontalPager 预组合（beyondViewport）不会触发：仅当本页成为当前页才播入场动画。
+    // 修复「切到某页时动画已经在外面播完了」的不一致现象。
+    LaunchedEffect(isActive) { if (isActive) entered = true }
 
     PageScaffold(title = "主页", bottomInnerPadding = bottomInnerPadding) { innerPadding ->
         Column(

@@ -1,8 +1,5 @@
 package com.example.bandqq.ui
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.slideInVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -143,13 +141,10 @@ fun LogPanel(modifier: Modifier = Modifier) {
                     .fillMaxSize()
                     .verticalScroll(scrollState),
             ) {
+                // 性能：日志上限 200 条且增长快（WS 调试日志），
+                // 不再逐条包 AnimatedVisibility（纯组合开销，可见时动画价值低）
                 filtered.forEach { entry ->
-                    AnimatedVisibility(
-                        visible = true,
-                        enter = fadeIn() + slideInVertically(initialOffsetY = { it / 2 }),
-                    ) {
-                        LogLine(entry)
-                    }
+                    key(entry.time, entry.tag, entry.message) { LogLine(entry) }
                 }
                 if (filtered.isEmpty()) {
                     Text(text = "暂无日志", color = MiuixTheme.colorScheme.onSurfaceSecondary)

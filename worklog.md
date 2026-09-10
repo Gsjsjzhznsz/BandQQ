@@ -104,3 +104,22 @@ Work Log:
 Stage Summary:
 - 产物：download/bandqq-sync-release-2.4.3.apk（~12MB）
 - 经验入库 MEMORY.md v2.4.3 节：动画 CompositionLocal 注入模式、ArrowPreference.onClick 可空、SuppressLint 不可用、Button 无 text 具名参数
+
+---
+Task ID: 9
+Agent: main (Super Z)
+Task: v2.4.4 —— 预测返回/Monet/保活三修 + 动画补全 + Stapxs 撤回借鉴 + 代码重读优化（用户反馈第七轮）
+
+Work Log:
+- 容器重置重建：仓库重克隆；JDK17（清华镜像 17.0.20.1）+Gradle8.13（腾讯镜像）+SDK；android-37 目录陷阱新变体=AGP 每次构建重装 android-37.0，必须 cp 保留两份而非 mv
+- 预测性返回终修：observePredictiveBack Flow 默认值 false→true（与 AppConfig 一致，启动反射设置不再误关）；ThemeScreen 开关回调立即 BandQQApplication.setEnableOnBackInvokedCallback + activity.recreate()（KSU ColorPaletteScreen 同款）
+- Monet 修复：研读 miuix Scaffold 源码发现 popup slot 只覆盖自身 content 且推入页是外层 Scaffold 兄弟节点 → 盖住 MiuixPopupHost；推入页移入 content slot 覆盖 Box + bottomBar AnimatedVisibility 随推入收起； KSU popupHost={} 子页+默认外层结构同构确认
+- 动画补全：四屏加 isActive 参数（page==settledPage），LaunchedEffect(isActive) 触发 reveal（修预组合页动画跑完现象）；ThemeScreen 两处二级展开补 expand/shrink+fade（tween<IntSize>，跟随 motionSpeed）；listItemReveal index 封顶 6
+- KeepAliveScreen 重写：权限检测 4 项卡（电池优化/通知/自启动需手动/前台服务 SyncService.isRunning）+ 状态 chip + 直达按钮；品牌自启动 Intent 组件矩阵 7 品牌 10 组件逐个尝试降级应用详情；ON_RESUME+2s 轮询刷新；Toast 反馈
+- Stapxs 撤回移植：parseRecallEvent + onRecall 默认实现 + messageId 全链路 + recallMessage 内容替换 + 会话帧推送（手环零改动）；OneBotClient WS onMessage 先试 recall
+- 代码重读优化 6 项：OkHttpClient 共享、OneBotStateBus、unread 事件驱动+兜底轮询、LogPanel 去 AnimatedVisibility、duplicates 上限、SettingsScreen/HistoryScreen 排版
+- 构建 v2.4.4（vc29）成功；单测 93 通过 1（GameProtocolDetectorTest 容器固有）；aapt2/apksigner 验证交付 download/bandqq-sync-release-2.4.4.apk
+
+Stage Summary:
+- 产物：download/bandqq-sync-release-2.4.4.apk（~12MB，vc29，签名 af8819e2 同源）
+- 三大 bug 根因全部入库 MEMORY.md v2.4.4 节（预测返回默认值+立即应用、推入页盖浮层、预组合动画）

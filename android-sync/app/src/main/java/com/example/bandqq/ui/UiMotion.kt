@@ -25,7 +25,10 @@ val LocalMotionStagger = staticCompositionLocalOf { 100 }
 fun Modifier.listItemReveal(entered: Boolean, index: Int): Modifier = composed {
     val speed = LocalMotionSpeed.current.coerceIn(0.5f, 2f)
     val stagger = LocalMotionStagger.current.coerceIn(0, 300)
-    val delay = (index * stagger / speed).roundToInt()
+    // 级联延迟只作用于前几项：列表很长（联系人可达数百条）时，
+    // 不封顶会让末项等数秒才开始出现（index×间隔线性放大）
+    val effectiveIndex = index.coerceAtMost(6)
+    val delay = (effectiveIndex * stagger / speed).roundToInt()
     val duration = (300 / speed).roundToInt()
     val alpha by animateFloatAsState(
         targetValue = if (entered) 1f else 0f,

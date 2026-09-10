@@ -13,7 +13,14 @@ data class OneBotMessage(
     val senderName: String,
     val content: String,
     val time: Long,
-    val isSelf: Boolean = false
+    val isSelf: Boolean = false,
+    val messageId: String = ""  // OneBot message_id（供撤回定位；自发送链路可为空）
+)
+
+/** 消息撤回事件（friend_recall / group_recall）——借鉴 Stapxs-QQ-Lite-X */
+data class OneBotRecall(
+    val targetId: String,
+    val messageId: String,
 )
 
 /** 快捷回复：label 为手环按钮上的纯文本（已剥离 CQ 码），content 为实际发送内容（保留 CQ 码） */
@@ -90,6 +97,9 @@ class OneBotParser {
         // OneBot 标准 time 为 Unix 秒（10 位），而本地发送链路使用毫秒（Date.now() 13 位）。
         // 统一转为毫秒，避免同一会话内秒/毫秒混排导致消息顺序跳变。
         val rawTime = obj.get("time")?.asLong ?: 0L
+        val messageId = obj.get("message_id")?.let {
+            if (it.isJsonPrimitive) it.asString.takeIf { s -> s.isNotEmpty() } ?: it.asLong.toString() else ""
+        } ?: ""
         return OneBotMessage(
             messageType = messageType,
             targetId = targetId,
@@ -97,8 +107,39 @@ class OneBotParser {
             senderName = stripEmoji(sender?.get("nickname")?.asString ?: senderId),
             content = content,
             time = if (rawTime > 0 && rawTime < 100_000_000_000L) rawTime * 1000L else rawTime,
-            isSelf = selfId != null && senderId == selfId
+            isSelf = selfId != null && senderId == selfId,
+            messageId = messageId
         )
+    }
+
+    /**
+     * 解析消息撤回通知（post_type=notice, notice_type=friend_recall/group_recall）。
+     * 只改手机端存储（内容替换为撤回标记），手环端下次拉取/签名 diff 自动反映，零手环改动。
+     */
+    fun parseRecallEvent(json: String): OneBotRecall? {
+        val obj = try {
+            JsonParser.parseString(json).asJsonObject
+        } catch (e: Exception) {
+            return null
+        }
+        if (obj.get("post_type")?.asString != "notice") return null
+        when (obj.get("notice_type")?.asString) {
+            "friend_recall" -> {
+                val userId = obj.get("user_id")?.asLong?.toString() ?: return null
+                val mid = obj.get("message_id")?.let {
+                    if (it.isJsonPrimitive) it.asString.takeIf { s -> s.isNotEmpty() } ?: it.asLong.toString() else ""
+                } ?: return null
+                return OneBotRecall(targetId = userId, messageId = mid)
+            }
+            "group_recall" -> {
+                val groupId = obj.get("group_id")?.asLong?.toString() ?: return null
+                val mid = obj.get("message_id")?.let {
+                    if (it.isJsonPrimitive) it.asString.takeIf { s -> s.isNotEmpty() } ?: it.asLong.toString() else ""
+                } ?: return null
+                return OneBotRecall(targetId = groupId, messageId = mid)
+            }
+            else -> return null
+        }
     }
 
     fun degradeContent(message: com.google.gson.JsonElement?): String {

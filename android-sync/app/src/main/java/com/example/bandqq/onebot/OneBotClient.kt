@@ -25,14 +25,26 @@ import java.util.concurrent.TimeUnit
 interface OneBotListener {
     fun onEvent(message: OneBotMessage)
     fun onState(connected: Boolean)
+    /** 消息撤回通知（friend_recall/group_recall，借鉴 Stapxs）；默认空实现保持旧监听器兼容 */
+    fun onRecall(recall: OneBotRecall) {}
 }
 
 class OneBotClient(private val parser: OneBotParser) : MessageSender {
 
-    private val client = OkHttpClient.Builder()
-        .connectTimeout(5, TimeUnit.SECONDS)
-        .pingInterval(20, TimeUnit.SECONDS)
-        .build()
+    companion object {
+        /**
+         * 全局共享 OkHttp 客户端：连接池/线程池复用。
+         * 联系人页「刷新」每次点击都会临时 new 一个 OneBotClient，
+         * 若各自 new OkHttpClient 会不断新建连接池与线程池（官方推荐全局共享）。
+         * WS pingInterval 对纯 HTTP 请求无副作用。
+         */
+        private val sharedOk = OkHttpClient.Builder()
+            .connectTimeout(5, TimeUnit.SECONDS)
+            .pingInterval(20, TimeUnit.SECONDS)
+            .build()
+    }
+
+    private val client = sharedOk
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var reconnectJob: Job? = null
@@ -98,6 +110,12 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
 
             override fun onMessage(webSocket: WebSocket, text: String) {
                 LogBus.log("OneBotClient", LogLevel.DEBUG, "WS recv: ${text.take(300)}")
+                // 撤回通知优先（post_type=notice 事件，普通消息 parse 为 null 不再报 warn）
+                val recall = parser.parseRecallEvent(text)
+                if (recall != null) {
+                    listener?.onRecall(recall)
+                    return
+                }
                 val msg = parser.parseMessageEvent(text)
                 if (msg == null) {
                     LogBus.log("OneBotClient", LogLevel.WARN, "WS msg parse -> null (may be meta/heartbeat)")

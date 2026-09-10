@@ -48,7 +48,7 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-fun ContactScreen(bottomInnerPadding: Dp) {
+fun ContactScreen(bottomInnerPadding: Dp, isActive: Boolean = true) {
     val context = LocalContext.current
     val store = StoreHolder.store
     val scope = rememberCoroutineScope()
@@ -123,7 +123,8 @@ fun ContactScreen(bottomInnerPadding: Dp) {
             label = "contactType",
         ) { type ->
             var entered by remember(type) { mutableStateOf(false) }
-            LaunchedEffect(type) { entered = true }
+            // 仅当本页为当前页才播入场动画（预组合不触发，修复切页无动画）
+            LaunchedEffect(type, isActive) { if (isActive) entered = true }
             Column {
                 SmallTitle(text = if (type == "private") "私聊联系人" else "群聊联系人")
                 contactsFor(type).forEachIndexed { index, c ->

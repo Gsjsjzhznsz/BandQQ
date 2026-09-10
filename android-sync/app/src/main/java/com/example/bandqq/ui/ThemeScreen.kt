@@ -1,7 +1,13 @@
 package com.example.bandqq.ui
 
+import android.app.Activity
 import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -35,8 +41,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.bandqq.BandQQApplication
 import com.example.bandqq.config.ConfigManager
 import com.example.bandqq.ui.component.ScaleDialog
 import com.example.bandqq.ui.util.BlurredBar
@@ -106,6 +114,10 @@ fun ThemeScreen(onBack: () -> Unit) {
     val mode = ThemeMode.fromValue(themeMode)
     val isDark = mode.isDark || (mode.isSystem && isSystemInDarkTheme())
     val supportBlur = Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU
+
+    // 二级展开动效跟随「动画速度」设置（默认只是快速淡入，与全局节奏不一致）
+    val expandSpec = tween<IntSize>((260 / motionSpeed).roundToInt())
+    val fadeSpec = tween<Float>((200 / motionSpeed).roundToInt())
 
     // 顶栏模糊：本页自身也走 KSU 的 BlurredBar 方案
     val blurBackdrop = rememberBlurBackdrop(enableBlur)
@@ -192,7 +204,11 @@ fun ThemeScreen(onBack: () -> Unit) {
                             }
                         },
                     )
-                    AnimatedVisibility(visible = mode.isMonet) {
+                    AnimatedVisibility(
+                        visible = mode.isMonet,
+                        enter = expandVertically(expandSpec) + fadeIn(fadeSpec),
+                        exit = shrinkVertically(expandSpec) + fadeOut(fadeSpec),
+                    ) {
                         Column {
                             val colorNames = listOf("默认（品牌蓝）") + KEY_COLOR_OPTIONS.map { it.second }
                             val colorValues = listOf(0) + KEY_COLOR_OPTIONS.map { it.first.toInt() }
@@ -254,7 +270,11 @@ fun ThemeScreen(onBack: () -> Unit) {
                         onCheckedChange = { on -> scope.launch { configManager.setFloatingBottomBar(on) } },
                     )
                     // 悬浮底栏开启后的二级选项：液态玻璃（Android 13+）
-                    AnimatedVisibility(visible = floatingBar && supportBlur) {
+                    AnimatedVisibility(
+                        visible = floatingBar && supportBlur,
+                        enter = expandVertically(expandSpec) + fadeIn(fadeSpec),
+                        exit = shrinkVertically(expandSpec) + fadeOut(fadeSpec),
+                    ) {
                         SwitchPreference(
                             title = "液态玻璃",
                             summary = "启用悬浮底栏的液态玻璃效果（实时折射 + 高光）",
@@ -296,7 +316,7 @@ fun ThemeScreen(onBack: () -> Unit) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                         SwitchPreference(
                             title = "预测性返回手势",
-                            summary = "启用对预测性返回手势的支持",
+                            summary = "启用对预测性返回手势的支持（切换后界面刷新）",
                             startAction = {
                                 Icon(
                                     MiuixIcons.Sidebar,
@@ -306,7 +326,17 @@ fun ThemeScreen(onBack: () -> Unit) {
                                 )
                             },
                             checked = predictiveBack,
-                            onCheckedChange = { on -> scope.launch { configManager.setPredictiveBack(on) } },
+                            onCheckedChange = { on ->
+                                scope.launch { configManager.setPredictiveBack(on) }
+                                // KSU 同款：立即反射设置 + recreate，否则要重进应用才能生效
+                                val app = context.applicationContext as? BandQQApplication
+                                if (app != null) {
+                                    BandQQApplication.setEnableOnBackInvokedCallback(
+                                        app.applicationInfo, on,
+                                    )
+                                    (context as? Activity)?.recreate()
+                                }
+                            },
                         )
                     }
 

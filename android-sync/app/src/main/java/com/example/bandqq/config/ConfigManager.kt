@@ -168,9 +168,13 @@ class ConfigManager(private val context: Context) {
         ConfigHolder.config = ConfigHolder.config.copy(enableNavigationBadge = enabled)
     }
 
-    /** 预测性返回手势 */
+    /**
+     * 预测性返回手势。
+     * ⚠️ 默认值必须与 AppConfig.enablePredictiveBack 一致（true）：
+     * Application 启动时经此 Flow 读取并反射设置系统开关，两处不一致会导致默认关闭。
+     */
     fun observePredictiveBack(): Flow<Boolean> =
-        context.dataStore.data.map { it[Keys.ENABLE_PREDICTIVE_BACK] ?: false }
+        context.dataStore.data.map { it[Keys.ENABLE_PREDICTIVE_BACK] ?: true }
 
     suspend fun setPredictiveBack(enabled: Boolean) {
         context.dataStore.edit { it[Keys.ENABLE_PREDICTIVE_BACK] = enabled }

@@ -169,8 +169,20 @@ class MessageBroker(
         bandSender(frame)
     }
 
+    override fun onRecall(recall: com.example.bandqq.onebot.OneBotRecall) {
+        // 借鉴 Stapxs 撤回提示：只改手机端存储（内容替换为标记），
+        // 推送最新会话帧 —— 手环按 convSignature 签名 diff 自动更新预览，
+        // 聊天页历史在下次进入/翻页时拉到撤回后内容，零手环改动、零额外流量。
+        if (store.recallMessage(recall.targetId, recall.messageId)) {
+            MessageBus.notify(recall.targetId)
+            bandSender(store.buildConversationFrame(0))
+        }
+    }
+
     override fun onState(connected: Boolean) {
         SyncState.oneBotConnected = connected
+        // 推送手环端同步状态帧 + 通知本机界面实时刷新（不再只能靠手动测试/轮询感知）
+        OneBotStateBus.notify(connected)
         bandSender(SyncStatePush.buildFrame())
         if (connected && !autoFetchDone) {
             tryAutoFetch()

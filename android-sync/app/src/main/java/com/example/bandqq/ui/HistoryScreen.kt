@@ -41,7 +41,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 private val timeFmt = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
 
 @Composable
-fun HistoryScreen(bottomInnerPadding: Dp) {
+fun HistoryScreen(bottomInnerPadding: Dp, isActive: Boolean = true) {
     val context = LocalContext.current
     var refresh by remember { mutableStateOf(0) }
     val conversations = remember(refresh) { StoreHolder.store?.getConversations() ?: emptyList() }
@@ -55,7 +55,8 @@ fun HistoryScreen(bottomInnerPadding: Dp) {
     var detailConv by remember { mutableStateOf<ConversationInfo?>(null) }
 
     var entered by remember { mutableStateOf(false) }
-    LaunchedEffect(Unit) { entered = true }
+    // 仅当本页为当前页才播入场动画（HorizontalPager 预组合不触发）
+    LaunchedEffect(isActive) { if (isActive) entered = true }
 
     PageScaffold(title = "聊天记录", bottomInnerPadding = bottomInnerPadding) { innerPadding ->
         Column(
@@ -66,15 +67,6 @@ fun HistoryScreen(bottomInnerPadding: Dp) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Spacer(Modifier.height(innerPadding.calculateTopPadding() + 16.dp))
-        TextButton(
-            text = "清空全部聊天记录",
-            onClick = {
-                StoreHolder.store?.clearAllHistory()
-                InterconnectBridge.sendToBand("""{"type":"clear_all_history","seq":0}""")
-                toast(context, "聊天记录已清空")
-                refresh++
-            },
-        )
         SmallTitle(text = "会话 ${conversations.size} 个")
         if (conversations.isEmpty()) {
             Text(
@@ -109,6 +101,17 @@ fun HistoryScreen(bottomInnerPadding: Dp) {
                 }
             }
         }
+        // 破坏性操作移到列表末尾：避免误触，也让主内容成为视觉焦点
+        TextButton(
+            text = "清空全部聊天记录",
+            modifier = Modifier.padding(top = 8.dp),
+            onClick = {
+                StoreHolder.store?.clearAllHistory()
+                InterconnectBridge.sendToBand("""{"type":"clear_all_history","seq":0}""")
+                toast(context, "聊天记录已清空")
+                refresh++
+            },
+        )
         Spacer(modifier = Modifier.height(bottomInnerPadding + 12.dp))
     }
     }
