@@ -44,6 +44,7 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.CloudFill
 import top.yukonga.miuix.kmp.icon.extended.Lock
+import top.yukonga.miuix.kmp.icon.extended.Scan
 import top.yukonga.miuix.kmp.icon.extended.Theme
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -54,6 +55,7 @@ fun SettingsScreen(
     isActive: Boolean = true,
     onOpenThemeSettings: () -> Unit = {},
     onOpenKeepAlive: () -> Unit = {},
+    onOpenCrashLog: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -134,10 +136,25 @@ fun SettingsScreen(
                     // 单卡内最后一项去掉分隔线的观感差异交给 miuix 自身处理
                 )
             }
+            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 1)) {
+                ArrowPreference(
+                    title = "崩溃日志",
+                    summary = "应用异常退出时自动记录堆栈，一键复制反馈",
+                    startAction = {
+                        Icon(
+                            MiuixIcons.Scan,
+                            contentDescription = "崩溃日志",
+                            tint = colorScheme.primary,
+                            modifier = Modifier.size(22.dp),
+                        )
+                    },
+                    onClick = onOpenCrashLog,
+                )
+            }
 
             // ===== SnowLuma 连接（字段收进卡片，避免表单散落在页面上）=====
             SmallTitle(text = "SnowLuma 连接")
-            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 1)) {
+            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 2)) {
                 Column(
                     modifier = Modifier.padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -216,7 +233,7 @@ fun SettingsScreen(
 
             // ===== 快捷回复 =====
             SmallTitle(text = "快捷回复（手环聊天页按钮，每行一条）")
-            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 2)) {
+            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 3)) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     TextField(
                         value = quickReplies,
@@ -235,7 +252,7 @@ fun SettingsScreen(
 
             // ===== SnowLuma WebUI =====
             SmallTitle(text = "SnowLuma WebUI")
-            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 3)) {
+            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 4)) {
                 Column(
                     modifier = Modifier.padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -264,12 +281,13 @@ fun SettingsScreen(
 
             // ===== 关于内嵌 SnowLuma =====
             SmallTitle(text = "关于协议端")
-            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 4)) {
+            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 5)) {
                 Text(
-                    text = "SnowLuma 为 hook 型协议端，需要 ptrace 注入真实 QQ 进程，" +
-                        "无法直接内嵌进 APK。可在手机 Termux(proot) 或电脑/NAS 上部署，" +
-                        "本 App 通过局域网 OneBot 直连；WebUI 入口已内置（上方按钮），" +
-                        "部署教程见项目 README。",
+                    text = "SnowLuma 为 hook 型协议端，需要向桌面版 QQ 进程注入（ptrace），" +
+                        "无法直接内嵌进 APK。推荐用 Termux 一键脚本把协议端跑在本机：" +
+                        "手机装 Termux 后执行仓库 scripts/snowluma-termux.sh，随后地址全填 " +
+                        "127.0.0.1（WS :3001 / HTTP :3000 / WebUI :5099），整条链路零电脑、" +
+                        "零局域网依赖。也可部署在电脑/NAS 上改填对应 IP；WebUI 入口已内置（上方按钮）。",
                     modifier = Modifier.padding(12.dp),
                     fontSize = 13.sp,
                     color = colorScheme.onSurfaceSecondary,

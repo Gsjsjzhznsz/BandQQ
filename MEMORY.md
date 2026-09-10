@@ -102,3 +102,18 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 6. **性能优化（代码重读发现）**：OneBotClient OkHttpClient 全局共享（联系人页刷新每次 new 会新建连接池/线程池）；OneBotStateBus 新增（OneBot 状态原先只能轮询/手动测试感知，useOneBotConnected 改订阅）；BandQQApp 未读角标事件驱动（MessageBus 主线程 post）+ 3s 轮询兜底；LogPanel 去 200 条 AnimatedVisibility 包裹改 key()（纯组合开销）；MessageStore.duplicates 上限 1000 防缓增；listItemReveal 级联 index 封顶 6（否则 200 联系人末项等 20s）
 7. **排版**：SettingsScreen 重排（4 个裸 TextField/按钮收进卡片组、入口加 Theme/Lock/CloudFill 图标、全项 reveal、快捷回复说明文案补全）；HistoryScreen 清空按钮移列表末尾（破坏性操作防误触）；ThemeScreen 二级 AnimatedVisibility 补 expandVertically/shrinkVertically+fade（时长跟随动画速度，IntSize 类型）
 8. 构建：SDK 重装踩 android-37 目录陷阱变体——**必须 cp 保留 android-37.0 原目录**（AGP 每次构建按库存清单校验会重装），只 mv 会循环重装报 Failed to find target android-37；aapt2 vc29/2.4.4，apksigner af8819e2 同源
+
+## v2.4.5（2026-09-10，versionCode 30）— 崩溃修复+权限补全+动画延迟根治+图标白边根治+手环撤回/@我 实时特性
+1. **Monet/预测返回点击崩溃（真因无法远程复现，三层防御）**：
+   - v2.4.4 在 ThemeScreen 二级 AnimatedVisibility 加的自定义 expandVertically/shrinkVertically(tween<IntSize>) 是 Monet 点击路径唯一增量，**与 0.9.3 浮层首帧测量冲突嫌疑最大**，已回退 KSU 同款默认动画（勿再加自定义 spec 到含 OverlayDropdownPreference 的容器）；
+   - **推入页开关从 rememberSaveable 改 remember**：预测返回开关 activity.recreate() 后若恢复推入态，重建首帧同帧跑「推入页进入动画+底栏退出动画+双 backdrop」，高危窗口；改后 recreate 干净回主页；
+   - **新增 CrashGuard 全局崩溃落盘**（files/crash_log.txt，最多 5 段 64KB）+ 设置页「崩溃日志」查看/复制/清空（CrashLogScreen）——下次再崩用户直接给堆栈，不再猜。
+2. **通知权限修复**：manifest 补 POST_NOTIFICATIONS；MainActivity 串行请求（⚠️ 同一 launcher 连续 launch 会取消前一请求，必须各用各的 launcher 链式回调）；保活向导通知行改为「申请通知权限」按钮（运行时弹窗，拒绝降级系统设置页）。
+3. **无障碍检测项回归**：KeepAliveScreen 权限检测 5 项（电池/通知/无障碍干扰/自启动/前台服务）；无障碍行读 Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES 计数，>0 显示 Manual 态提示检查清理类工具，直达 ACTION_ACCESSIBILITY_SETTINGS。
+4. **动画「延迟已调最低仍延迟」根因**：四屏 isActive 用 pagerState.settledPage（滑动完全落定才触发入场）→ 改 **currentPage**（过半即播）。底栏选中态同步 currentPage。
+5. **图标白边根治（scripts/rebuild-icon.py）**：母版蓝圆外圈设计用白色描边环（宽4px+抗锯齿带）不在 v2.1.0 洪水填充连通域内 → 圆形蒙版边缘露白。修复=蓝像素 bbox 定圆心/半径，内缩 4.5px 圆形羽化裁切，重合成 #0D1015 全出血底（蓝圆占 87% 半画布留深色安全环）；三端产物一次重生成（手环108/Android前景432/母版512）。
+6. **手环端新功能（用户点名：功能要落在手环端；性能架构=手机预算/手环零计算）**：
+   - **撤回实时灰显**：MessageStore.recallMessage 改返回被撤回消息 time；Broker 推「push_message+recall=1」帧，手环按 time **原位替换**内容+打 rc 标志（不新增消息/不动未读）；聊天页 .bubble-rc 灰底灰字小一号；历史帧同步带 rc。
+   - **@我 高亮**：OneBotParser 检测 CQ:at qq=selfId/all → StoredMessage.atMe；历史帧/实时推送带 at=1，手环气泡金色高亮（.bubble-at）；会话帧带 cat=1（未读@我），手环列表绿「@我」角标，read_chat 后手机端清标志自动消失；convSignature 纳入 cat。
+7. **SnowLuma 原生安卓调研定论（docs/snowluma-native-android-research.md）**：仍是 native 注入桌面 NTQQ（manual map .so + 闭源 .node），Android 无注入目标+seccomp 禁 ptrace+4.1万行 TS+闭源 addon → 进程内嵌/Kotlin 重写均不可行；**推荐落地=Termux+proot 跑本机**，新增 scripts/snowluma-termux.sh 一键脚本（Ubuntu+Xvfb+Node22+官方 arm64 发行包），设置页文案已更新。
+8. 构建：vc30/2.4.5 两端同版本；apksigner af8819e2 同源；本机 Termux 指引进 App。

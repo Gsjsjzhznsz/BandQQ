@@ -3,10 +3,12 @@ package com.example.bandqq.ui
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
+import android.Manifest
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +35,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,6 +66,7 @@ import top.yukonga.miuix.kmp.icon.extended.CloudFill
 import top.yukonga.miuix.kmp.icon.extended.Email
 import top.yukonga.miuix.kmp.icon.extended.Lock
 import top.yukonga.miuix.kmp.icon.extended.Play
+import top.yukonga.miuix.kmp.icon.extended.Sidebar
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 
@@ -244,6 +249,24 @@ private fun notificationsEnabled(context: Context): Boolean = runCatching {
     NotificationManagerCompat.from(context).areNotificationsEnabled()
 }.getOrDefault(true)
 
+/** 运行时是否还能直接弹通知权限请求（Android 13+ 未永久拒绝） */
+private fun canRequestNotificationRuntime(context: Context): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return false
+    return runCatching {
+        context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) !=
+            PackageManager.PERMISSION_GRANTED
+    }.getOrDefault(false)
+}
+
+/** 已启用的无障碍服务数（第三方自动清理工具通常靠无障碍服务常驻，是杀后台元凶之一） */
+private fun enabledAccessibilityCount(context: Context): Int = runCatching {
+    val raw = Settings.Secure.getString(
+        context.contentResolver,
+        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+    ).orEmpty()
+    raw.split(':').map { it.trim() }.count { it.isNotEmpty() }
+}.getOrDefault(0)
+
 /** 逐个尝试品牌自启动管理页直达 Intent，全部失败返回 false（降级应用详情页） */
 private fun tryOpenAutoStart(context: Context, brand: KeepAliveBrand): Boolean {
     brand.autoStartIntents.forEach { (pkg, cls) ->
@@ -295,6 +318,13 @@ private fun openNotificationSettings(context: Context) {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             },
         )
+    }.onFailure { openAppDetails(context) }
+}
+
+/** 跳转系统无障碍设置 */
+private fun openAccessibilitySettings(context: Context) {
+    runCatching {
+        context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
     }.onFailure { openAppDetails(context) }
 }
 
@@ -376,13 +406,22 @@ fun KeepAliveScreen(onBack: () -> Unit) {
     // ===== 权限检测状态（ON_RESUME 实时刷新，从系统页返回后立即更新）=====
     var batteryWhitelisted by remember { mutableStateOf(isIgnoringBatteryOptimizations(context)) }
     var notificationsOn by remember { mutableStateOf(notificationsEnabled(context)) }
+    var accessibilityCount by remember { mutableStateOf(enabledAccessibilityCount(context)) }
     var serviceRunning by remember { mutableStateOf(SyncService.isRunning) }
+    // Android 13+ 通知权限运行时申请：系统弹窗；拒绝后降级跳系统通知设置页
+    val notifyPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        notificationsOn = granted || notificationsEnabled(context)
+        if (!granted) openNotificationSettings(context)
+    }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 batteryWhitelisted = isIgnoringBatteryOptimizations(context)
                 notificationsOn = notificationsEnabled(context)
+                accessibilityCount = enabledAccessibilityCount(context)
                 serviceRunning = SyncService.isRunning
             }
         }
@@ -463,10 +502,35 @@ fun KeepAliveScreen(onBack: () -> Unit) {
                     },
                     state = if (notificationsOn) PermState.Ok else PermState.Denied,
                     hint = "前台服务常驻通知更稳，部分系统杀后台前会先撤掉通知。",
-                    actionText = "打开通知设置",
-                    onAction = { openNotificationSettings(context) },
+                    actionText = if (notificationsOn) "打开通知设置" else "申请通知权限",
+                    onAction = {
+                        if (canRequestNotificationRuntime(context)) {
+                            notifyPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            openNotificationSettings(context)
+                        }
+                    },
                     entered = entered,
                     index = 1,
+                )
+                Spacer(Modifier.height(8.dp))
+                PermCheckRow(
+                    title = "无障碍干扰检查",
+                    icon = {
+                        Icon(
+                            MiuixIcons.Sidebar, contentDescription = "无障碍",
+                            tint = colorScheme.primary, modifier = Modifier.size(18.dp),
+                        )
+                    },
+                    state = if (accessibilityCount == 0) PermState.Ok else PermState.Manual,
+                    hint = if (accessibilityCount == 0)
+                        "当前无启用的无障碍服务，不会被清理类工具误杀。"
+                    else
+                        "已启用 $accessibilityCount 项无障碍服务；若包含会「自动清理后台」的工具，请将本应用加白或关闭。",
+                    actionText = "打开无障碍设置",
+                    onAction = { openAccessibilitySettings(context) },
+                    entered = entered,
+                    index = 2,
                 )
                 Spacer(Modifier.height(8.dp))
                 PermCheckRow(
@@ -484,7 +548,7 @@ fun KeepAliveScreen(onBack: () -> Unit) {
                         if (!tryOpenAutoStart(context, brand)) openAppDetails(context)
                     },
                     entered = entered,
-                    index = 2,
+                    index = 3,
                 )
                 Spacer(Modifier.height(8.dp))
                 PermCheckRow(
@@ -505,7 +569,7 @@ fun KeepAliveScreen(onBack: () -> Unit) {
                         }
                     },
                     entered = entered,
-                    index = 3,
+                    index = 4,
                 )
 
                 // ===== 品牌选择 =====
@@ -514,7 +578,7 @@ fun KeepAliveScreen(onBack: () -> Unit) {
                     modifier = Modifier
                         .padding(top = 12.dp)
                         .fillMaxWidth()
-                        .listItemReveal(entered, 4),
+                        .listItemReveal(entered, 5),
                 ) {
                     FlowRow(
                         modifier = Modifier.padding(12.dp),
@@ -546,7 +610,7 @@ fun KeepAliveScreen(onBack: () -> Unit) {
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .listItemReveal(entered, index + 5),
+                                .listItemReveal(entered, index + 6),
                         ) {
                             Row(modifier = Modifier.padding(14.dp)) {
                                 Box(

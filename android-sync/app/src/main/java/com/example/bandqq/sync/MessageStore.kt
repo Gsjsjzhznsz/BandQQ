@@ -14,7 +14,8 @@ data class StoredMessage(
     val content: String,
     val time: Long,
     val isSelf: Boolean = false,
-    val messageId: String = ""  // OneBot message_id（旧持久化数据无此字段，默认空，撤回定位用）
+    val messageId: String = "",  // OneBot message_id（旧持久化数据无此字段，默认空，撤回定位用）
+    val atMe: Boolean = false    // CQ:at 指向我/全体（手环端高亮；旧数据默认 false）
 )
 
 data class ConversationInfo(
@@ -67,6 +68,10 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
     /** 未读计数（手机端为唯一事实源，手环只展示）；按会话持久化 */
     private val unreadByTarget = LinkedHashMap<String, Int>()
 
+    /** 会话是否存在未读 @我 消息（手环列表显示「@我」提示，读后清除） */
+    private val atUnreadByTarget = HashSet<String>()
+    private val AT_UNREAD_KEY = "chat_at_unread"
+
     /** 联系人可见性：以手机端为主存储，持久化 */
     private var visibleContacts: MutableList<VisibleContact> = loadVisibleContacts()
     private var cachedContacts: MutableList<VisibleContact> = loadCachedContacts()
@@ -76,7 +81,22 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
         visibleContacts = loadVisibleContacts()
         cachedContacts = loadCachedContacts()
         loadUnread()
+        loadAtUnread()
         loadPersistedMessages()
+    }
+
+    private fun loadAtUnread() {
+        runCatching {
+            val raw = storage.get(AT_UNREAD_KEY, "[]")
+            val arr = JsonParser.parseString(raw).asJsonArray
+            for (e in arr) atUnreadByTarget.add(e.asString)
+        }
+    }
+
+    private fun persistAtUnread() {
+        val arr = JsonArray()
+        for (k in atUnreadByTarget) arr.add(k)
+        storage.set(AT_UNREAD_KEY, arr.toString())
     }
 
     private fun loadUnread() {
@@ -117,7 +137,8 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
                             content = o.get("content")?.asString ?: "",
                             time = normalizeTime(o.get("time")?.asLong ?: 0L),
                             isSelf = o.get("is_self")?.asBoolean ?: false,
-                            messageId = o.get("message_id")?.asString ?: ""
+                            messageId = o.get("message_id")?.asString ?: "",
+                            atMe = o.get("at_me")?.asBoolean ?: false
                         )
                     )
                 }
@@ -142,6 +163,7 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
                 o.addProperty("time", m.time)
                 o.addProperty("is_self", m.isSelf)
                 if (m.messageId.isNotEmpty()) o.addProperty("message_id", m.messageId)
+                if (m.atMe) o.addProperty("at_me", true)
                 arr.add(o)
             }
             root.add(targetId, arr)
@@ -159,7 +181,8 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
             content = msg.content,
             time = normalizeTime(msg.time),
             isSelf = msg.isSelf,
-            messageId = msg.messageId
+            messageId = msg.messageId,
+            atMe = msg.atMe
         )
         val dedup = "$targetId|${normalized.senderId}|${normalized.time}|${normalized.content}"
         val existing = list.any { it.time == normalized.time && it.content == normalized.content }
@@ -169,6 +192,7 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
             if (!normalized.isSelf && isVisibleContact(targetId)) {
                 val next = (unreadByTarget[targetId] ?: 0) + 1
                 unreadByTarget[targetId] = next.coerceAtMost(99)
+                if (normalized.atMe) atUnreadByTarget.add(targetId)
             }
         }
         // 保持按时间升序，历史帧与手环端 upsert 都依赖列表有序
@@ -178,32 +202,39 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
         if (duplicates.size > 1000) duplicates.clear()
         persistMessages()
         persistUnread()
+        persistAtUnread()
     }
 
-    /** 手环打开聊天时上报已读：清零未读计数 */
+    /** 手环打开聊天时上报已读：清零未读计数 + 清除 @我 未读提示 */
     fun markRead(targetId: String) {
-        if (unreadByTarget.remove(targetId) != null) {
+        val changed = unreadByTarget.remove(targetId) != null
+        val atChanged = atUnreadByTarget.remove(targetId)
+        if (changed || atChanged != null) {
             persistUnread()
+            persistAtUnread()
         }
     }
 
     /**
      * 标记一条消息被撤回：将内容替换为撤回标记（保留原占位，会话预览同步变化）。
-     * 只改手机端存储，手环端下次拉取/签名 diff 自动反映；找不到（旧数据无 id / 已过期）返回 false。
+     * 返回被撤回消息的原始时间戳（手环端凭此原位替换，聊天页实时变灰）；找不到返回 0。
      */
-    fun recallMessage(targetId: String, messageId: String): Boolean {
-        if (messageId.isBlank()) return false
-        val list = messagesByTarget[targetId] ?: return false
+    fun recallMessage(targetId: String, messageId: String): Long {
+        if (messageId.isBlank()) return 0L
+        val list = messagesByTarget[targetId] ?: return 0L
         val idx = list.indexOfFirst { it.messageId == messageId }
-        if (idx < 0) return false
+        if (idx < 0) return 0L
         val old = list[idx]
-        if (old.content == RECALL_MARK) return false
+        if (old.content == RECALL_MARK) return 0L
         list[idx] = old.copy(content = RECALL_MARK)
         persistMessages()
-        return true
+        return old.time
     }
 
     fun unreadOf(targetId: String): Int = unreadByTarget[targetId] ?: 0
+
+    /** 该会话是否有未读 @我 消息（会话帧 cat 字段） */
+    fun hasUnreadAt(targetId: String): Boolean = atUnreadByTarget.contains(targetId)
 
     /** 所有会话未读消息总数（导航栏角标数据源） */
     fun unreadTotal(): Int = unreadByTarget.values.sum()
@@ -421,6 +452,9 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
             o.addProperty("content", m.content)
             o.addProperty("time", m.time)
             o.addProperty("is_self", m.isSelf)
+            // 样式标志只在为真时下发（省字节）：rc=已撤回（手环灰显），at=@我（手环高亮）
+            if (m.content == RECALL_MARK) o.addProperty("rc", 1)
+            if (m.atMe) o.addProperty("at", 1)
             val itemBytes = o.toString().length
             if (bytes + itemBytes > maxBytes && arr.size() > 0) {
                 obj.addProperty("has_more", true)
@@ -453,6 +487,8 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
             o.addProperty("prev", Display.previewOf(c.lastMsg))
             o.addProperty("tstr", Display.timeStr(c.time))
             o.addProperty("is_temporary", !isVisibleContact(c.id))
+            // cat=该会话有未读 @我 消息（手环列表显示「@我」角标）
+            if (hasUnreadAt(c.id)) o.addProperty("cat", 1)
             arr.add(o)
         }
         obj.add("list", arr)

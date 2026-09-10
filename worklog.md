@@ -123,3 +123,22 @@ Work Log:
 Stage Summary:
 - 产物：download/bandqq-sync-release-2.4.4.apk（~12MB，vc29，签名 af8819e2 同源）
 - 三大 bug 根因全部入库 MEMORY.md v2.4.4 节（预测返回默认值+立即应用、推入页盖浮层、预组合动画）
+
+---
+Task ID: 10
+Agent: main (Super Z)
+Task: band-qq v2.4.5 —— 用户第八轮反馈：Monet/预测返回点击崩溃 + 通知权限 + 无障碍向导缺失 + 图标白边 + 动画延迟 + SnowLuma 原生移植调研 + 手环端功能（性能优先）
+
+Work Log:
+- 崩溃排查：对照 KSU 源码（重克隆）+ 反汇编 miuix 0.9.3（DynamicColors 全 try-catch、ThemeController/MiuixTheme(controller) 与 KSU 同构）排除库内 Monet 路径；锁定 v2.4.4 两个增量（自定义 expand/shrink spec、recreate 后 rememberSaveable 恢复推入页）采取三层防御：回退默认动画、推入页改 remember、新增 CrashGuard 崩溃落盘+设置页查看页
+- 通知权限：manifest POST_NOTIFICATIONS + MainActivity 串行链式请求（修同 launcher 连发取消 bug）+ KeepAlive 行内申请
+- 无障碍：KeepAlive 5 项检测（新增无障碍干扰检查行，ENABLED_ACCESSIBILITY_SERVICES 计数）
+- 动画延迟：isActive/底栏选中 settledPage→currentPage
+- 图标：rebuild-icon.py 蓝圆羽化裁切去白描边环，三端产物重生成
+- 手环端功能：撤回帧(push_message+recall=1)按 time 原位替换+灰显样式；@我 三层链路（parser CQ:at 检测→at/cat 标志→手环气泡金色高亮+列表角标）；convSignature 纳入 cat
+- SnowLuma 调研：克隆 1.14.15 源码核实仍为桌面 NTQQ 注入型，结论+Termux 一键脚本 snowluma-termux.sh + docs 研究文档
+- 构建 vc30/2.4.5，验签同源，交付 download/；本地单测 93 通过（仅容器固有 GameProtocolDetectorTest 失败）
+
+Stage Summary:
+- 产物：download/bandqq-sync-release-2.4.5.apk + bandqq-watch-release-2.4.5.rpk
+- MEMORY.md v2.4.5 节入库；如再崩溃由 CrashGuard 提供堆栈

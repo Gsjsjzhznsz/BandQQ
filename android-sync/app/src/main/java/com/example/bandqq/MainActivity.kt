@@ -67,15 +67,33 @@ class MainActivity : ComponentActivity() {
 @Composable
 private fun BluetoothPermissionRequester() {
     val context = LocalContext.current
-    val launcher = rememberLauncherForActivityResult(
+    // ⚠️ 蓝牙/通知必须用各自的 launcher 且串行请求：同一 launcher 连续 launch
+    // 会取消前一个请求，导致其中一个永远弹不出来（v2.4.5 修复）
+    val notifyLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { }
+    val btLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {
+        // 蓝牙请求完成后接着请求通知权限（Android 13+ 前台服务通知依赖它）
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            notifyLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
     LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT)
             != PackageManager.PERMISSION_GRANTED
         ) {
-            launcher.launch(Manifest.permission.BLUETOOTH_CONNECT)
+            btLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS)
+            != PackageManager.PERMISSION_GRANTED
+        ) {
+            notifyLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
         }
     }
 }

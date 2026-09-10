@@ -20,6 +20,8 @@ class BandQQApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        // 全局崩溃日志落盘：设置页可查看，用户反馈崩溃时有据可查（v2.4.5）
+        CrashGuard.install(this)
         applyPredictiveBackFlag()
     }
 

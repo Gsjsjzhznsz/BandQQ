@@ -152,7 +152,8 @@ class MessageBroker(
                 senderName = msg.senderName,
                 content = msg.content,
                 time = msg.time,
-                isSelf = msg.isSelf
+                isSelf = msg.isSelf,
+                atMe = msg.atMe
             )
         )
         MessageBus.notify(msg.targetId)
@@ -170,13 +171,33 @@ class MessageBroker(
     }
 
     override fun onRecall(recall: com.example.bandqq.onebot.OneBotRecall) {
-        // 借鉴 Stapxs 撤回提示：只改手机端存储（内容替换为标记），
-        // 推送最新会话帧 —— 手环按 convSignature 签名 diff 自动更新预览，
-        // 聊天页历史在下次进入/翻页时拉到撤回后内容，零手环改动、零额外流量。
-        if (store.recallMessage(recall.targetId, recall.messageId)) {
+        // 借鉴 Stapxs 撤回提示：手机端内容替换为标记 + 推送撤回同步帧。
+        // 手环端按 time 原位替换（不新增消息、不动未读），聊天页实时灰显，
+        // 会话帧同步推送 —— 列表预览按 convSignature 签名 diff 自动更新。
+        val recalledTime = store.recallMessage(recall.targetId, recall.messageId)
+        if (recalledTime > 0L) {
             MessageBus.notify(recall.targetId)
+            bandSender(buildRecallFrame(recall.targetId, recalledTime))
             bandSender(store.buildConversationFrame(0))
         }
+    }
+
+    /** 撤回同步帧（type=push_message + recall=1）：手环按 time 原位替换为撤回文案 */
+    private fun buildRecallFrame(targetId: String, time: Long): String {
+        val obj = com.google.gson.JsonObject()
+        obj.addProperty("type", "push_message")
+        obj.addProperty("seq", 0)
+        obj.addProperty("message_type", "private")
+        obj.addProperty("target_id", targetId)
+        obj.addProperty("sender_id", "")
+        obj.addProperty("sender_name", "")
+        obj.addProperty("target_name", "")
+        obj.addProperty("content", MessageStore.RECALL_MARK)
+        obj.addProperty("time", time)
+        obj.addProperty("is_self", false)
+        obj.addProperty("visible", true)
+        obj.addProperty("recall", 1)
+        return obj.toString()
     }
 
     override fun onState(connected: Boolean) {

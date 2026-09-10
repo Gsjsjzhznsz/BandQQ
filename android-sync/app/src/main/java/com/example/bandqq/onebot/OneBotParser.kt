@@ -14,7 +14,8 @@ data class OneBotMessage(
     val content: String,
     val time: Long,
     val isSelf: Boolean = false,
-    val messageId: String = ""  // OneBot message_id（供撤回定位；自发送链路可为空）
+    val messageId: String = "",  // OneBot message_id（供撤回定位；自发送链路可为空）
+    val atMe: Boolean = false    // CQ:at 码指向自己或全体（手环端高亮展示，借鉴 Stapxs）
 )
 
 /** 消息撤回事件（friend_recall / group_recall）——借鉴 Stapxs-QQ-Lite-X */
@@ -94,6 +95,12 @@ class OneBotParser {
         } ?: return null
         val content = degradeContent(obj.get("message"))
         val selfId = obj.get("self_id")?.let { if (it.isJsonPrimitive) it.asString else it.toString() }
+        // @我 检测：原始 message 里的 CQ:at 码 qq=selfId 或 qq=all（全体）。
+        // 只在手机端做一次正则，结果随协议下发，手环零计算。
+        val rawMessage = obj.get("message")?.toString().orEmpty()
+        val atMe = selfId != null && rawMessage.contains("[CQ:at,") &&
+            (rawMessage.contains("qq=$selfId") || rawMessage.contains("qq=all") ||
+                rawMessage.contains("qq=\"$selfId\""))
         // OneBot 标准 time 为 Unix 秒（10 位），而本地发送链路使用毫秒（Date.now() 13 位）。
         // 统一转为毫秒，避免同一会话内秒/毫秒混排导致消息顺序跳变。
         val rawTime = obj.get("time")?.asLong ?: 0L
@@ -108,7 +115,8 @@ class OneBotParser {
             content = content,
             time = if (rawTime > 0 && rawTime < 100_000_000_000L) rawTime * 1000L else rawTime,
             isSelf = selfId != null && senderId == selfId,
-            messageId = messageId
+            messageId = messageId,
+            atMe = atMe
         )
     }
 
@@ -179,6 +187,8 @@ class OneBotParser {
         obj.addProperty("time", msg.time)
         obj.addProperty("is_self", msg.isSelf)
         obj.addProperty("visible", visible)
+        // at=1 表示该消息 @我/全体（手环端高亮；为真才下发省字节）
+        if (msg.atMe) obj.addProperty("at", 1)
         return obj.toString()
     }
 

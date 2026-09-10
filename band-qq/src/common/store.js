@@ -249,19 +249,45 @@ export function createStore(storageImpl) {
       const targetName = typeof msg.target_name === 'string' ? msg.target_name : ''
       const key = msg.target_id
       if (!key || key === '' || key === 'undefined') return
+
+      // 撤回同步帧：按 time 原位替换内容，不新增消息、不动未读数（手机端 v2.4.5）
+      if (msg.recall === true) {
+        const messages = messagesByTarget[key] || []
+        const hit = messages.find((m) => (m.time || 0) === (msg.time || -1))
+        if (hit && hit.content !== content) {
+          hit.content = content
+          hit.rc = 1 // 与历史帧的撤回标志一致，聊天页灰显
+          await cache.set(MSG_PREFIX + key, JSON.stringify(messages.slice(-CACHE_MESSAGES)))
+        }
+        const idx = conversations.findIndex((c) => c.id === key)
+        if (idx >= 0) {
+          const conv = conversations[idx]
+          if (conv.last_msg !== content) {
+            conv.last_msg = content
+            const lm = content.replace(/\n/g, ' ').trim()
+            conv.prev = lm.length <= 18 ? lm : lm.slice(0, 17) + '…'
+            await cache.set(CONV_KEY, JSON.stringify(conversations.slice(0, CACHE_CONVERSATIONS)))
+          }
+        }
+        return
+      }
+
       const isTemp = !(msg.visible !== false && this.isVisible(msg.target_id))
       const messages = messagesByTarget[key] || []
       // push 重复时去重（手机端可能因监听器叠加重复推送同一消息）
       const dk = (msg.time || Date.now()) + '|' + content
       if (!messages.some((m) => (m.time || '') + '|' + m.content === dk)) {
-        messages.push({
+        const item = {
           message_type: msg.message_type,
           sender_id: msg.sender_id,
           sender_name: senderName,
           content: content,
           is_self: msg.is_self === true,
           time: msg.time || Date.now()
-        })
+        }
+        // @我 标志只在为真时存储（省缓存字节），聊天页据此高亮
+        if (msg.at === true) item.at = true
+        messages.push(item)
         // 按时间升序排列，保证消息顺序不乱（秒/毫秒混用也统一比较）
         messages.sort((a, b) => (a.time || 0) - (b.time || 0))
         while (messages.length > MAX_MESSAGES) messages.shift()
@@ -278,6 +304,7 @@ export function createStore(storageImpl) {
         unread = Math.min(((prevConv && prevConv.unread) || 0) + 1, 99)
       }
       const idx = conversations.findIndex((c) => c.id === key)
+      const prevConv = idx >= 0 ? conversations[idx] : null
       const conv = decorate({
         id: key,
         type: msg.message_type,
@@ -285,7 +312,11 @@ export function createStore(storageImpl) {
         last_msg: content,
         time: msg.time || Date.now(),
         is_temporary: isTemp,
-        unread: unread !== null ? unread : ((idx >= 0 && conversations[idx].unread) || 0)
+        unread: unread !== null ? unread : ((idx >= 0 && conversations[idx].unread) || 0),
+        // @我 未读提示：本条 @我 且非自发 → 置位；其余保持原状（读后由手机端会话帧归零）
+        cat: (msg.at === true && !(msg.is_self === true))
+          ? 1
+          : (prevConv && prevConv.cat ? 1 : 0)
       })
       if (idx >= 0) conversations.splice(idx, 1)
       conversations.unshift(conv)

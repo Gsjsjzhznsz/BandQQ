@@ -121,7 +121,10 @@ function decodePush(raw) {
     time: raw.time || Date.now(),
     visible: raw.visible !== false,
     // 手机端计算的该会话未读数（v2 协议），旧端缺省 undefined 由 store 兜底
-    unread: typeof raw.unread === 'number' ? raw.unread : -1
+    unread: typeof raw.unread === 'number' ? raw.unread : -1,
+    // at=该消息 @我/全体（聊天页高亮）；recall=撤回同步帧（按 time 原位替换，不新增）
+    at: raw.at === 1 || raw.at === true,
+    recall: raw.recall === 1 || raw.recall === true
   }
 }
 
@@ -135,7 +138,8 @@ function convSignature(list) {
   for (let i = 0; i < list.length; i++) {
     const c = list[i]
     sig += (c.id || '') + '|' + (c.name || '') + '|' + (c.prev || c.last_msg || '') + '|' +
-      (c.unread || 0) + '|' + (c.tstr || '') + '|' + (c.is_temporary ? 'T' : 'f')
+      (c.unread || 0) + '|' + (c.tstr || '') + '|' + (c.is_temporary ? 'T' : 'f') +
+      (c.cat ? 'A' : '')
     if (i < list.length - 1) sig += ';'
   }
   return sig

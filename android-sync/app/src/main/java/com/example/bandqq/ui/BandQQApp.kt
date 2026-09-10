@@ -20,7 +20,6 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -60,8 +59,12 @@ fun BandQQApp() {
 
     val pagerState = rememberPagerState(pageCount = { AppTab.entries.size })
     val scope = rememberCoroutineScope()
-    var showThemeScreen by rememberSaveable { mutableStateOf(false) }
-    var showKeepAlive by rememberSaveable { mutableStateOf(false) }
+    // ⚠️ 推入页开关必须用 remember（非 rememberSaveable）：
+    // 预测性返回开关会 activity.recreate()，若保存了推入态，重建首帧会同时恢复
+    // 推入页进入动画 + 底栏退出动画 + 双 backdrop 注册，曾触发崩溃（v2.4.5）
+    var showThemeScreen by remember { mutableStateOf(false) }
+    var showKeepAlive by remember { mutableStateOf(false) }
+    var showCrashLog by remember { mutableStateOf(false) }
 
     // 推入页动画时长跟随「动画速度」设置（速度越快时长越短）
     val motionSpeed = LocalMotionSpeed.current.coerceIn(0.5f, 2f)
@@ -90,7 +93,7 @@ fun BandQQApp() {
         MessageBus.add(listener)
         onDispose { MessageBus.remove(listener) }
     }
-    LaunchedEffect(pagerState.settledPage) {
+    LaunchedEffect(pagerState.currentPage) {
         refreshUnread()
     }
     LaunchedEffect(Unit) {
@@ -101,7 +104,7 @@ fun BandQQApp() {
     }
 
     // 推入页打开时隐藏底栏（对齐 KSU：推入页后底栏消失，返回后恢复）
-    val overlayOpen = showThemeScreen || showKeepAlive
+    val overlayOpen = showThemeScreen || showKeepAlive || showCrashLog
 
     Scaffold(
         bottomBar = {
@@ -116,7 +119,7 @@ fun BandQQApp() {
                     BottomBar(
                         blurBackdrop = blurBackdrop,
                         backdrop = backdrop,
-                        selected = pagerState.settledPage,
+                        selected = pagerState.currentPage,
                         onSelect = { index ->
                             scope.launch { pagerState.animateScrollToPage(index) }
                         },
@@ -146,8 +149,10 @@ fun BandQQApp() {
                     ),
                 beyondViewportPageCount = 1,
                 pageContent = { page ->
-                    // 预组合页（beyondViewport）不激活入场动画：只有成为当前页才播放
-                    val isCurrentPage = page == pagerState.settledPage
+                    // 预组合页（beyondViewport）不激活入场动画：只有成为当前页才播放。
+                    // ⚠️ 必须用 currentPage 而非 settledPage：settled 要等滑动完全落定，
+                    // 用户看到的就是「翻完页内容还要再等一拍才入场」的延迟感（v2.4.5 修复）
+                    val isCurrentPage = page == pagerState.currentPage
                     when (AppTab.entries[page]) {
                         AppTab.Home -> HomeScreen(
                             bottomInnerPadding = bottomInnerPadding,
@@ -166,6 +171,7 @@ fun BandQQApp() {
                             isActive = isCurrentPage,
                             onOpenThemeSettings = { showThemeScreen = true },
                             onOpenKeepAlive = { showKeepAlive = true },
+                            onOpenCrashLog = { showCrashLog = true },
                         )
                     }
                 },
@@ -193,9 +199,20 @@ fun BandQQApp() {
             ) {
                 KeepAliveScreen(onBack = { showKeepAlive = false })
             }
+
+            // 崩溃日志：同款全屏推入
+            AnimatedVisibility(
+                visible = showCrashLog,
+                enter = slideInVertically { it } + fadeIn(tween(pushIn)),
+                exit = slideOutVertically { it } + fadeOut(tween(pushOut)),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                CrashLogScreen(onBack = { showCrashLog = false })
+            }
         }
     }
 
-    BackHandler(enabled = showKeepAlive) { showKeepAlive = false }
-    BackHandler(enabled = showThemeScreen && !showKeepAlive) { showThemeScreen = false }
+    BackHandler(enabled = showCrashLog) { showCrashLog = false }
+    BackHandler(enabled = showKeepAlive && !showCrashLog) { showKeepAlive = false }
+    BackHandler(enabled = showThemeScreen && !showKeepAlive && !showCrashLog) { showThemeScreen = false }
 }
