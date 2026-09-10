@@ -312,12 +312,16 @@ fun ThemeScreen(onBack: () -> Unit) {
                             checked = predictiveBack,
                             onCheckedChange = { on ->
                                 scope.launch { configManager.setPredictiveBack(on) }
-                                // KSU 同款：立即反射设置 + recreate，否则要重进应用才能生效
+                                // KSU 同款：立即反射设置 + recreate，否则要重进应用才能生效。
+                                // recreate 前记录当前推入页，重建后 BandQQApp 自动重新推入（v2.4.7：
+                                // 否则用户视角是「点开关被踢回主页」，以为开关坏了）
                                 val app = context.applicationContext as? BandQQApplication
                                 if (app != null) {
                                     BandQQApplication.setEnableOnBackInvokedCallback(
                                         app.applicationInfo, on,
                                     )
+                                    RecreateCoordinator.reopenScreen = "theme"
+                                    RecreateCoordinator.armed = true
                                     (context as? Activity)?.recreate()
                                 }
                             },

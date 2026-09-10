@@ -125,6 +125,11 @@ class SyncService : Service() {
         fun stop(context: Context) {
             context.startService(Intent(context, SyncService::class.java).setAction(ACTION_STOP))
         }
+
+        /** 测试推送钩子（v2.4.7）：服务运行时由 onCreate 注入，设置页「一键测试推送」调用 */
+        @Volatile
+        var testPush: (() -> Boolean)? = null
+            private set
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -168,6 +173,7 @@ class SyncService : Service() {
         }
         oneBot.startWithListener(broker)
         InterconnectBridge.register(broker)
+        testPush = { broker.pushTestMessage() }
         InterconnectBridge.init(this)
     }
 
@@ -194,6 +200,7 @@ class SyncService : Service() {
 
     override fun onDestroy() {
         isRunning = false
+        testPush = null
         oneBot.stop()
         InterconnectBridge.unregister(broker)
         scope.cancel()

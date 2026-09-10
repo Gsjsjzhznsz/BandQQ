@@ -16,6 +16,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -32,6 +33,7 @@ import com.example.bandqq.config.ConfigHolder
 import com.example.bandqq.config.ConfigManager
 import com.example.bandqq.config.EndpointConfig
 import com.example.bandqq.onebot.GameProtocolDetector
+import com.example.bandqq.sync.SyncService
 import com.example.bandqq.ui.component.PageScaffold
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
@@ -47,6 +49,7 @@ import top.yukonga.miuix.kmp.icon.extended.Lock
 import top.yukonga.miuix.kmp.icon.extended.Scan
 import top.yukonga.miuix.kmp.icon.extended.Theme
 import top.yukonga.miuix.kmp.preference.ArrowPreference
+import top.yukonga.miuix.kmp.preference.SwitchPreference
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
@@ -67,6 +70,10 @@ fun SettingsScreen(
     var httpToken by remember { mutableStateOf("") }
     var quickReplies by remember { mutableStateOf("") }
     var webuiUrl by remember { mutableStateOf("") }
+    var dndEnabled by remember { mutableStateOf(false) }
+    var dndStart by remember { mutableStateOf("23:00") }
+    var dndEnd by remember { mutableStateOf("07:00") }
+    var groupPushMode by remember { mutableIntStateOf(0) }
     var loaded by remember { mutableStateOf(false) }
     var entered by remember { mutableStateOf(false) }
 
@@ -80,6 +87,10 @@ fun SettingsScreen(
         httpUrl = cfg.endpoint.httpUrl
         httpToken = cfg.endpoint.httpToken
         quickReplies = cfg.quickReplies.joinToString("\n")
+        dndEnabled = cfg.dndEnabled
+        dndStart = cfg.dndStart
+        dndEnd = cfg.dndEnd
+        groupPushMode = cfg.groupPushMode
         // 默认 WebUI 地址：由 HTTP 地址推导同主机 :5099（SnowLuma WebUI 默认端口）
         webuiUrl = cfg.webuiUrl.ifBlank {
             runCatching {
@@ -250,9 +261,99 @@ fun SettingsScreen(
                 }
             }
 
+            // ===== 消息推送（手机端判断，手环零开销，v2.4.7）=====
+            SmallTitle(text = "消息推送策略")
+            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 4)) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    SwitchPreference(
+                        title = "夜间勿扰",
+                        summary = "时段内新消息只入历史，不推手环（不亮屏不震动）；主动打开会话仍可补看",
+                        checked = dndEnabled,
+                        onCheckedChange = { on ->
+                            dndEnabled = on
+                            scope.launch { configManager.setDndEnabled(on) }
+                        },
+                    )
+                    if (dndEnabled) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            TextField(
+                                value = dndStart,
+                                onValueChange = { dndStart = it },
+                                label = "开始 HH:mm",
+                                modifier = Modifier.weight(1f),
+                            )
+                            Text("~", fontSize = 14.sp)
+                            TextField(
+                                value = dndEnd,
+                                onValueChange = { dndEnd = it },
+                                label = "结束 HH:mm",
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        Button(
+                            onClick = {
+                                val ok = Regex("^\\d{1,2}:\\d{2}$")
+                                if (ok.matches(dndStart.trim()) && ok.matches(dndEnd.trim())) {
+                                    scope.launch {
+                                        configManager.setDndStart(dndStart.trim())
+                                        configManager.setDndEnd(dndEnd.trim())
+                                    }
+                                    toast(context, "勿扰时段已保存")
+                                } else {
+                                    toast(context, "格式应为 HH:mm，如 23:00")
+                                }
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        ) { Text("保存勿扰时段（支持跨零点，如 23:00~07:00）") }
+                    }
+                    Text(
+                        text = "群聊推送范围",
+                        modifier = Modifier.padding(top = 14.dp),
+                        fontSize = 14.sp,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        listOf("全部" to 0, "仅@我" to 1, "不推送" to 2).forEach { (label, mode) ->
+                            Button(
+                                onClick = {
+                                    groupPushMode = mode
+                                    scope.launch { configManager.setGroupPushMode(mode) }
+                                },
+                                colors = if (groupPushMode == mode) ButtonDefaults.buttonColorsPrimary() else ButtonDefaults.buttonColors(),
+                                modifier = Modifier.weight(1f),
+                            ) { Text(label) }
+                        }
+                    }
+                    Text(
+                        text = "「仅@我」时群消息只在有人@你（含@全体）时推到手环；筛选在手机端完成，消息仍完整入历史，手环零开销。",
+                        modifier = Modifier.padding(top = 8.dp),
+                        fontSize = 12.sp,
+                        color = colorScheme.onSurfaceSecondary,
+                    )
+                    Button(
+                        onClick = {
+                            val hook = SyncService.testPush
+                            if (hook == null) {
+                                toast(context, "同步服务未运行，请先到保活向导启动服务")
+                            } else if (hook.invoke()) {
+                                toast(context, "已发送测试消息，请在手环查看「BandQQ 测试」会话")
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColorsPrimary(),
+                        modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
+                    ) { Text("一键测试推送（验证手机→手环链路）") }
+                }
+            }
+
             // ===== SnowLuma WebUI =====
             SmallTitle(text = "SnowLuma WebUI")
-            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 4)) {
+            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 5)) {
                 Column(
                     modifier = Modifier.padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -281,7 +382,7 @@ fun SettingsScreen(
 
             // ===== 关于内嵌 SnowLuma =====
             SmallTitle(text = "关于协议端")
-            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 5)) {
+            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 6)) {
                 Text(
                     text = "SnowLuma 为 hook 型协议端，需要向桌面版 QQ 进程注入（ptrace），" +
                         "无法直接内嵌进 APK。推荐用 Termux 一键脚本把协议端跑在本机：" +

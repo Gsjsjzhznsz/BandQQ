@@ -9,7 +9,7 @@
 
 ## 版本线
 - v1.1.x：旧 lineage（stapxs 移植版，源码已失传，legacy/ 有 7z 分卷）
-- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.4.6**（versionCode 31）
+- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.4.7**（versionCode 32）
 - 签名一致性：rpk 与 APK 同源证书，APK SHA-256 = af8819e27a6ec8d84537ec86937cf016e780376305328abaa4eb79e8c626b004
 
 ## v2.1.0 已完成（2026-09-09）
@@ -122,3 +122,9 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 1. **Monet/预测性返回点击崩溃真根因（必记，v2.4.5 三层防御方向猜错）**：用户实测再崩并提供堆栈——`IllegalStateException: No NavigationEventDispatcher was provided via LocalNavigationEventDispatcherOwner`，抛点=miuix 弹窗链 MiuixPopupHost → PopupEntry → NavigationBackHandler（androidx.navigationevent.compose）。真因 = `androidx.activity:activity-compose:1.9.1` 过老：navigationevent-compose 的 Local 默认 null + ViewTree 兜底，而 ViewTree owner 仅 activity 1.12+ 的 ComponentActivity 提供（implements NavigationEventDispatcherOwner + initializeViewTreeOwners 挂 decorView，`navigationEventDispatcher = onBackPressedDispatcher.eventDispatcher` 统一管线）。**凡点击后弹弹窗/下拉的选项必崩**（Monet 下拉、预测性返回 SuperDialog、保活确认等）——与选项自身处理器无关。修复 = activity-compose 1.12.4（POM 只要求 compose-runtime 1.7.0，与 BOM 2024.09.03/compose 1.7.2 无冲突，自动携带 navigationevent 1.0.2/lifecycle 2.9.4/core 1.16）+ MainActivity setContent 显式 `LocalNavigationEventDispatcherOwner provides this`（CompositionLocal 传播进 Popup/Dialog 子树，双保险）。验证手段：下载 google maven sources jar rg 确认，勿靠记忆猜版本行为
 2. **无障碍权限「没有申请」真因**：v2.4.5 只有「无障碍干扰检查」行（查他人清理工具），应用自身未声明 AccessibilityService → 系统无障碍列表根本没有 BandQQ 可开。新增 sync/KeepAliveAccessibilityService（空实现 + canRetrieveWindowContent=false + typeWindowStateChanged 最小配置）+ manifest BIND_ACCESSIBILITY_SERVICE + res/xml/keep_alive_accessibility_config.xml + strings(label/desc)；KeepAliveScreen 新增「无障碍保活（本应用）」行：Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES 判定自身组件 + ON_RESUME 刷新 + 直达系统无障碍设置；「干扰检查」改 enabledForeignServiceCount 排除自身，开启后不误报
 3. 构建：vc31/2.4.6；daemon 再次 OOM（GRADLE_OPTS 降堆 -Xmx1400m + kotlin daemon -Xmx900m 重试即过）；aapt2 验证 service 已打包、apksigner af8819e2 同源可覆盖装
+
+## v2.4.7（2026-09-10，versionCode 32）— 预测开关 UX 修复（recreate 恢复推入页）+ 消息推送策略三件套
+1. **预测性返回开关「点击被踢回上级菜单」修复**：开关必须 recreate 才能让系统 flag 生效（ViewRootImpl 仅在 window attach 时读 enableOnBackInvokedCallback，运行时改 ApplicationInfo 不重挂 window 无效，KSU 同样 recreate）——而推入态为防 v2.4.5 崩溃窗口故意 remember 不保存 → 重建后回主页。修复=新增 ui/RecreateCoordinator（进程级单例 reopenScreen+armed），recreate 前记录，BandQQApp LaunchedEffect(Unit) 消费并重新推入（armed 区分 recreate 与冷启动，冷启动不恢复）；推入动画自然重播，用户视角「刷新后仍在设置页」
+2. **消息推送策略（用户要"日常刚需"，架构铁律=手机端预算/手环零感知）**：ConfigManager 新增 dndEnabled/dndStart/dndEnd/groupPushMode 四键；MessageBroker.onEvent 在 handleOneBotEvent **之后**仅拦截 bandSender——消息照常入库（历史/未读完整），手环不亮屏不震动，打开会话 get_history 仍能补看（勿扰语义）。群聊三档 0全部/1仅@我(含@全体)/2不推；勿扰窗口 parseHm+跨零点区间判断（start>end 即 23:00→07:00）
+3. **一键测试推送**：MessageBroker.pushTestMessage 固定 targetId=bandqq-test 复用同一会话（手环无删除会话功能，避免列表污染），不入手机端历史库；SyncService companion @Volatile testPush 钩子（onCreate 注入/onDestroy 置空），设置页调用，未运行时提示先启动服务
+4. 构建：vc32/2.4.7 一次通过；apksigner 同源；README 已补 v2.4.6/v2.4.7 日志

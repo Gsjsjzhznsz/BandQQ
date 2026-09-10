@@ -71,6 +71,20 @@ fun BandQQApp() {
     val pushIn = (260 / motionSpeed).roundToInt()
     val pushOut = (200 / motionSpeed).roundToInt()
 
+    // v2.4.7：预测性返回开关等需要 recreate 的设置项，重建后自动回到原推入页；
+    // 进程首次冷启动 armed=false，不恢复（否则误恢复上一次进程的残留状态）
+    LaunchedEffect(Unit) {
+        if (RecreateCoordinator.armed) {
+            RecreateCoordinator.armed = false
+            when (RecreateCoordinator.reopenScreen) {
+                "theme" -> showThemeScreen = true
+                "keepalive" -> showKeepAlive = true
+                "crashlog" -> showCrashLog = true
+            }
+            RecreateCoordinator.reopenScreen = null
+        }
+    }
+
     val surfaceColor = MiuixTheme.colorScheme.surface
 
     // 顶栏/普通底栏模糊源（enableBlur 关闭或设备不支持时为 null，回退实色）

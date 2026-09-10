@@ -37,7 +37,12 @@ data class AppConfig(
     val enablePredictiveBack: Boolean = true,    // 预测性返回手势（Android 14+，运行时动态开关）
     val pageScale: Float = 1.0f,       // 界面缩放 0.8 ~ 1.1
     val motionSpeed: Float = 1.0f,     // 动画速度 0.5 ~ 2.0（越大越快）
-    val motionStagger: Int = 100       // 列表级联入场的逐项间隔 0 ~ 200ms
+    val motionStagger: Int = 100,      // 列表级联入场的逐项间隔 0 ~ 200ms
+    // ===== 消息推送策略（全部在手机端判断，手环零感知零计算，v2.4.7）=====
+    val dndEnabled: Boolean = false,   // 勿扰时段开关：时段内新消息只入历史不推手环
+    val dndStart: String = "23:00",    // 勿扰开始（HH:mm，支持跨零点）
+    val dndEnd: String = "07:00",      // 勿扰结束（HH:mm）
+    val groupPushMode: Int = 0         // 群聊推送：0=全部 1=仅@我(含@全体) 2=不推送
 )
 
 object ConfigHolder {
@@ -63,6 +68,10 @@ class ConfigManager(private val context: Context) {
         val PAGE_SCALE = floatPreferencesKey("page_scale")
         val MOTION_SPEED = floatPreferencesKey("motion_speed")
         val MOTION_STAGGER = intPreferencesKey("motion_stagger")
+        val DND_ENABLED = booleanPreferencesKey("dnd_enabled")
+        val DND_START = stringPreferencesKey("dnd_start")
+        val DND_END = stringPreferencesKey("dnd_end")
+        val GROUP_PUSH_MODE = intPreferencesKey("group_push_mode")
     }
 
     suspend fun load(): AppConfig {
@@ -88,7 +97,11 @@ class ConfigManager(private val context: Context) {
             enablePredictiveBack = prefs[Keys.ENABLE_PREDICTIVE_BACK] ?: default.enablePredictiveBack,
             pageScale = prefs[Keys.PAGE_SCALE] ?: default.pageScale,
             motionSpeed = prefs[Keys.MOTION_SPEED] ?: default.motionSpeed,
-            motionStagger = prefs[Keys.MOTION_STAGGER] ?: default.motionStagger
+            motionStagger = prefs[Keys.MOTION_STAGGER] ?: default.motionStagger,
+            dndEnabled = prefs[Keys.DND_ENABLED] ?: default.dndEnabled,
+            dndStart = prefs[Keys.DND_START] ?: default.dndStart,
+            dndEnd = prefs[Keys.DND_END] ?: default.dndEnd,
+            groupPushMode = prefs[Keys.GROUP_PUSH_MODE] ?: default.groupPushMode
         )
         ConfigHolder.config = cfg
         return cfg
@@ -112,6 +125,10 @@ class ConfigManager(private val context: Context) {
             prefs[Keys.PAGE_SCALE] = config.pageScale
             prefs[Keys.MOTION_SPEED] = config.motionSpeed
             prefs[Keys.MOTION_STAGGER] = config.motionStagger
+            prefs[Keys.DND_ENABLED] = config.dndEnabled
+            prefs[Keys.DND_START] = config.dndStart
+            prefs[Keys.DND_END] = config.dndEnd
+            prefs[Keys.GROUP_PUSH_MODE] = config.groupPushMode
         }
         ConfigHolder.config = config
     }
@@ -203,5 +220,36 @@ class ConfigManager(private val context: Context) {
     suspend fun setMotionStagger(staggerMs: Int) {
         context.dataStore.edit { it[Keys.MOTION_STAGGER] = staggerMs }
         ConfigHolder.config = ConfigHolder.config.copy(motionStagger = staggerMs)
+    }
+
+    // ===== 消息推送策略（手机端预算，手环零感知）=====
+
+    fun observeDndEnabled(): Flow<Boolean> = context.dataStore.data.map { it[Keys.DND_ENABLED] ?: false }
+
+    suspend fun setDndEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.DND_ENABLED] = enabled }
+        ConfigHolder.config = ConfigHolder.config.copy(dndEnabled = enabled)
+    }
+
+    fun observeDndStart(): Flow<String> = context.dataStore.data.map { it[Keys.DND_START] ?: "23:00" }
+
+    suspend fun setDndStart(time: String) {
+        context.dataStore.edit { it[Keys.DND_START] = time }
+        ConfigHolder.config = ConfigHolder.config.copy(dndStart = time)
+    }
+
+    fun observeDndEnd(): Flow<String> = context.dataStore.data.map { it[Keys.DND_END] ?: "07:00" }
+
+    suspend fun setDndEnd(time: String) {
+        context.dataStore.edit { it[Keys.DND_END] = time }
+        ConfigHolder.config = ConfigHolder.config.copy(dndEnd = time)
+    }
+
+    /** 群聊推送模式：0=全部 1=仅@我 2=不推送 */
+    fun observeGroupPushMode(): Flow<Int> = context.dataStore.data.map { it[Keys.GROUP_PUSH_MODE] ?: 0 }
+
+    suspend fun setGroupPushMode(mode: Int) {
+        context.dataStore.edit { it[Keys.GROUP_PUSH_MODE] = mode }
+        ConfigHolder.config = ConfigHolder.config.copy(groupPushMode = mode)
     }
 }

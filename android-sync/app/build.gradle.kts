@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.bandqq"
         minSdk = 26
         targetSdk = 34
-        versionCode = 31
-        versionName = "2.4.6"
+        versionCode = 32
+        versionName = "2.4.7"
     }
 
     signingConfigs {

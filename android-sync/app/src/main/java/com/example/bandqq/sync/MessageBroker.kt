@@ -167,7 +167,69 @@ class MessageBroker(
         // 私聊场景 targetId=senderId=selfId 会落进机器人自己的会话，且该消息已由 send_message 分支记录并回推，故跳过
         if (message.isSelf) return
         val frame = handleOneBotEvent(message) ?: return
+        // v2.4.7 推送策略：消息照常入库（历史/未读完整），仅拦截「推给手环」这一步，
+        // 手环不亮屏不震动；用户主动打开会话时 get_history 仍能补看（勿扰语义）
+        if (shouldSuppressPush(message)) {
+            log("push suppressed: type=${message.messageType} atMe=${message.atMe} dnd=${inDndWindow()} group=${ConfigHolder.config.groupPushMode}")
+            return
+        }
         bandSender(frame)
+    }
+
+    /**
+     * 推送拦截判定（全部手机端内存计算，O(1)，手环零感知）：
+     * 1) 群聊按 groupPushMode：1=仅@我(含@全体) 2=全部不推；
+     * 2) 勿扰时段（dndEnabled && inDndWindow）：时段内新消息不推（支持跨零点，如 23:00~07:00）。
+     */
+    private fun shouldSuppressPush(message: OneBotMessage): Boolean {
+        if (message.messageType == "group") {
+            when (ConfigHolder.config.groupPushMode) {
+                2 -> return true
+                1 -> if (!message.atMe) return true
+            }
+        }
+        return ConfigHolder.config.dndEnabled && inDndWindow()
+    }
+
+    /** 当前时刻是否处于勿扰时段（支持跨零点：start>end 表示 23:00→07:00 这种区间） */
+    private fun inDndWindow(): Boolean {
+        val startMin = parseHm(ConfigHolder.config.dndStart) ?: return false
+        val endMin = parseHm(ConfigHolder.config.dndEnd) ?: return false
+        val cal = java.util.Calendar.getInstance()
+        val nowMin = cal.get(java.util.Calendar.HOUR_OF_DAY) * 60 + cal.get(java.util.Calendar.MINUTE)
+        return if (startMin == endMin) {
+            false
+        } else if (startMin < endMin) {
+            nowMin in startMin until endMin
+        } else {
+            nowMin >= startMin || nowMin < endMin
+        }
+    }
+
+    private fun parseHm(text: String): Int? = runCatching {
+        val parts = text.trim().split(":")
+        val h = parts[0].toInt()
+        val m = if (parts.size > 1) parts[1].toInt() else 0
+        if (h in 0..23 && m in 0..59) h * 60 + m else null
+    }.getOrNull()
+
+    /**
+     * 一键测试推送（v2.4.7）：向手环发一条固定会话的测试消息，验证蓝牙链路与推送管线。
+     * 固定 targetId 复用同一会话，不污染真实联系人列表，也不入手机端历史库。
+     */
+    fun pushTestMessage(): Boolean {
+        val msg = OneBotMessage(
+            messageType = "private",
+            targetId = "bandqq-test",
+            senderId = "bandqq-test",
+            senderName = "BandQQ 测试",
+            content = "[测试] 同步链路正常：这条消息经 手机端 → 蓝牙互联 → 手环 推送成功。可在会话列表长按关闭提示音或忽略本会话。",
+            time = System.currentTimeMillis(),
+            isSelf = false,
+        )
+        bandSender(parser.toHandBandFrame(msg, visible = true, targetName = "BandQQ 测试"))
+        log("pushTestMessage sent")
+        return true
     }
 
     override fun onRecall(recall: com.example.bandqq.onebot.OneBotRecall) {

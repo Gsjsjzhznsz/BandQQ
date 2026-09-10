@@ -1,8 +1,8 @@
-# BandQQ v2.4.6 — 小米手环 9 QQ 消息助手（手环快应用 + 安卓同步器）
+# BandQQ v2.4.7 — 小米手环 9 QQ 消息助手（手环快应用 + 安卓同步器）
 
 > 🧠 **AI 协作记忆库**：[`MEMORY.md`](MEMORY.md) — 本项目的跨会话持久记忆（架构 / bug 台账 / 构建配方 / 任务清单）。任何新会话恢复上下文，先读它。
 
-[![Version](https://img.shields.io/badge/version-2.4.6-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-2.4.7-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
 
 **BandQQ** 是一套开源的「小米手环 QQ 消息助手」双端方案：手环端运行 Vela 快应用（rpk），手机端运行安卓同步器（APK），通过小米互联蓝牙通道把 QQ 消息实时同步到手环，支持直接在手环上**查看 / 回复 / 翻历史消息 / 收图**。
 
@@ -10,7 +10,20 @@
 
 > 关键词：小米手环9 / Mi Band 9 / 小米手环QQ / 小米手环9 Pro / Redmi Watch / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / Stapxs-QQ-Lite-X / wearable QQ / smartband chat / Mi Band QQ client
 
-## v2.4.6 更新日志（当前版本）
+## v2.4.7 更新日志（当前版本）
+
+### 修复
+1. **预测性返回开关不再「点击被踢回上级菜单」**：开关需要 `activity.recreate()` 才能让系统开关生效，而推入态为防崩溃故意不保存 → 重建后回主页，看起来像开关坏了。现在 recreate 前记录当前推入页，重建后自动重新推入（带自然进入动画），冷启动不受影响。
+
+### 新功能（消息推送策略：全部手机端判断，手环零感知零开销）
+2. **夜间勿扰**：设置勿扰时段（默认 23:00~07:00，支持跨零点），时段内新消息只入历史不推手环——不亮屏不震动；主动打开会话仍可从历史补看。
+3. **群聊推送范围**：全部 / 仅@我（含@全体）/ 不推送 三档；群消息风暴下不再轰炸手环，消息仍完整入库。
+4. **一键测试推送**：设置页一键向手环发送固定「BandQQ 测试」会话消息，验证 手机→蓝牙互联→手环 链路是否畅通，排查问题时不用再等真实消息。
+
+### 保持不变
+- APK 签名同源（SHA-256 `af8819e2…b004`），可**直接覆盖安装**。
+
+## v2.4.6 更新日志（历史版本）
 
 ### 修复
 1. **主题设置两个选项点击崩溃（Monet 关键色 / 预测性返回开关）根治**：真根因是 `androidx.activity:activity-compose:1.9.1` 过老——miuix 0.9.3 弹窗系统（MiuixPopupHost → PopupEntry → NavigationBackHandler）依赖 `LocalNavigationEventDispatcherOwner`，只有 activity 1.12+ 的 ComponentActivity 才会提供；此前点击一切会弹窗/下拉的选项都直接 `IllegalStateException: No NavigationEventDispatcher…` 崩溃。升级 activity 1.12.4 + `setContent` 显式注入 owner 双保险根治，并顺带接入完整预测性返回事件管线。
