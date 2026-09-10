@@ -68,3 +68,21 @@ Work Log:
 Stage Summary:
 - 产物：download/bandqq-sync-release-2.4.1.apk（12MB）
 - 核心教训入库：① FloatingBottomBarItem 必须 defaultMinSize(minWidth) 否则 IntrinsicSize.Min 塌缩成颗粒 ② 0.9.3 BadgedBox.badge 是 BoxScope receiver lambda ③ icons-extended 在 4G 内存容器 dex OOM，用 miuix icons 替代
+
+---
+Task ID: 7
+Agent: main (Super Z)
+Task: v2.4.2 —— 顶栏遮挡内容 / 底栏偏下 / 预测性返回手势无效果（用户反馈第五轮，附截图）
+
+Work Log:
+- 截图分析：① 顶栏「主页」下方卡片被裁切（内容从 y=0 铺到顶栏后面）② 悬浮底栏贴屏幕底边（无导航栏 inset 余量）③ 主题设置里「预测性返回手势」开关拨了没反应
+- 顶栏遮挡根因：外层 Scaffold topBar + content lambda 忽略 innerPadding（`) { _ ->`）。对照 KSU MainActivity 源码确认其真实结构：外层 Scaffold 只有 bottomBar（`pagerContent(innerPadding.calculateBottomPadding())`），顶栏在每页内部的 Scaffold（HomePagerMiuix 等：Scaffold(topBar=BlurredBar(TopAppBar), contentWindowInsets=systemBars∪cutout 仅水平){ LazyColumn(contentPadding=innerPadding) }）——内容从顶栏下穿过，玻璃才有东西可糊
+- 重构：新增 ui/component/PageScaffold.kt（每页独立 Scaffold+BlurredBar 顶栏+独立 rememberBlurBackdrop+layerBackdrop 注册+仅水平 contentWindowInsets）；BandQQApp 外层删 topBar、只传 bottomInnerPadding；Home/Contact/History/Settings 四屏全部签名加 bottomInnerPadding:Dp 并包 PageScaffold，滚动列首尾 Spacer(顶栏高+16dp)/Spacer(bottomInnerPadding+12dp)，清除三处遗留 Spacer(112dp)（含 StatusCard 内部一处脏 Spacer）
+- 底栏偏下根因：BottomBar 悬浮分支漏搬 KSU padding——补 `navigationBars inset>0 ? 8dp+inset : 28dp` 底距 + start/end 28dp + 容器 pointerInput detectTapGestures{} 防点击穿透（KSU BottomBarMiuix 92-93 行同款）
+- 预测性返回无效果根因：v2.4.1 在 manifest 写死 enableOnBackInvokedCallback=true，静态值恒覆盖设置；KSU 真实配方 = manifest 不写 + Application.onCreate（API≥34）HiddenApiBypass.addHiddenApiExemptions 后反射调 ApplicationInfo.setEnableOnBackInvokedCallback(observePredictiveBack.first())。照搬：新增 BandQQApplication（companion 反射 helper），manifest 删静态开关加 android:name，MainActivity.onCreate 幂等重应用（温启动即生效），ConfigManager enablePredictiveBack 默认 false→true（避免删静态 true 后行为回归），依赖 org.lsposed.hiddenapibypass:6.1
+- 构建坑两次：① 离线模式无 hiddenapibypass 缓存 → 在线拉取 ② daemon 又 OOM 消失一次 → 重跑成功；另修编译错 calculateBottomPadding 是 PaddingValues 成员函数无顶层 import
+- 产物验证：aapt2 versionCode 27/2.4.2，apksigner SHA-256 af8819e2 同源覆盖装
+
+Stage Summary:
+- 产物：download/bandqq-sync-release-2.4.2.apk（~12MB）
+- 经验入库 MEMORY.md v2.4.2 节：KSU「每页自带 Scaffold」架构、backdrop 分层（页内顶栏/外层底栏各一个）、悬浮栏 inset padding、预测性返回反射配方

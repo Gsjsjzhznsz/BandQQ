@@ -23,15 +23,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import com.example.bandqq.sync.StoreHolder
 import com.example.bandqq.ui.component.BottomBar
-import com.example.bandqq.ui.util.BlurredBar
+import com.example.bandqq.ui.component.PageScaffold
 import com.example.bandqq.ui.util.rememberBlurBackdrop
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Scaffold
-import top.yukonga.miuix.kmp.basic.SmallTopAppBar
 import top.yukonga.miuix.kmp.blur.layerBackdrop
 import top.yukonga.miuix.kmp.blur.rememberLayerBackdrop
 import top.yukonga.miuix.kmp.theme.MiuixTheme
@@ -45,8 +43,9 @@ enum class AppTab(val label: String) {
 
 /**
  * 主界面（对齐 KernelSU MainActivity 结构）：
+ * - 外层 Scaffold 只持有 bottomBar，顶栏由每页 PageScaffold 自带（内容从顶栏下穿过，玻璃可模糊）；
  * - HorizontalPager：页面横向跟手滑动，底栏点击 animateScrollToPage 联动；
- * - 双 backdrop：blurBackdrop 供顶栏/普通底栏 textureBlur；backdrop 供悬浮底栏液态玻璃；
+ * - 双 backdrop：外层 blurBackdrop 供普通底栏 textureBlur；backdrop 供悬浮底栏液态玻璃；
  * - 底栏双形态（悬浮玻璃 / 悬浮实色 / 普通模糊 / 普通实色）由设置项组合驱动。
  */
 @Composable
@@ -82,17 +81,7 @@ fun BandQQApp() {
         }
     }
 
-    val selectedTab = AppTab.entries[pagerState.settledPage]
-
     Scaffold(
-        topBar = {
-            BlurredBar(blurBackdrop) {
-                SmallTopAppBar(
-                    title = selectedTab.label,
-                    color = if (blurBackdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
-                )
-            }
-        },
         bottomBar = {
             Box(modifier = Modifier.fillMaxWidth()) {
                 BottomBar(
@@ -109,7 +98,9 @@ fun BandQQApp() {
                 )
             }
         },
-    ) { _ ->
+    ) { innerPadding ->
+        // 外层只传底部安全余量（顶栏已由每页 PageScaffold 自行处理，KSU 同款）
+        val bottomInnerPadding = innerPadding.calculateBottomPadding()
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -126,10 +117,13 @@ fun BandQQApp() {
                 beyondViewportPageCount = 1,
                 pageContent = { page ->
                     when (AppTab.entries[page]) {
-                        AppTab.Home -> HomeScreen()
-                        AppTab.Contacts -> ContactScreen()
-                        AppTab.History -> HistoryScreen()
-                        AppTab.Settings -> SettingsScreen(onOpenThemeSettings = { showThemeScreen = true })
+                        AppTab.Home -> HomeScreen(bottomInnerPadding = bottomInnerPadding)
+                        AppTab.Contacts -> ContactScreen(bottomInnerPadding = bottomInnerPadding)
+                        AppTab.History -> HistoryScreen(bottomInnerPadding = bottomInnerPadding)
+                        AppTab.Settings -> SettingsScreen(
+                            bottomInnerPadding = bottomInnerPadding,
+                            onOpenThemeSettings = { showThemeScreen = true },
+                        )
                     }
                 },
             )

@@ -1,6 +1,12 @@
 package com.example.bandqq.ui.component
 
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -65,8 +71,14 @@ fun BottomBar(
             )
         }
     } else {
+        // KernelSU 同款：悬浮栏底距 = 导航栏 inset + 8dp（无手势导航设备回退 28dp），
+        // 否则底栏贴到屏幕底边（偏下）；容器 pointerInput 吞掉栏外空白区点击防穿透
+        val bottomPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+            .let { inset -> if (inset != 0.dp) 8.dp + inset else 28.dp }
         FloatingBottomBar(
-            modifier = modifier,
+            modifier = modifier
+                .pointerInput(Unit) { detectTapGestures { } }
+                .padding(start = 28.dp, end = 28.dp, bottom = bottomPadding),
             selectedIndex = selected,
             onSelected = onSelect,
             backdrop = backdrop,

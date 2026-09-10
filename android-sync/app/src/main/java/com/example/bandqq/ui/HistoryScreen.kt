@@ -21,11 +21,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.bandqq.sync.ConversationInfo
 import com.example.bandqq.sync.InterconnectBridge
 import com.example.bandqq.sync.MessageBus
 import com.example.bandqq.sync.StoreHolder
+import com.example.bandqq.ui.component.PageScaffold
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -39,7 +41,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 private val timeFmt = SimpleDateFormat("MM-dd HH:mm", Locale.getDefault())
 
 @Composable
-fun HistoryScreen() {
+fun HistoryScreen(bottomInnerPadding: Dp) {
     val context = LocalContext.current
     var refresh by remember { mutableStateOf(0) }
     val conversations = remember(refresh) { StoreHolder.store?.getConversations() ?: emptyList() }
@@ -55,13 +57,15 @@ fun HistoryScreen() {
     var entered by remember { mutableStateOf(false) }
     LaunchedEffect(Unit) { entered = true }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(start = 16.dp, end = 16.dp, top = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    PageScaffold(title = "聊天记录", bottomInnerPadding = bottomInnerPadding) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Spacer(Modifier.height(innerPadding.calculateTopPadding() + 16.dp))
         TextButton(
             text = "清空全部聊天记录",
             onClick = {
@@ -105,12 +109,12 @@ fun HistoryScreen() {
                 }
             }
         }
+        Spacer(modifier = Modifier.height(bottomInnerPadding + 12.dp))
+    }
     }
 
     val c = detailConv
     if (c != null) {
         HistoryDetailDialog(conv = c, onDismiss = { detailConv = null })
-        Spacer(modifier = Modifier.height(112.dp))
-
     }
 }

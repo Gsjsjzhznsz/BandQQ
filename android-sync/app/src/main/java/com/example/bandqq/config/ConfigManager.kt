@@ -34,7 +34,7 @@ data class AppConfig(
     val enableFloatingBottomBar: Boolean = true, // Apple 风格悬浮底栏
     val navGlass: Boolean = true,      // 悬浮底栏的液态玻璃效果（二级选项）
     val enableNavigationBadge: Boolean = true,   // 导航栏未读角标
-    val enablePredictiveBack: Boolean = false,   // 预测性返回手势（Android 14+）
+    val enablePredictiveBack: Boolean = true,    // 预测性返回手势（Android 14+，运行时动态开关）
     val pageScale: Float = 1.0f        // 界面缩放 0.8 ~ 1.1
 )
 

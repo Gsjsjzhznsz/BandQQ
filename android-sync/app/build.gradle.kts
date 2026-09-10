@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.bandqq"
         minSdk = 26
         targetSdk = 34
-        versionCode = 26
-        versionName = "2.4.1"
+        versionCode = 27
+        versionName = "2.4.2"
     }
 
     signingConfigs {
@@ -73,6 +73,7 @@ dependencies {
     implementation("top.yukonga.miuix.kmp:miuix-icons-android:0.9.3")
     implementation("top.yukonga.miuix.kmp:miuix-blur-android:0.9.3")
     implementation("top.yukonga.miuix.kmp:miuix-preference-android:0.9.3")
+    implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.1")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")

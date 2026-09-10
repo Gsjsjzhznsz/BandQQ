@@ -19,6 +19,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bandqq.WebUiActivity
@@ -27,6 +28,7 @@ import com.example.bandqq.config.ConfigHolder
 import com.example.bandqq.config.ConfigManager
 import com.example.bandqq.config.EndpointConfig
 import com.example.bandqq.onebot.GameProtocolDetector
+import com.example.bandqq.ui.component.PageScaffold
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -37,7 +39,10 @@ import top.yukonga.miuix.kmp.basic.TextField
 import top.yukonga.miuix.kmp.preference.ArrowPreference
 
 @Composable
-fun SettingsScreen(onOpenThemeSettings: () -> Unit = {}) {
+fun SettingsScreen(
+    bottomInnerPadding: Dp,
+    onOpenThemeSettings: () -> Unit = {},
+) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val configManager = remember { ConfigManager(context) }
@@ -68,18 +73,20 @@ fun SettingsScreen(onOpenThemeSettings: () -> Unit = {}) {
         loaded = true
     }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(start = 16.dp, end = 16.dp, top = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
-        if (!loaded) {
-            SmallTitle(text = "正在读取配置…")
-            Spacer(modifier = Modifier.height(112.dp))
-            return@Column
-        }
+    PageScaffold(title = "设置", bottomInnerPadding = bottomInnerPadding) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Spacer(Modifier.height(innerPadding.calculateTopPadding() + 16.dp))
+            if (!loaded) {
+                SmallTitle(text = "正在读取配置…")
+                Spacer(modifier = Modifier.height(bottomInnerPadding + 12.dp))
+                return@Column
+            }
 
         SmallTitle(text = "主题与外观")
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -200,7 +207,8 @@ fun SettingsScreen(onOpenThemeSettings: () -> Unit = {}) {
             )
         }
 
-        // 底部留白：内容可从玻璃悬浮栏下穿过，列表尽头仍可滚出底栏
-        Spacer(modifier = Modifier.height(112.dp))
+        // 底部留白：外层底栏总高（含导航栏 inset），末项可完全滚出底栏
+        Spacer(modifier = Modifier.height(bottomInnerPadding + 12.dp))
+    }
     }
 }

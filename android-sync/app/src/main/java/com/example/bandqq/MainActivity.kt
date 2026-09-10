@@ -29,6 +29,8 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         // 沉浸式：与 KernelSU 一致，状态栏/导航栏透明，内容延伸至系统栏之后
         enableEdgeToEdge()
+        // 温启动时重新应用预测性返回开关（设置切换后无需冷启动进程）
+        (application as? BandQQApplication)?.applyPredictiveBackFlag()
         val configManager = ConfigManager(applicationContext)
         setContent {
             // DataStore Flow 直接驱动全局主题：设置页切换立即生效，无需重启

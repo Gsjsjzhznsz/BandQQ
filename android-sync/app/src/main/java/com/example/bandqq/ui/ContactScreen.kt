@@ -26,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.state.ToggleableState
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.bandqq.config.ConfigHolder
 import com.example.bandqq.onebot.OneBotClient
@@ -33,6 +34,7 @@ import com.example.bandqq.onebot.OneBotParser
 import com.example.bandqq.sync.InterconnectBridge
 import com.example.bandqq.sync.StoreHolder
 import com.example.bandqq.sync.VisibleContact
+import com.example.bandqq.ui.component.PageScaffold
 import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -46,7 +48,7 @@ import top.yukonga.miuix.kmp.basic.TextButton
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-fun ContactScreen() {
+fun ContactScreen(bottomInnerPadding: Dp) {
     val context = LocalContext.current
     val store = StoreHolder.store
     val scope = rememberCoroutineScope()
@@ -60,13 +62,15 @@ fun ContactScreen() {
     val visibleIds = remember(refreshKey) { (store?.getVisibleContacts() ?: emptyList()).map { it.id }.toSet() }
     var selected by remember { mutableStateOf(visibleIds) }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(start = 16.dp, end = 16.dp, top = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
+    PageScaffold(title = "联系人", bottomInnerPadding = bottomInnerPadding) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Spacer(Modifier.height(innerPadding.calculateTopPadding() + 16.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
             TextButton(
                 text = "私聊",
@@ -170,7 +174,8 @@ fun ContactScreen() {
             },
         )
 
-        Spacer(modifier = Modifier.height(112.dp))
+        Spacer(modifier = Modifier.height(bottomInnerPadding + 12.dp))
+    }
     }
 }
 

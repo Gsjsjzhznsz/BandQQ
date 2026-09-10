@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -34,11 +35,13 @@ import androidx.compose.ui.composed
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.example.bandqq.config.ConfigManager
 import com.example.bandqq.onebot.GameProtocolDetector
 import com.example.bandqq.sync.InterconnectBridge
 import com.example.bandqq.sync.SyncService
+import com.example.bandqq.ui.component.PageScaffold
 import kotlinx.coroutines.launch
 import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
@@ -48,7 +51,7 @@ import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 @Composable
-fun HomeScreen() {
+fun HomeScreen(bottomInnerPadding: Dp) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val bandConnected by useBandConnected()
@@ -58,13 +61,16 @@ fun HomeScreen() {
 
     LaunchedEffect(Unit) { entered = true }
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(start = 16.dp, end = 16.dp, top = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
-    ) {
+    PageScaffold(title = "主页", bottomInnerPadding = bottomInnerPadding) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            // 顶栏总高（含状态栏）+ 视觉间距；内容从顶栏下穿过，顶栏玻璃才有东西可模糊
+            Spacer(Modifier.height(innerPadding.calculateTopPadding() + 16.dp))
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             StatusCard(
                 title = "手环",
@@ -137,6 +143,10 @@ fun HomeScreen() {
                 .height(360.dp)
                 .enterReveal(entered, delayMs = 300),
         )
+
+            // 底部安全余量：外层底栏总高（含导航栏 inset），末项可完全滚出底栏
+            Spacer(Modifier.height(bottomInnerPadding + 12.dp))
+        }
     }
 }
 
@@ -202,7 +212,5 @@ private fun StatusCard(
                 )
             }
         }
-        Spacer(modifier = Modifier.height(112.dp))
-
     }
 }

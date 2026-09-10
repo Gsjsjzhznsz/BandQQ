@@ -15,11 +15,11 @@
         tools:overrideLibrary="top.yukonga.miuix.kmp.blur" />
 
     <application
+        android:name=".BandQQApplication"
         android:label="@string/app_name"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:theme="@style/Theme.BandQQ"
-        android:enableOnBackInvokedCallback="true"
         android:usesCleartextTraffic="true">
 
         <activity

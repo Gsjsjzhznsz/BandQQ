@@ -79,3 +79,10 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 3. **外观设置 = KSU ColorPaletteScreenMiuix 全项**：预览卡片 / TabRow(跟随系统·浅色·深色) / Monet+关键色(0=品牌蓝,15 色 OverlayDropdownPreference) / 模糊(13+) / 悬浮底栏 → 液态玻璃(二级 AnimatedVisibility) / 导航栏角标(未读数挂聊天记录页签) / 预测性返回(14+，manifest enableOnBackInvokedCallback=true) / 界面缩放(Slider 0.8~1.1 keyPoints 磁吸 + ScaleDialog；实现=BandQQTheme 包 LocalDensity 缩放 density+fontScale)
 4. **miuix 0.9.3 API 坑**：BadgedBox.badge 参数是 `BoxScope.() -> Unit`（receiver lambda），传声明变量须 `badge = { badge() }` 字面包装；MiuixIcons 图标全在 `icon.extended` 包作扩展属性，须逐个 import
 5. **依赖坑**：material-icons-extended（3.5 万类）在 4G 内存容器 mergeDexRelease 必 OOM；miuix-icons extended 图标够用（Theme/Tune/CloudFill/HorizontalSplit/Scan/Pin/Sidebar/GridView），零额外依赖
+
+## v2.4.2（2026-09-10，versionCode 27）— 顶栏遮挡/底栏偏下/预测性返回修复
+1. **顶栏遮挡内容根因（KSU 架构差异，必记）**：外层 Scaffold 的 topBar + content 忽略 innerPadding → 页面从 y=0 起铺、被顶栏盖住。KSU 真实结构 = **外层 Scaffold 只放 bottomBar，每页自带 Scaffold(topBar=BlurredBar(SmallTopAppBar), contentWindowInsets=仅水平)**；innerPadding.top=顶栏总高（含状态栏），滚动容器首尾用 Spacer(innerPadding.calculateTopPadding()+16dp)/Spacer(bottomInnerPadding+12dp) 让内容从顶栏下穿过（顶栏玻璃有物可糊）。新增 ui/component/PageScaffold.kt 统一承载此模式
+2. **backdrop 分层（KSU 同构）**：每页 PageScaffold 各自 rememberBlurBackdrop 供自己顶栏；外层 BandQQApp 的 blurBackdrop 注册在 pager Box 供普通底栏；悬浮玻璃 backdrop 不变。同一 backdrop 双层注册无害（KSU 亦如此）
+3. **悬浮底栏偏下根因**：BottomBar 悬浮分支漏了 KSU BottomBarMiuix 的 padding——`WindowInsets.navigationBars + (inset>0 ? 8dp+inset : 28dp)` + start/end 28dp，外加容器 pointerInput{detectTapGestures{}} 吞掉栏外空白点击防穿透
+4. **预测性返回无效果根因（KSU 配方，必记）**：manifest 静态 enableOnBackInvokedCallback=true 会让设置开关永远无效。正确做法=**manifest 不写，Application.onCreate 里 HiddenApiBypass.addHiddenApiExemptions("Landroid/content/pm/ApplicationInfo;->setEnableOnBackInvokedCallback") + 反射 setEnableOnBackInvokedCallback(appInfo, enable)**（API 34+；方法不在公开 SDK，编译期必须反射）；MainActivity.onCreate 幂等重应用以覆盖温启动；切换后需重启/重进生效
+5. PaddingValues.calculateBottomPadding() 是成员函数，没有顶层 import（androidx.compose.foundation.layout.calculateBottomPadding 不存在，写了必炸）
