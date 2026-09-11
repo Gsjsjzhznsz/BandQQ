@@ -87,8 +87,12 @@ describe('protocol', () => {
     assert.equal(markEmoji('hi😊wow👋'), 'hi[表情]wow[表情]')
   })
 
-  it('degradeContent 将文本 emoji 降级为 [表情]', () => {
-    assert.equal(degradeContent([{ type: 'text', data: { text: '早😊' } }, { type: 'face', data: { id: '178' } }]), '早[表情][表情]')
+  it('degradeContent 文本 emoji 透传 + face 段映射为 emoji（v2.6.0 表情支持）', () => {
+    assert.equal(degradeContent([{ type: 'text', data: { text: '早😊' } }, { type: 'face', data: { id: '178' } }]), '早😊🤣')
+  })
+
+  it('degradeContent 未收录 face id 回退 [表情]', () => {
+    assert.equal(degradeContent([{ type: 'face', data: { id: '99999' } }, { type: 'text', data: { text: '好' } }]), '[表情]好')
   })
 
   it('decodePush v2：手机端已降级的字段直接透传（热路径零扫描）', () => {

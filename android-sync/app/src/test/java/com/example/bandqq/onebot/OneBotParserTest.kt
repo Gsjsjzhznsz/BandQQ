@@ -107,18 +107,18 @@ class OneBotParserTest {
     }
 
     @Test
-    fun `文本内的 emoji 降级为表情`() {
+    fun `文本内的 emoji 透传给手环渲染`() {
         val json = """
             {"post_type":"message","message_type":"group","group_id":"123","user_id":"456",
              "sender":{"nickname":"张三"},"message":[{"type":"text","data":{"text":"早😊好"}}],
              "time":1700000000,"self_id":1,"message_id":2}
         """.trimIndent()
         val msg = parser.parseMessageEvent(json)
-        assertEquals("早[表情]好", msg?.content)
+        assertEquals("早😊好", msg?.content)
     }
 
     @Test
-    fun `表情包段降级为表情而不落到其他`() {
+    fun `face 段映射为对应 emoji（178 斜眼笑）`() {
         val json = """
             {"post_type":"message","message_type":"group","group_id":"123","user_id":"456",
              "sender":{"nickname":"张三"},"message":[{"type":"face","data":{"id":"178"}},
@@ -126,7 +126,19 @@ class OneBotParserTest {
              "time":1700000000,"self_id":1,"message_id":2}
         """.trimIndent()
         val msg = parser.parseMessageEvent(json)
-        assertEquals("[表情]了", msg?.content)
+        assertEquals("🤣了", msg?.content)
+    }
+
+    @Test
+    fun `未收录 face 段回退表情占位`() {
+        val json = """
+            {"post_type":"message","message_type":"group","group_id":"123","user_id":"456",
+             "sender":{"nickname":"张三"},"message":[{"type":"face","data":{"id":"99999"}},
+                        {"type":"text","data":{"text":"好"}}],
+             "time":1700000000,"self_id":1,"message_id":2}
+        """.trimIndent()
+        val msg = parser.parseMessageEvent(json)
+        assertEquals("[表情]好", msg?.content)
     }
 
     @Test

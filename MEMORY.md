@@ -9,7 +9,7 @@
 
 ## 版本线
 - v1.1.x：旧 lineage（stapxs 移植版，源码已失传，legacy/ 有 7z 分卷）
-- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.5.0**（versionCode 33，RPK versionCode 31）
+- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.6.0**（versionCode 34，RPK versionCode 32）
 - 签名一致性：rpk 与 APK 同源证书，APK SHA-256 = af8819e27a6ec8d84537ec86937cf016e780376305328abaa4eb79e8c626b004
 
 ## v2.1.0 已完成（2026-09-09）
@@ -42,6 +42,8 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 - 多账号管理（Stapxs-QQ-Lite-X 借鉴）——未做
 - 历史翻页目前基于手机端本地缓存（200条/会话）；如需拉取更早需接 OneBot get_msg 历史（手机端扩展）
 - 字库 8241 字（stapxs 版曾扩到 21197，本基线未带回，InputMethod.ux + dic 结构支持直接替换 dic.js）
+- 真实手环固件的 emoji 字形覆盖未验证：v2.6.0 默认透传 emoji，若真机显示方框，手机端设置页「表情原生渲染」关闭即降级（无需重装）；
+- aiot gRPC sendMouse 触摸注入时序敏感：App 未完全就绪时点击无效，等页面稳定后再点（vvd-ctl.js 已加重试节奏）
 
 ## 关键文件索引
 - 手环：band-qq/src/pages/index/index.ux（列表/防抖/签名diff）、pages/chat/chat.ux（翻页/快捷回复/read_chat）、common/protocol.js（协议v2+convSignature）、common/store.js（未读/装饰/快捷回复）、common/api.js（interconnect 封装，勿动）
@@ -136,3 +138,11 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 4. **手环新消息振动提醒**：app.ux handleMessage push_message 分支，条件 is_self!==true && recall!==1 && visible!==false 时 `require('@system.vibrator').vibrate({mode:'short'})`（api.js 同款惰性 require 模式）；勿扰/群聊过滤手机端已完成，手环零额外判断。
 5. **测试推送模拟器**：pushTestMessage(chatType, scenario) 构造真实 OneBot v11 事件 JSON（数组段格式）走 parseMessageEvent 完整管线（含 atMe/降级），private+group × text/at/image/face/reply/recall/voice/file/long 九场景；发送者昵称六人轮换（id 固定不堆会话），不入手机端历史库；撤回场景=先推文本再推同 time 撤回帧原位灰显；SyncService.testPush 钩子签名改 (String,String)->String 返回 toast 描述；SettingsScreen 模拟器 UI（会话类型两档 + 场景九宫格）。
 6. 构建：APK vc33/2.5.0（apksigner 同源 af8819e2）+ RPK 2.5.0/vc31；容器重置后工具链重建（Temurin JDK17 tarball + commandlinetools + platforms;android-37.0 注意 SDK37 新版号是 android-37.0 非 android-37）；band-qq 单测 51/52（api.js 门控测试为存量失败，与本轮无关）。
+
+## v2.6.0（2026-09-11，versionCode 34 / RPK vc 32）— 预测返回 KSU 原版重做 + PredictiveBackHandler 真实手势动画 + 测试消息入库 + 手环表情支持 + Vela 虚拟机双屏验收
+1. **预测性返回终修（克隆 KernelSU 源码逐行实证，此前 v2.4.2~v2.5.0 四轮都没修对）**：KSU 真实做法 = ①manifest 不写 enableOnBackInvokedCallback；②仅 Application.onCreate（API34+）HiddenApiBypass 豁免 + 反射 `ApplicationInfo.setEnableOnBackInvokedCallback(持久化值)`；③**开关处理器只写偏好+更新 UI，不反射不 recreate（下次启动生效）**。我方此前的「toggle→立即反射→recreate」路线就是闪烁/踢回上级菜单/开关回弹三症状的总根源。现在 ThemeScreen 开关与 KSU ColorPaletteScreen 完全同构（摘要注明重启生效），BandQQApplication/MainActivity 原有逻辑保留。
+2. **预测手势从无效果变真实可见**：flag 开了没动画的根因=自定义导航栈没有消费进度事件。BandQQApp 新增无条件 `PredictiveBackHandler(enabled=overlayOpen)`（activity-compose 1.12.4 源码实证：预测路径走 channel 流；**离散返回也会启动一次性 session 立即 close，即 collect 完整走完 → 一个 handler 通吃两种模式**，替代原三个 BackHandler）；手势期间顶层推入页 graphicsLayer 位移30%宽+缩放0.92+淡出，提交关闭/取消回弹（catch CancellationException 重抛）。推入页开关回归 rememberSaveable（不再 recreate 就无恢复崩溃风险），RecreateCoordinator 删除。
+3. **「手环消息一会就删除」双保险根治**：①手机端 pushTestMessage 入库（v2.5.0 刻意不入库是误判——手环会话/历史以手机端为事实源，不入库=下次同步必被清；用户明确要求进聊天记录）；②band-qq store.js setVisibleContacts 旧逻辑无条件删除不在 visibleIds 的会话+消息缓存 → 改为「有本地消息的临时会话保留」，无消息骨架才清。
+4. **表情支持（face→emoji 映射 + 可降级开关）**：FACE_EMOJI 80 项映射进 OneBotParser（id→名称以 NapCat napcat-core/external/face_config.json 官方数据为准：0=惊讶 13=呲牙 14=微笑，勿信「0=微笑」旧民俗表）；degradeCqString 先 CQ_FACE 后通用 CQ；文本 emoji 不再强制 [表情]。**ConfigManager.emojiNative 开关**（默认 true）控制透传/降级——设置页「消息推送策略」卡内「表情原生渲染」。RPK protocol.js 旧端兼容路径同款小映射。
+5. **Vela 虚拟机验收体系（重大基建）**：aiot-toolkit 自带 VVD 模拟器（QEMU arm，@aiot-toolkit/emulator）。配方：`~/.vela/sdk` 手动装 SDK（emulator/qa/skins/modem + **vela-watch-5.0 镜像 220MB 唯一支持自定义分辨率**；vela-miwear-watch-5.0 383MB 固定尺寸）；hw.lcd.density 只接受枚举值（326 非法→320，否则 qemu 退出 138）；每台独立 grpcPort；`-no-window` 无头 + gRPC getScreenshot 截屏 + sendMouse 触摸（时序敏感，App 就绪后点击才有效）；adb 走 @miwt/adb（需 platform-tools 在 PATH），pushRpk→`pm install`→`am start`。**脚本 /home/z/my-project/scripts/vvd-ctl.js + emulator-setup.sh**。实测发现并修复：首页空态文案 212 折行孤字（字号 18+lines:1）、设置页清空项双折行（缩 4 字+flex-shrink:0）。键盘组件 480px 系 scroll-x 横滑设计非溢出。**Vela watch5.0 镜像字体无 emoji 字形（含 2600-27BF/1F000-1FAFF 全 tofu），GBK 符号（→←★☆○●◎§№）与 ASCII 颜文字正常**——真实手环固件未验证，故 emoji 透传做成可降级开关。
+6. 构建：APK vc34/2.6.0 + RPK 2.6.0/vc32 同源验签；android 单测除存量 GameProtocolDetectorTest 失败外全绿；band-qq 单测 53/54（存量 api 门控失败）。

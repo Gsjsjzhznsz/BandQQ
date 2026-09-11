@@ -331,8 +331,11 @@ export function createStore(storageImpl) {
       if (filtered.length === 0 && visibleContacts.length > 0) return
       visibleContacts = filtered
       const visibleIds = new Set(visibleContacts.map((c) => c.id))
-      const remaining = conversations.filter((c) => !c.is_temporary)
-      conversations = remaining.filter((c) => visibleIds.has(c.id))
+      // v2.6.0：只保留「可见联系人」或「仍有本地消息」的会话。
+      // 旧逻辑无条件丢弃不在可见联系人里的会话并清空其消息缓存 ——
+      // 手机端测试推送等临时会话的消息在下一次联系人同步时被整段清掉
+      //（表现为「手环上的消息一会就删除」）。
+      conversations = conversations.filter((c) => visibleIds.has(c.id) || (messagesByTarget[c.id] && messagesByTarget[c.id].length > 0))
       for (const c of visibleContacts) {
         if (!conversations.some((x) => x.id === c.id)) {
           conversations.push(decorate({ id: c.id, type: c.type, name: c.name, last_msg: '', time: 0, unread: 0, is_temporary: false }))
@@ -340,7 +343,7 @@ export function createStore(storageImpl) {
       }
       const msgKeys = Object.keys(messagesByTarget)
       msgKeys.forEach((k) => {
-        if (!visibleIds.has(k)) {
+        if (!visibleIds.has(k) && (!messagesByTarget[k] || messagesByTarget[k].length === 0)) {
           delete messagesByTarget[k]
           cache.set(MSG_PREFIX + k, JSON.stringify([]))
         }

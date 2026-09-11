@@ -99,15 +99,25 @@ describe('store', () => {
     assert.equal(convs[0].is_temporary, false)
   })
 
-  it('setVisibleContacts 清除临时会话', async () => {
+  it('setVisibleContacts 保留仍有消息的临时会话（v2.6.0 防手环消息被清）', async () => {
     const tmp = { type: 'push_message', message_type: 'private', target_id: '200', sender_id: '200', sender_name: '张三', content: '你好', visible: false, time: 1700000000 }
     await store.upsertMessage(tmp)
     assert.equal((await store.getConversations()).length, 1)
     await store.setVisibleContacts([{ id: '100', type: 'private', name: '小明' }])
     const convs = await store.getConversations()
-    assert.equal(convs.some((c) => c.id === '200'), false)
+    // v2.6.0：有本地消息的临时会话不再被联系人同步清掉（手环消息消失 bug 根治）
+    assert.equal(convs.some((c) => c.id === '200'), true)
     assert.equal(convs.some((c) => c.id === '100' && c.is_temporary === false), true)
-    assert.deepEqual(await store.getMessages('200'), [])
+    assert.equal((await store.getMessages('200')).length, 1)
+  })
+
+  it('setVisibleContacts 仍清除无消息的临时骨架会话', async () => {
+    await store.setConversations([{ id: '300', type: 'private', name: '临时骨架', last_msg: '', time: 0, unread: 0, is_temporary: true }])
+    assert.equal((await store.getConversations()).some((c) => c.id === '300'), true)
+    await store.setVisibleContacts([{ id: '100', type: 'private', name: '小明' }])
+    const convs = await store.getConversations()
+    assert.equal(convs.some((c) => c.id === '300'), false)
+    assert.equal(convs.some((c) => c.id === '100' && c.is_temporary === false), true)
   })
 
   it('空 conversation_list 不清空可见联系人骨架', async () => {

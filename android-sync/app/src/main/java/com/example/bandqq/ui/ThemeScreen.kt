@@ -1,6 +1,5 @@
 package com.example.bandqq.ui
 
-import android.app.Activity
 import android.os.Build
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
@@ -38,7 +37,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.bandqq.BandQQApplication
 import com.example.bandqq.config.ConfigManager
 import com.example.bandqq.ui.component.ScaleDialog
 import com.example.bandqq.ui.util.BlurredBar
@@ -89,7 +87,7 @@ private val KEY_COLOR_OPTIONS = listOf(
  * → 预测性返回/界面缩放（内嵌 Slider + 数值对话框），返回箭头/系统返回键退出。
  */
 @Composable
-fun ThemeScreen(onBack: () -> Unit) {
+fun ThemeScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val configManager = remember { ConfigManager(context) }
@@ -115,6 +113,7 @@ fun ThemeScreen(onBack: () -> Unit) {
     val barColor = if (blurActive) Color.Transparent else colorScheme.surface
 
     Scaffold(
+        modifier = modifier,
         topBar = {
             BlurredBar(blurBackdrop) {
                 SmallTopAppBar(
@@ -300,7 +299,7 @@ fun ThemeScreen(onBack: () -> Unit) {
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
                         SwitchPreference(
                             title = "预测性返回手势",
-                            summary = "启用对预测性返回手势的支持（切换后界面刷新）",
+                            summary = "启用对预测性返回手势的支持（重启应用后生效）",
                             startAction = {
                                 Icon(
                                     MiuixIcons.Sidebar,
@@ -311,23 +310,16 @@ fun ThemeScreen(onBack: () -> Unit) {
                             },
                             checked = predictiveBack,
                             onCheckedChange = { on ->
-                                // v2.5.0 根因修复：写入与 recreate 必须在同一个协程里顺序执行。
-                                // 旧写法 scope.launch{写盘} 后立即 recreate —— 重组作用域随 Activity
-                                // 销毁被取消，写协程在首次运行前就被杀掉，配置从未落盘；
-                                // 重建后读回 false → 表现为「开关刷新后又弹回关闭」。
+                                // v2.6.0 对齐 KernelSU 原版行为（ColorPaletteScreen 同款）：
+                                // 开关只写配置 + 更新 UI 状态，不反射、不 recreate。
+                                // enableOnBackInvokedCallback 标志在窗口 attach 时由系统读取，
+                                // 运行期修改必须重建窗口才生效——KSU 原版也不做即时生效；
+                                // recreate 造成的整页闪烁、推入页被踢回上级菜单（v2.4.7~v2.5.0
+                                // 反复修不好）从根上移除。重启后 BandQQApplication.onCreate
+                                // 按配置应用 flag，返回手势期间推入页将跟手滑动（BandQQApp
+                                // 的 PredictiveBackHandler 驱动，关闭开关则退回瞬时返回）。
                                 scope.launch {
                                     runCatching { configManager.setPredictiveBack(on) }
-                                    // KSU 同款：立即反射设置 + recreate，否则要重进应用才能生效。
-                                    // recreate 前记录当前推入页，重建后 BandQQApp 自动重新推入
-                                    val app = context.applicationContext as? BandQQApplication
-                                    if (app != null) {
-                                        BandQQApplication.setEnableOnBackInvokedCallback(
-                                            app.applicationInfo, on,
-                                        )
-                                        RecreateCoordinator.reopenScreen = "theme"
-                                        RecreateCoordinator.armed = true
-                                        (context as? Activity)?.recreate()
-                                    }
                                 }
                             },
                         )

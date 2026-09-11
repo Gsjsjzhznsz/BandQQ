@@ -1,6 +1,6 @@
 package com.example.bandqq.ui
 
-import androidx.activity.compose.BackHandler
+import androidx.activity.compose.PredictiveBackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -16,18 +16,22 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import com.example.bandqq.sync.MessageBus
 import com.example.bandqq.sync.StoreHolder
 import com.example.bandqq.ui.component.BottomBar
 import com.example.bandqq.ui.component.PageScaffold
 import com.example.bandqq.ui.util.rememberBlurBackdrop
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -59,33 +63,55 @@ fun BandQQApp() {
 
     val pagerState = rememberPagerState(pageCount = { AppTab.entries.size })
     val scope = rememberCoroutineScope()
-    // ⚠️ 推入页开关必须用 remember（非 rememberSaveable）：
-    // 预测性返回开关会 activity.recreate()，若保存了推入态，重建首帧会同时恢复
-    // 推入页进入动画 + 底栏退出动画 + 双 backdrop 注册，曾触发崩溃（v2.4.5）
-    var showThemeScreen by remember { mutableStateOf(false) }
-    var showKeepAlive by remember { mutableStateOf(false) }
-    var showCrashLog by remember { mutableStateOf(false) }
+    // v2.6.0：预测性返回开关不再 recreate（KernelSU 原版同款只落盘），推入页状态
+    // 回归 rememberSaveable：进程内配置变更/瞬时重建不再丢导航状态
+    var showThemeScreen by rememberSaveable { mutableStateOf(false) }
+    var showKeepAlive by rememberSaveable { mutableStateOf(false) }
+    var showCrashLog by rememberSaveable { mutableStateOf(false) }
 
     // 推入页动画时长跟随「动画速度」设置（速度越快时长越短）
     val motionSpeed = LocalMotionSpeed.current.coerceIn(0.5f, 2f)
     val pushIn = (260 / motionSpeed).roundToInt()
     val pushOut = (200 / motionSpeed).roundToInt()
 
-    // v2.4.7：预测性返回开关等需要 recreate 的设置项，重建后自动回到原推入页；
-    // 进程首次冷启动 armed=false，不恢复（否则误恢复上一次进程的残留状态）
-    LaunchedEffect(Unit) {
-        if (RecreateCoordinator.armed) {
-            RecreateCoordinator.armed = false
-            when (RecreateCoordinator.reopenScreen) {
-                "theme" -> showThemeScreen = true
-                "keepalive" -> showKeepAlive = true
-                "crashlog" -> showCrashLog = true
+    val surfaceColor = MiuixTheme.colorScheme.surface
+
+    // ===== 预测性返回（v2.6.0 核心新增）=====
+    // 手势期间顶层推入页跟手位移/缩放/淡出，提交才真正关闭，取消则回弹 ——
+    // 这是「预测性返回手势」开关真正可见的效果（此前只改系统标志无任何可见动画）。
+    // 预测开启时系统下发进度事件（跟手动画）；关闭时退化为离散返回（立即关闭），
+    // 两种模式都由 PredictiveBackHandler 统一接管（activity-compose 1.12.4 源码实证：
+    // 非预测路径 onBackCompleted 也会启动一次性 session 并立即 close，即 collect 完整走完）。
+    var backProgress by remember { mutableFloatStateOf(0f) }
+    val overlayOpen = showThemeScreen || showKeepAlive || showCrashLog
+    // 必须无条件调用（enabled 参数控制），避免条件组合改变 handler 优先级
+    PredictiveBackHandler(enabled = overlayOpen) { progress ->
+        try {
+            progress.collect { backProgress = it.progress }
+            backProgress = 0f
+            // 手势提交（或离散返回）：按优先级关闭最顶层推入页
+            when {
+                showCrashLog -> showCrashLog = false
+                showKeepAlive -> showKeepAlive = false
+                showThemeScreen -> showThemeScreen = false
             }
-            RecreateCoordinator.reopenScreen = null
+        } catch (e: CancellationException) {
+            // 手势取消：回弹（进度归零后由文档要求重新抛出）
+            backProgress = 0f
+            throw e
         }
     }
-
-    val surfaceColor = MiuixTheme.colorScheme.surface
+    // 手势变换：位移到右侧 30% + 轻微缩放 + 淡出（HyperOS 返回预览风格）
+    val predictiveTransform = Modifier.graphicsLayer {
+        val p = backProgress
+        if (p > 0f) {
+            translationX = p * size.width * 0.3f
+            val s = 1f - 0.08f * p
+            scaleX = s
+            scaleY = s
+            alpha = 1f - 0.3f * p
+        }
+    }
 
     // 顶栏/普通底栏模糊源（enableBlur 关闭或设备不支持时为 null，回退实色）
     val blurBackdrop = rememberBlurBackdrop(enableBlur)
@@ -118,7 +144,6 @@ fun BandQQApp() {
     }
 
     // 推入页打开时隐藏底栏（对齐 KSU：推入页后底栏消失，返回后恢复）
-    val overlayOpen = showThemeScreen || showKeepAlive || showCrashLog
 
     Scaffold(
         bottomBar = {
@@ -191,7 +216,7 @@ fun BandQQApp() {
                 },
             )
 
-            // 主题与外观：全屏推入页。
+            // 主题与外观：全屏推入页（PredictiveBack 手势期间跟手位移/缩放/淡出）。
             // ⚠️ 必须留在外层 Scaffold 的 content slot 内（KSU 同构）：miuix 的下拉/对话框
             // 浮层渲染在外层 Scaffold 的 popup slot（content 之上的最高层）；若推入页作为
             // Scaffold 的兄弟节点声明，会整体盖住浮层 —— 表现为「关键色下拉/对话框打不开」。
@@ -201,7 +226,7 @@ fun BandQQApp() {
                 exit = slideOutVertically { it } + fadeOut(tween(pushOut)),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                ThemeScreen(onBack = { showThemeScreen = false })
+                ThemeScreen(onBack = { showThemeScreen = false }, modifier = predictiveTransform)
             }
 
             // 后台保活向导：同款全屏推入
@@ -211,7 +236,7 @@ fun BandQQApp() {
                 exit = slideOutVertically { it } + fadeOut(tween(pushOut)),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                KeepAliveScreen(onBack = { showKeepAlive = false })
+                KeepAliveScreen(onBack = { showKeepAlive = false }, modifier = predictiveTransform)
             }
 
             // 崩溃日志：同款全屏推入
@@ -221,12 +246,8 @@ fun BandQQApp() {
                 exit = slideOutVertically { it } + fadeOut(tween(pushOut)),
                 modifier = Modifier.fillMaxSize(),
             ) {
-                CrashLogScreen(onBack = { showCrashLog = false })
+                CrashLogScreen(onBack = { showCrashLog = false }, modifier = predictiveTransform)
             }
         }
     }
-
-    BackHandler(enabled = showCrashLog) { showCrashLog = false }
-    BackHandler(enabled = showKeepAlive && !showCrashLog) { showKeepAlive = false }
-    BackHandler(enabled = showThemeScreen && !showKeepAlive && !showCrashLog) { showThemeScreen = false }
 }

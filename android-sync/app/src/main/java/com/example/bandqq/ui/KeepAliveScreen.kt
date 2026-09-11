@@ -392,7 +392,7 @@ private fun PermCheckRow(
  */
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun KeepAliveScreen(onBack: () -> Unit) {
+fun KeepAliveScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val enableBlur = LocalEnableBlur.current
     val blurBackdrop = rememberBlurBackdrop(enableBlur)
@@ -441,6 +441,7 @@ fun KeepAliveScreen(onBack: () -> Unit) {
     LaunchedEffect(Unit) { entered = true }
 
     Scaffold(
+        modifier = modifier,
         topBar = {
             BlurredBar(blurBackdrop) {
                 SmallTopAppBar(

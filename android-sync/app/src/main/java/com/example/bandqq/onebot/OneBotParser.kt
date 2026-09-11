@@ -1,5 +1,6 @@
 package com.example.bandqq.onebot
 
+import com.example.bandqq.config.ConfigHolder
 import com.example.bandqq.sync.LogBus
 import com.example.bandqq.sync.LogLevel
 import com.google.gson.JsonArray
@@ -32,6 +33,109 @@ class OneBotParser {
     companion object {
         private val EMOJI = Regex("\\p{So}|\\p{Sk}|[\\x{2600}-\\x{27BF}\\x{2B00}-\\x{2BFF}\\x{1F000}-\\x{1FAFF}\\x{FE0F}\\x{200D}]")
         private val CQ_CODE = Regex("\\[CQ:[^\\]]*\\]")
+        private val CQ_FACE = Regex("\\[CQ:face,id=(\\d+)[^\\]]*\\]")
+
+        /**
+         * QQ 系统表情 id → Unicode emoji（v2.6.0 表情支持）。
+         * id→名称对照以 NapCat 从 QQ NT 客户端提取的官方数据为准（0=惊讶、13=呲牙、
+         * 14=微笑…），名称→emoji 按语义映射；未收录的 id 回退为「[表情]」占位。
+         * 映射后的 emoji 与文本内原有 emoji 一并透传到手环（Vela 原生表情渲染）。
+         */
+        private val FACE_EMOJI: Map<Int, String> = mapOf(
+            0 to "😮",   // 惊讶
+            1 to "😞",   // 撇嘴
+            2 to "😍",   // 色
+            3 to "😐",   // 发呆
+            4 to "😎",   // 得意
+            5 to "😢",   // 流泪
+            6 to "😊",   // 害羞
+            7 to "🤐",   // 闭嘴
+            8 to "😴",   // 睡
+            9 to "😭",   // 大哭
+            10 to "😅",  // 尴尬
+            11 to "😠",  // 发怒
+            12 to "😜",  // 调皮
+            13 to "😁",  // 呲牙
+            14 to "🙂",  // 微笑
+            15 to "🙁",  // 难过
+            16 to "🕶",  // 酷
+            18 to "🤯",  // 抓狂
+            19 to "🤮",  // 吐
+            20 to "🤭",  // 偷笑
+            21 to "🥰",  // 可爱
+            22 to "🙄",  // 白眼
+            23 to "😤",  // 傲慢
+            24 to "🤤",  // 饥饿
+            25 to "😪",  // 困
+            26 to "😨",  // 惊恐
+            27 to "😓",  // 流汗
+            28 to "😆",  // 憨笑
+            29 to "😌",  // 悠闲
+            30 to "💪",  // 奋斗
+            31 to "🤬",  // 咒骂
+            32 to "❓",   // 疑问
+            33 to "🤫",  // 嘘
+            34 to "😵",  // 晕
+            35 to "😫",  // 折磨
+            36 to "😩",  // 衰
+            37 to "💀",  // 骷髅
+            38 to "🔨",  // 敲打
+            39 to "👋",  // 再见
+            41 to "🥶",  // 发抖
+            42 to "💘",  // 爱情
+            43 to "🏃",  // 跳跳
+            46 to "🐷",  // 猪头
+            49 to "🤗",  // 拥抱
+            53 to "🍰",  // 蛋糕
+            55 to "💣",  // 炸弹
+            56 to "🔪",  // 刀
+            59 to "💩",  // 便便
+            60 to "☕",  // 咖啡
+            63 to "🌹",  // 玫瑰
+            64 to "🥀",  // 凋谢
+            66 to "❤",   // 爱心
+            67 to "💔",  // 心碎
+            74 to "☀",   // 太阳
+            75 to "🌙",  // 月亮
+            76 to "👍",  // 赞
+            77 to "👎",  // 踩
+            78 to "🤝",  // 握手
+            79 to "✌",   // 胜利
+            85 to "😘",  // 飞吻
+            86 to "😡",  // 怄火
+            89 to "🍉",  // 西瓜
+            96 to "😰",  // 冷汗
+            97 to "😥",  // 擦汗
+            98 to "👃",  // 抖鼻
+            99 to "👏",  // 鼓掌
+            100 to "😬", // 糗大了
+            101 to "😏", // 坏笑
+            102 to "😤", // 左哼哼
+            103 to "😤", // 右哼哼
+            104 to "🥱", // 哈欠
+            105 to "😒", // 鄙视
+            106 to "🥺", // 委屈
+            107 to "😢", // 快哭了
+            108 to "😈", // 阴险
+            109 to "😗", // 左亲亲
+            110 to "😱", // 吓
+            111 to "🙏", // 可怜
+            112 to "🔪", // 菜刀
+            114 to "🏀", // 篮球
+            116 to "💖", // 示爱
+            118 to "🙏", // 抱拳
+            119 to "💋", // 勾引
+            178 to "🤣", // 斜眼笑
+            181 to "🤔", // 戳一戳
+            182 to "😂", // 笑哭
+            187 to "👻", // 幽灵
+        )
+
+        /** QQ face id → emoji，未收录回退「[表情]」；emojiNative=false 时整体降级占位 */
+        fun faceEmoji(id: Int): String {
+            if (!ConfigHolder.config.emojiNative) return "[表情]"
+            return FACE_EMOJI[id] ?: "[表情]"
+        }
 
         fun stripEmoji(s: String): String = s.replace(EMOJI, "")
 
@@ -171,17 +275,20 @@ class OneBotParser {
     }
 
     /**
-     * CQ 字符串格式降级（v2.5.0 新增）：string 上报的协议端会把 CQ 码原样透传，
-     * 手环上直接显示一串 [CQ:image,file=...]，这里统一替换为可读标记。
+     * CQ 字符串格式降级（v2.5.0 新增；v2.6.0 表情映射）：string 上报的协议端会把 CQ 码
+     * 原样透传，face 段转为对应 emoji（Vela 原生表情渲染），其余段转为可读标记。
      */
     fun degradeCqString(s: String): String {
         var out = s
         out = out.replace(Regex("\\[CQ:at,qq=all[^\\]]*\\]"), "@全体成员")
         out = out.replace(Regex("\\[CQ:at,[^\\]]*name=([^,\\]]+)[^\\]]*\\]")) { m -> "@${m.groupValues[1]}" }
         out = out.replace(Regex("\\[CQ:at,qq=(\\d+)[^\\]]*\\]")) { m -> "@${m.groupValues[1]}" }
+        // face 段先于通用 CQ 处理：映射为 emoji（未收录 id 回退「[表情]」）
+        out = CQ_FACE.replace(out) { m ->
+            faceEmoji(m.groupValues[1].toIntOrNull() ?: -1)
+        }
         out = CQ_CODE.replace(out) { m ->
             when {
-                m.value.startsWith("[CQ:face") -> "[表情]"
                 m.value.startsWith("[CQ:image") -> "[图片]"
                 m.value.startsWith("[CQ:record") || m.value.startsWith("[CQ:voice") -> "[语音]"
                 m.value.startsWith("[CQ:video") -> "[视频]"
@@ -190,7 +297,8 @@ class OneBotParser {
                 else -> ""
             }
         }
-        return markEmoji(out.trim())
+        // v2.6.0：emoji 原生渲染可配置（Vela 部分固件字形缺失，默认透传，tofu 时用户可关）
+        return if (ConfigHolder.config.emojiNative) out.trim() else markEmoji(out.trim())
     }
 
     fun degradeContent(message: com.google.gson.JsonElement?): String {
@@ -204,9 +312,15 @@ class OneBotParser {
             when (seg.get("type")?.asString) {
                 "text" -> {
                     val text = seg.getAsJsonObject("data")?.get("text")?.asString ?: ""
-                    sb.append(markEmoji(text))
+                    // v2.6.0：emoji 原生渲染可配置（默认透传给手环，tofu 时降级「[表情]」）
+                    sb.append(if (ConfigHolder.config.emojiNative) text else markEmoji(text))
                 }
-                "face" -> sb.append("[表情]")
+                "face" -> {
+                    val id = seg.getAsJsonObject("data")?.get("id")?.let {
+                        if (it.isJsonPrimitive) it.asString.toIntOrNull() else null
+                    }
+                    sb.append(if (id != null) faceEmoji(id) else "[表情]")
+                }
                 "image" -> sb.append("[图片]")
                 "record", "voice" -> sb.append("[语音]")
                 "video" -> sb.append("[视频]")

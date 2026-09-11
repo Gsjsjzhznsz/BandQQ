@@ -216,11 +216,12 @@ class MessageBroker(
     }.getOrNull()
 
     /**
-     * 一键测试推送（v2.5.0 升级为多场景模拟器）：
+     * 一键测试推送（v2.5.0 多场景模拟器；v2.6.0 消息入库）：
      * 构造真实 OneBot v11 事件 JSON（数组段格式），走与真实消息完全一致的解析管线
      * （parseMessageEvent → degradeContent/atMe 检测 → toHandBandFrame），
      * 私聊/群聊 × 文本/@我/图片/表情/引用回复/撤回/语音/文件/长文本。
-     * 不入手机端历史库（不污染真实会话），仅推手环验证蓝牙链路与展示效果。
+     * v2.6.0 起同时写入手机端历史库：手环侧会话/历史均以手机端为事实源，
+     * 不入库的消息会在手环下次会话同步/拉历史时被清掉（表现为「手环一会就删除」）。
      *
      * @param chatType "private" | "group"
      * @param scenario text/at/image/face/reply/recall/voice/file/long
@@ -283,21 +284,40 @@ class MessageBroker(
         event.add("message", message)
 
         val parsed = parser.parseMessageEvent(event.toString()) ?: return ""
-        return if (scenario == "recall") {
-            // 撤回场景：先推一条普通文本，再按同一 time 推撤回帧（手环原位灰显替换）
-            val first = parsed.copy(content = "过一会儿我会撤回这条消息")
+        val isRecall = scenario == "recall"
+        // 撤回场景：两端先同步展示同一句文本，随后同 time 撤回（手环原位灰显、手机库内替换标记）
+        val storedContent = if (isRecall) "过一会儿我会撤回这条消息" else parsed.content
+        // 入库（v2.6.0）：与真实消息同路径写入手机端聊天记录，会话名固定用测试会话名，
+        // 不随发送者轮换跳动；未读计数不累计（测试会话不在可见联系人列表）。
+        store.addMessage(
+            parsed.targetId,
+            StoredMessage(
+                messageType = parsed.messageType,
+                senderId = parsed.senderId,
+                senderName = targetName,
+                content = storedContent,
+                time = parsed.time,
+                isSelf = parsed.isSelf,
+                messageId = parsed.messageId,
+                atMe = parsed.atMe,
+            )
+        )
+        MessageBus.notify(parsed.targetId)
+        if (isRecall) {
+            val first = parsed.copy(content = storedContent)
             bandSender(parser.toHandBandFrame(first, visible = true, targetName = targetName))
             bandSender(buildRecallFrame(first.targetId, first.time))
+            if (parsed.messageId.isNotBlank()) store.recallMessage(parsed.targetId, parsed.messageId)
             bandSender(store.buildConversationFrame(0))
-            "已模拟：${if (group) "群聊" else "私聊"} · 撤回（发送者：$senderName）"
-        } else {
-            val label = when (scenario) {
-                "at" -> "@我"; "image" -> "图片"; "face" -> "表情"; "reply" -> "引用回复"
-                "voice" -> "语音"; "file" -> "文件"; "long" -> "长文本"; else -> "文本"
-            }
-            bandSender(parser.toHandBandFrame(parsed, visible = true, targetName = targetName))
-            "已模拟：${if (group) "群聊" else "私聊"} · $label（发送者：$senderName）"
+            return "已模拟：${if (group) "群聊" else "私聊"} · 撤回（发送者：$senderName）"
         }
+        val label = when (scenario) {
+            "at" -> "@我"; "image" -> "图片"; "face" -> "表情"; "reply" -> "引用回复"
+            "voice" -> "语音"; "file" -> "文件"; "long" -> "长文本"; else -> "文本"
+        }
+        bandSender(parser.toHandBandFrame(parsed, visible = true, targetName = targetName))
+        bandSender(store.buildConversationFrame(0))
+        return "已模拟：${if (group) "群聊" else "私聊"} · $label（发送者：$senderName）"
     }
 
     private var testPushCounter = 0

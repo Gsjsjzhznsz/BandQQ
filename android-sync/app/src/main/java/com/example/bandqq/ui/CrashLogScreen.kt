@@ -49,7 +49,7 @@ import top.yukonga.miuix.kmp.blur.layerBackdrop
  * 远程无法复现的崩溃从此有据可查——用户直接把这里的内容发给开发者。
  */
 @Composable
-fun CrashLogScreen(onBack: () -> Unit) {
+fun CrashLogScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
     val context = LocalContext.current
     val enableBlur = LocalEnableBlur.current
     val blurBackdrop = rememberBlurBackdrop(enableBlur)
@@ -64,6 +64,7 @@ fun CrashLogScreen(onBack: () -> Unit) {
     }
 
     Scaffold(
+        modifier = modifier,
         topBar = {
             BlurredBar(blurBackdrop) {
                 SmallTopAppBar(

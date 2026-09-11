@@ -1,8 +1,8 @@
-# BandQQ v2.5.0 — 小米手环 9/10/11 QQ 消息助手（手环快应用 + 安卓同步器）
+# BandQQ v2.6.0 — 小米手环 9/10/11 QQ 消息助手（手环快应用 + 安卓同步器）
 
 > 🧠 **AI 协作记忆库**：[`MEMORY.md`](MEMORY.md) — 本项目的跨会话持久记忆（架构 / bug 台账 / 构建配方 / 任务清单）。任何新会话恢复上下文，先读它。
 
-[![Version](https://img.shields.io/badge/version-2.5.0-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-2.6.0-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
 
 **BandQQ** 是一套开源的「小米手环 QQ 消息助手」双端方案：手环端运行 Vela 快应用（rpk），手机端运行安卓同步器（APK），通过小米互联蓝牙通道把 QQ 消息实时同步到手环，支持直接在手环上**查看 / 回复 / 翻历史消息 / 收图**。
 
@@ -10,7 +10,26 @@
 
 > 关键词：小米手环9 / Mi Band 9 / 小米手环10 / 小米手环11 / Mi Band 11 / 小米手环QQ / 小米手环9 Pro / Redmi Watch / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / Stapxs-QQ-Lite-X / wearable QQ / smartband chat / Mi Band QQ client
 
-## v2.5.0 更新日志（当前版本）
+## v2.6.0 更新日志（当前版本）
+
+### 修复
+1. **预测性返回开关彻底重做（KernelSU 原版实现逐行对齐）**：克隆 KernelSU 源码实证——开关处理器只写偏好 + 更新 UI，**不反射、不 recreate**（flag 在窗口 attach 时由系统读取，运行期切换本就必须重启生效）。此前 v2.4.7~v2.5.0 反复修的「点击闪烁/被踢回上级菜单/开关回弹」从根上消失：开关点击即生效地保存，摘要明示「重启应用后生效」，无任何页面刷新。
+2. **预测性返回手势从「无效果」变「真实可见」**：BandQQApp 新增 `PredictiveBackHandler`（activity-compose 1.12.4），返回手势期间顶层推入页跟手位移（30% 宽）+ 缩放 + 淡出（HyperOS 预览风格），提交才关闭、取消回弹；关闭开关时退化为离散返回。推入页状态回归 `rememberSaveable`，进程内重建不再丢导航；`RecreateCoordinator` 机制整体删除。
+3. **手环消息「一会就删除」根治（双保险）**：
+   - 手机端：测试推送消息同步写入手机聊天记录（v2.5.0 刻意不入库，但手环会话/历史以手机端为事实源，不入库的消息在手环下次同步时被清掉——正是用户观察到的删除现象）；
+   - 手环端：`setVisibleContacts` 不再无条件清除不在可见联系人列表的会话及其消息缓存，改为「仍有本地消息的临时会话保留」，仅清理无消息的骨架会话。
+4. **Band 9/10/11 视觉 bug（Vela 虚拟机实测发现并逐项修复）**：
+   - 首页空态文案「请在手机端添加联系人」在 212×520 折行出孤字 → 字号 20→18 + 单行裁剪，双屏验证单行；
+   - 设置页「清空全部聊天记录」在 192/212 宽度均折行、且右侧「清空」值被挤成竖排 → 缩短为「清空记录」+ `flex-shrink:0`，双屏验证单行。
+
+### 新功能
+5. **手环表情支持**：QQ 系统表情 id → Unicode emoji 映射表（80 项，id→名称以 NapCat 提取的 QQ NT 官方数据为准，0=惊讶/13=呲牙/14=微笑…），face 段与文本内 emoji 均透传手环渲染；旧版手机端兼容回退路径同步支持。设置页新增「表情原生渲染」开关：Vela 部分固件字形缺失时（Vela 虚拟机实测 watch 5.0 镜像无 emoji 字形，会显示方框）关闭即回退「[表情]」占位，无需重装。
+6. **Vela 虚拟机验收体系（aiot-toolkit VVD）**：脚本化创建 212×520（Band 10/11）与 192×490（Band 9）虚拟机、无头启动、gRPC 截屏 + 触摸注入，两台虚拟机并行验收四个页面布局（本版所有手环端修复均经双分辨率截图验证）。
+
+### 保持不变
+- APK 签名同源（SHA-256 `af8819e2…b004`），可**直接覆盖安装**。
+
+## v2.5.0 更新日志（历史版本）
 
 ### 修复
 1. **预测性返回开关真正可用了**：v2.4.7 仍留有一个竞态——配置写入协程刚 `launch` 就 `recreate()`，重组作用域随 Activity 销毁把写协程一起取消，配置从未落盘；重建后读回 false，表现为「点击后界面刷新、开关又弹回关闭」。现在写入、反射设置、recreate 收进**同一个协程顺序执行**（先落盘再重建），点击后界面刷新、开关保持开启、手势立即生效。

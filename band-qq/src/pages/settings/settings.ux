@@ -16,7 +16,7 @@
         <text class="row-value">{{protocolText}}</text>
       </div>
       <div class="card row" @click="askClear">
-        <text class="row-label">清空全部聊天记录</text>
+        <text class="row-label">清空记录</text>
         <text class="row-value danger">清空</text>
       </div>
     </scroll>
@@ -42,7 +42,7 @@
   .page-title { font-size: 24px; color: #ffffff; }
   .card { border-width: 1px; border-color: rgba(255, 255, 255, 0.06); border-radius: 16px; background-color: #262626; }
   .row { height: 52px; flex-direction: row; align-items: center; margin: 4px 8px; padding: 0 12px; }
-  .row-label { font-size: 20px; color: #ffffff; }
+  .row-label { font-size: 19px; color: #ffffff; lines: 1; flex-shrink: 0; }
   .row-value { flex: 1; text-align: right; font-size: 20px; color: #07c160; }
   .row-value.danger { color: #ff5a5a; }
   .section { font-size: 16px; color: rgba(255, 255, 255, 0.6); padding: 8px 12px; }

@@ -74,6 +74,7 @@ fun SettingsScreen(
     var dndStart by remember { mutableStateOf("23:00") }
     var dndEnd by remember { mutableStateOf("07:00") }
     var groupPushMode by remember { mutableIntStateOf(0) }
+    var emojiNative by remember { mutableStateOf(true) }
     var testChatType by remember { mutableStateOf("private") }   // 模拟器：private | group
     var testScenario by remember { mutableStateOf("text") }      // 模拟器：text/at/image/face/reply/recall/voice/file/long
     var loaded by remember { mutableStateOf(false) }
@@ -93,6 +94,7 @@ fun SettingsScreen(
         dndStart = cfg.dndStart
         dndEnd = cfg.dndEnd
         groupPushMode = cfg.groupPushMode
+        emojiNative = cfg.emojiNative
         // 默认 WebUI 地址：由 HTTP 地址推导同主机 :5099（SnowLuma WebUI 默认端口）
         webuiUrl = cfg.webuiUrl.ifBlank {
             runCatching {
@@ -338,6 +340,16 @@ fun SettingsScreen(
                         fontSize = 12.sp,
                         color = colorScheme.onSurfaceSecondary,
                     )
+                    // ===== 表情渲染（v2.6.0）：QQ 表情映射 emoji 透传，缺字形可降级 =====
+                    SwitchPreference(
+                        title = "表情原生渲染",
+                        summary = "QQ 表情/emoji 映射后透传手环显示；若手环字体缺字形出现方框，关闭即回退「[表情]」占位",
+                        checked = emojiNative,
+                        onCheckedChange = { on ->
+                            emojiNative = on
+                            scope.launch { configManager.setEmojiNative(on) }
+                        },
+                    )
                     // ===== 测试推送模拟器（v2.5.0）：私聊/群聊 × 多种消息类型 =====
                     Text(
                         text = "测试推送模拟器",
@@ -345,7 +357,7 @@ fun SettingsScreen(
                         fontSize = 14.sp,
                     )
                     Text(
-                        text = "构造真实 OneBot 事件走完整解析管线，验证手环各消息形态展示（不污染历史库）",
+                        text = "构造真实 OneBot 事件走完整解析管线；消息同时写入手机聊天记录，手环端不会掉同步",
                         modifier = Modifier.padding(top = 4.dp),
                         fontSize = 12.sp,
                         color = colorScheme.onSurfaceSecondary,

@@ -42,7 +42,8 @@ data class AppConfig(
     val dndEnabled: Boolean = false,   // 勿扰时段开关：时段内新消息只入历史不推手环
     val dndStart: String = "23:00",    // 勿扰开始（HH:mm，支持跨零点）
     val dndEnd: String = "07:00",      // 勿扰结束（HH:mm）
-    val groupPushMode: Int = 0         // 群聊推送：0=全部 1=仅@我(含@全体) 2=不推送
+    val groupPushMode: Int = 0,        // 群聊推送：0=全部 1=仅@我(含@全体) 2=不推送
+    val emojiNative: Boolean = true    // v2.6.0 表情：true=QQ表情/emoji 映射为原生 emoji 透传；false=降级 [表情] 占位（手环字形缺失时）
 )
 
 object ConfigHolder {
@@ -72,6 +73,7 @@ class ConfigManager(private val context: Context) {
         val DND_START = stringPreferencesKey("dnd_start")
         val DND_END = stringPreferencesKey("dnd_end")
         val GROUP_PUSH_MODE = intPreferencesKey("group_push_mode")
+        val EMOJI_NATIVE = booleanPreferencesKey("emoji_native")
     }
 
     suspend fun load(): AppConfig {
@@ -98,6 +100,7 @@ class ConfigManager(private val context: Context) {
             pageScale = prefs[Keys.PAGE_SCALE] ?: default.pageScale,
             motionSpeed = prefs[Keys.MOTION_SPEED] ?: default.motionSpeed,
             motionStagger = prefs[Keys.MOTION_STAGGER] ?: default.motionStagger,
+            emojiNative = prefs[Keys.EMOJI_NATIVE] ?: default.emojiNative,
             dndEnabled = prefs[Keys.DND_ENABLED] ?: default.dndEnabled,
             dndStart = prefs[Keys.DND_START] ?: default.dndStart,
             dndEnd = prefs[Keys.DND_END] ?: default.dndEnd,
@@ -125,6 +128,7 @@ class ConfigManager(private val context: Context) {
             prefs[Keys.PAGE_SCALE] = config.pageScale
             prefs[Keys.MOTION_SPEED] = config.motionSpeed
             prefs[Keys.MOTION_STAGGER] = config.motionStagger
+            prefs[Keys.EMOJI_NATIVE] = config.emojiNative
             prefs[Keys.DND_ENABLED] = config.dndEnabled
             prefs[Keys.DND_START] = config.dndStart
             prefs[Keys.DND_END] = config.dndEnd
@@ -251,5 +255,13 @@ class ConfigManager(private val context: Context) {
     suspend fun setGroupPushMode(mode: Int) {
         context.dataStore.edit { it[Keys.GROUP_PUSH_MODE] = mode }
         ConfigHolder.config = ConfigHolder.config.copy(groupPushMode = mode)
+    }
+
+    /** 表情原生渲染开关（v2.6.0）：手环字形缺失导致 tofu 时关闭即降级占位 */
+    fun observeEmojiNative(): Flow<Boolean> = context.dataStore.data.map { it[Keys.EMOJI_NATIVE] ?: true }
+
+    suspend fun setEmojiNative(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.EMOJI_NATIVE] = enabled }
+        ConfigHolder.config = ConfigHolder.config.copy(emojiNative = enabled)
     }
 }

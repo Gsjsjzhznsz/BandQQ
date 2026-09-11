@@ -89,12 +89,23 @@ function markEmoji(s) {
   return transformEmoji(s, true)
 }
 
+/** 常用 QQ face id → emoji 小映射（旧版手机端兼容回退用；新版手机端已下发 emoji） */
+const FACE_EMOJI = {
+  0: '😮', 1: '😞', 2: '😍', 3: '😐', 4: '😎', 5: '😢', 6: '😊', 7: '🤐',
+  8: '😴', 9: '😭', 10: '😅', 11: '😠', 12: '😜', 13: '😁', 14: '🙂', 20: '🤭',
+  22: '🙄', 28: '😆', 32: '❓', 39: '👋', 49: '🤗', 63: '🌹', 66: '❤', 67: '💔',
+  76: '👍', 77: '👎', 85: '😘', 96: '😰', 99: '👏', 101: '😏', 104: '🥱', 178: '🤣'
+}
+
 function degradeContent(raw) {
-  if (typeof raw === 'string') return markEmoji(raw)
+  if (typeof raw === 'string') return raw
   if (!Array.isArray(raw)) return ''
   return raw.map((seg) => {
-    if (seg.type === 'text') return markEmoji((seg.data && seg.data.text) || '')
-    if (seg.type === 'face') return '[表情]'
+    if (seg.type === 'text') return (seg.data && seg.data.text) || ''
+    if (seg.type === 'face') {
+      const id = seg.data && Number(seg.data.id)
+      return (id !== null && FACE_EMOJI[id]) || '[表情]'
+    }
     if (seg.type === 'image') return '[图片]'
     if (seg.type === 'record' || seg.type === 'voice') return '[语音]'
     if (seg.type === 'video') return '[视频]'
