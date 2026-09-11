@@ -9,7 +9,7 @@
 
 ## 版本线
 - v1.1.x：旧 lineage（stapxs 移植版，源码已失传，legacy/ 有 7z 分卷）
-- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.6.0**（versionCode 34，RPK versionCode 32）
+- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.7.0**（versionCode 35，RPK versionCode 33）
 - 签名一致性：rpk 与 APK 同源证书，APK SHA-256 = af8819e27a6ec8d84537ec86937cf016e780376305328abaa4eb79e8c626b004
 
 ## v2.1.0 已完成（2026-09-09）
@@ -138,6 +138,20 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 4. **手环新消息振动提醒**：app.ux handleMessage push_message 分支，条件 is_self!==true && recall!==1 && visible!==false 时 `require('@system.vibrator').vibrate({mode:'short'})`（api.js 同款惰性 require 模式）；勿扰/群聊过滤手机端已完成，手环零额外判断。
 5. **测试推送模拟器**：pushTestMessage(chatType, scenario) 构造真实 OneBot v11 事件 JSON（数组段格式）走 parseMessageEvent 完整管线（含 atMe/降级），private+group × text/at/image/face/reply/recall/voice/file/long 九场景；发送者昵称六人轮换（id 固定不堆会话），不入手机端历史库；撤回场景=先推文本再推同 time 撤回帧原位灰显；SyncService.testPush 钩子签名改 (String,String)->String 返回 toast 描述；SettingsScreen 模拟器 UI（会话类型两档 + 场景九宫格）。
 6. 构建：APK vc33/2.5.0（apksigner 同源 af8819e2）+ RPK 2.5.0/vc31；容器重置后工具链重建（Temurin JDK17 tarball + commandlinetools + platforms;android-37.0 注意 SDK37 新版号是 android-37.0 非 android-37）；band-qq 单测 51/52（api.js 门控测试为存量失败，与本轮无关）。
+
+## v2.7.0（2026-09-11，versionCode 35 / RPK vc 33）— 快应用自动拉起 + 联系人头像 + 清空同步根治 + 图标纯黑 + @动效 + 快捷回复即时同步
+
+**用户置顶需求：互联自动拉起快应用**（快应用没打开时收消息不显示）：
+- `sync/AutoLauncher.kt`：MessageBroker.onEvent 推送未拦截后触发 `scheduleIfEnabled()`；判定链 = 开关开 && !bandConnected（无 pong）&& 节点就绪；先发系统通知「将于 N 秒后自动打开」（运动健康通知同步镜像到手环，即用户说的"系统信息会被应用同步到手环"）→ 延迟后 `InterconnectBridge.launchWearAppNow()`（新增，只调 launchWearApp 不动鉴权/监听链，避免与重连循环并发冲突）；消息风暴去重（pendingJob 活跃即跳过）；onConnect/onBandConnected、点通知（MainActivity onNewIntent + EXTRA_CANCEL_AUTO_LAUNCH）、关开关三个路径都会取消；勿扰/群聊过滤命中不触发
+- ConfigManager 新键：autoLaunchEnabled(默认 false)/autoLaunchDelaySec(默认 10)；设置页新专区「快应用自动拉起」（SwitchPreference + 5/10/15/30s 档位，后续 reveal index 顺延：WebUI=6 关于=7）
+
+**其余改动**：
+- 清空同步根治（手环清了又重新同步回来）：根因 = 手环 doClear 的 `api.send` 未 await 且失败静默，清空请求丢失后手机端记录全部推回。修复：手环 await+3 次重试+成功后回拉确认；手机端 clear_all_history 处理后回推 buildConversationFrame 作为 ack；HistoryScreen 清空按钮加二次确认弹窗（androidx Dialog）；两端确认文案明示"会请求对端同步清除"；clearAllHistory 补清 atUnreadByTarget
+- 联系人头像：新 `ui/component/AvatarCircle.kt`（MessageStore.Display.hueOf/avatarChar 与手环同源），ContactScreen/HistoryScreen 行首 40dp 圆，Row CenterVertically 修复"偏下"观感
+- 手环图标纯黑：底色 #0D1015→#000000（scripts/recolor-icon-black.py，通道级重着色含过渡带压暗；icon_preview.png+手环 icon.png，Android fg 透明底不动）
+- @动效：chat.ux .bubble-at 金边+keyframes atPulse 呼吸（border-color/背景亮度，不触发布局）；index.ux .item-at 同款；RPK 编译产物已验证 keyframes 生成（chat.js 内 keyframes 描述符）
+- 快捷回复即时同步：SyncService.pushQuickRepliesNow hook；设置页快捷回复卡新按钮「保存并同步到手环（即时生效）」+ 主保存也附带；手环端 app.ux quick_replies→emit→chat.ux 监听链路早已就绪，此前缺的只是手机端主动推
+- 存量测试失败（非本批引入，基线同样失败）：RPK 端 api.test.js 1 例、APK 端 GameProtocolDetectorTest 1 例（容器 localhost 探测环境限制）；受影响模块 sync/config/parser 测试全部通过
 
 ## v2.6.0（2026-09-11，versionCode 34 / RPK vc 32）— 预测返回 KSU 原版重做 + PredictiveBackHandler 真实手势动画 + 测试消息入库 + 手环表情支持 + Vela 虚拟机双屏验收
 1. **预测性返回终修（克隆 KernelSU 源码逐行实证，此前 v2.4.2~v2.5.0 四轮都没修对）**：KSU 真实做法 = ①manifest 不写 enableOnBackInvokedCallback；②仅 Application.onCreate（API34+）HiddenApiBypass 豁免 + 反射 `ApplicationInfo.setEnableOnBackInvokedCallback(持久化值)`；③**开关处理器只写偏好+更新 UI，不反射不 recreate（下次启动生效）**。我方此前的「toggle→立即反射→recreate」路线就是闪烁/踢回上级菜单/开关回弹三症状的总根源。现在 ThemeScreen 开关与 KSU ColorPaletteScreen 完全同构（摘要注明重启生效），BandQQApplication/MainActivity 原有逻辑保留。

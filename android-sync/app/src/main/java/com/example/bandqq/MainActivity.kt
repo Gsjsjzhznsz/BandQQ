@@ -1,6 +1,7 @@
 package com.example.bandqq
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
@@ -19,6 +20,7 @@ import androidx.core.content.ContextCompat
 import androidx.navigationevent.NavigationEventDispatcherOwner
 import androidx.navigationevent.compose.LocalNavigationEventDispatcherOwner
 import com.example.bandqq.config.ConfigManager
+import com.example.bandqq.sync.AutoLauncher
 import com.example.bandqq.ui.BandQQApp
 import com.example.bandqq.ui.BandQQTheme
 import com.example.bandqq.ui.LocalEnableBlur
@@ -35,6 +37,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         // 温启动时重新应用预测性返回开关（设置切换后无需冷启动进程）
         (application as? BandQQApplication)?.applyPredictiveBackFlag()
+        // v2.7.0：从「自动拉起预告通知」点进来 = 用户不想这次拉起，取消待执行任务
+        handleAutoLaunchCancel(intent)
         val configManager = ConfigManager(applicationContext)
         setContent {
             // activity 1.12+ 的 ComponentActivity 已实现 NavigationEventDispatcherOwner；
@@ -70,6 +74,18 @@ class MainActivity : ComponentActivity() {
                 }
                 BluetoothPermissionRequester()
             }
+        }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        // singleTop 复用时通知点击也走这里（FLAG_ACTIVITY_SINGLE_TOP + CLEAR_TOP）
+        handleAutoLaunchCancel(intent)
+    }
+
+    private fun handleAutoLaunchCancel(intent: Intent?) {
+        if (intent?.getBooleanExtra(AutoLauncher.EXTRA_CANCEL_AUTO_LAUNCH, false) == true) {
+            AutoLauncher.cancelPending("notification tap")
         }
     }
 }

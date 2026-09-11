@@ -47,8 +47,13 @@
   .name-row { flex-direction: row; align-items: center; }
   .item-name { font-size: 20px; color: #ffffff; max-width: 88px; lines: 1; text-overflow: ellipsis; }
   .item-tag { font-size: 12px; color: #ffb800; border-width: 1px; border-color: #ffb800; border-radius: 6px; padding: 0 4px; margin-left: 6px; }
-  /* @我 未读提示（手机端检测 CQ:at 下发 cat 标志，读后自动消失） */
-  .item-at { font-size: 12px; color: #07c160; background-color: rgba(7, 193, 96, 0.14); border-radius: 6px; padding: 1px 5px; margin-left: 6px; }
+  /* @我 未读提示（手机端检测 CQ:at 下发 cat 标志，读后自动消失）v2.7.0 同步呼吸动效 */
+  .item-at { font-size: 12px; color: #07c160; background-color: rgba(7, 193, 96, 0.14); border-radius: 6px; padding: 1px 5px; margin-left: 6px; animation-name: atTagPulse; animation-duration: 2s; animation-iteration-count: infinite; animation-timing-function: ease-in-out; }
+  @keyframes atTagPulse {
+    0% { background-color: rgba(7, 193, 96, 0.10); }
+    50% { background-color: rgba(7, 193, 96, 0.30); }
+    100% { background-color: rgba(7, 193, 96, 0.10); }
+  }
   .item-prev { font-size: 15px; color: rgba(255, 255, 255, 0.45); margin-top: 4px; max-width: 96px; lines: 1; text-overflow: ellipsis; }
   .right { width: 40px; height: 86px; flex-direction: column; align-items: flex-end; justify-content: flex-start; padding: 10px 10px 0 0; position: absolute; right: 0; top: 0; }
   .item-time { font-size: 13px; color: rgba(255, 255, 255, 0.4); }

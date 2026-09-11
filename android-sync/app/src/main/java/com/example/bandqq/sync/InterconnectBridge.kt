@@ -333,6 +333,8 @@ object InterconnectBridge {
     fun onConnect() {
         SyncState.bandConnected = true
         BandStateBus.notify(true)
+        // v2.7.0：快应用已连上，撤销待执行的自动拉起与预告通知
+        try { AutoLauncher.onBandConnected() } catch (_: Throwable) {}
         broker?.bandSender?.invoke(SyncStatePush.buildFrame())
         broker?.pushVisibleContacts()
         broker?.pushQuickReplies()
@@ -345,6 +347,23 @@ object InterconnectBridge {
         if (wasConnected) {
             broker?.bandSender?.invoke(SyncStatePush.buildFrame())
         }
+    }
+
+    /**
+     * 仅拉起手环端快应用，不动鉴权/监听链（v2.7.0 AutoLauncher 专用）。
+     * 与 connect(launchApp=true) 的区别：不重新走 connectedNodes/auth/addListener，
+     * 避免自动拉起场景下与心跳/重连循环并发触发多条连接链路。
+     */
+    fun launchWearAppNow() {
+        val node = currentNode
+        val nodeApi = nodeApi
+        if (node == null || nodeApi == null) {
+            LogBus.log(TAG, LogLevel.WARN, "launchWearAppNow skipped: node not ready")
+            return
+        }
+        nodeApi.launchWearApp(node.id, WEAR_ENTRY_ROUTE)
+            .addOnSuccessListener { LogBus.log(TAG, LogLevel.INFO, "launchWearAppNow ok: quick app opening on band") }
+            .addOnFailureListener { e -> LogBus.log(TAG, LogLevel.ERROR, "launchWearAppNow failed: $e") }
     }
 
     fun release() {

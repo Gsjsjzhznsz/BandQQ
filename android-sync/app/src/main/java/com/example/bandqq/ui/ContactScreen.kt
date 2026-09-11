@@ -28,12 +28,14 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.state.ToggleableState
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.bandqq.config.ConfigHolder
 import com.example.bandqq.onebot.OneBotClient
 import com.example.bandqq.onebot.OneBotParser
 import com.example.bandqq.sync.InterconnectBridge
 import com.example.bandqq.sync.StoreHolder
 import com.example.bandqq.sync.VisibleContact
+import com.example.bandqq.ui.component.AvatarCircle
 import com.example.bandqq.ui.component.PageScaffold
 import com.google.gson.JsonParser
 import kotlinx.coroutines.Dispatchers
@@ -136,7 +138,14 @@ fun ContactScreen(bottomInnerPadding: Dp, isActive: Boolean = true) {
                             modifier = Modifier.fillMaxWidth().padding(start = 0.dp, top = 12.dp, bottom = 12.dp, end = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
-                            Column(modifier = Modifier.weight(1f).padding(start = 16.dp)) {
+                            AvatarCircle(
+                                name = c.name,
+                                id = c.id,
+                                size = 40.dp,
+                                fontSize = 17.sp,
+                                modifier = Modifier.padding(start = 12.dp),
+                            )
+                            Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
                                 Text(text = c.name.ifBlank { c.id })
                                 Text(
                                     text = if (type == "private") "私聊" else "群聊",

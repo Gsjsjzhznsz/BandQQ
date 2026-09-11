@@ -308,8 +308,11 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
         messagesByTarget.clear()
         duplicates.clear()
         unreadByTarget.clear()
+        // v2.7.0：@我 未读提示一并清除（此前遗漏，清空后手环列表仍残留「@我」角标）
+        atUnreadByTarget.clear()
         persistMessages()
         persistUnread()
+        persistAtUnread()
     }
 
     private fun loadCachedContacts(): MutableList<VisibleContact> {

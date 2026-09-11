@@ -1,5 +1,6 @@
 package com.example.bandqq.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -10,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -23,10 +25,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.example.bandqq.sync.ConversationInfo
 import com.example.bandqq.sync.InterconnectBridge
 import com.example.bandqq.sync.MessageBus
 import com.example.bandqq.sync.StoreHolder
+import com.example.bandqq.ui.component.AvatarCircle
 import com.example.bandqq.ui.component.PageScaffold
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -53,6 +57,8 @@ fun HistoryScreen(bottomInnerPadding: Dp, isActive: Boolean = true) {
     }
 
     var detailConv by remember { mutableStateOf<ConversationInfo?>(null) }
+    // v2.7.0 二次清除确认：破坏性操作 + 会同步请求手机端清除，必须显式确认
+    var confirmClear by remember { mutableStateOf(false) }
 
     var entered by remember { mutableStateOf(false) }
     // 仅当本页为当前页才播入场动画（HorizontalPager 预组合不触发）
@@ -86,7 +92,8 @@ fun HistoryScreen(bottomInnerPadding: Dp, isActive: Boolean = true) {
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
+                    AvatarCircle(name = conv.name, id = conv.id, size = 40.dp, fontSize = 17.sp)
+                    Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
                         Text(text = conv.name)
                         Text(
                             text = conv.lastMsg.ifBlank { "暂无消息" },
@@ -105,15 +112,53 @@ fun HistoryScreen(bottomInnerPadding: Dp, isActive: Boolean = true) {
         TextButton(
             text = "清空全部聊天记录",
             modifier = Modifier.padding(top = 8.dp),
-            onClick = {
-                StoreHolder.store?.clearAllHistory()
-                InterconnectBridge.sendToBand("""{"type":"clear_all_history","seq":0}""")
-                toast(context, "聊天记录已清空")
-                refresh++
-            },
+            onClick = { confirmClear = true },
         )
         Spacer(modifier = Modifier.height(bottomInnerPadding + 12.dp))
     }
+    }
+
+    // v2.7.0：清空二次确认 —— 同时说明会请求手环端同步清空
+    if (confirmClear) {
+        androidx.compose.ui.window.Dialog(onDismissRequest = { confirmClear = false }) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MiuixTheme.colorScheme.surface, RoundedCornerShape(20.dp))
+                    .padding(20.dp),
+            ) {
+                Text(text = "清空全部聊天记录", fontSize = 18.sp)
+                Text(
+                    text = "将清除手机端已保存的记录，并请求手环端同步清空，此操作不可恢复。确定继续？",
+                    modifier = Modifier.padding(top = 10.dp),
+                    fontSize = 14.sp,
+                    color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 18.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    TextButton(
+                        text = "取消",
+                        modifier = Modifier.weight(1f),
+                        onClick = { confirmClear = false },
+                    )
+                    TextButton(
+                        text = "清空",
+                        modifier = Modifier.weight(1f),
+                        onClick = {
+                            confirmClear = false
+                            StoreHolder.store?.clearAllHistory()
+                            InterconnectBridge.sendToBand("""{"type":"clear_all_history","seq":0}""")
+                            // 回推权威空会话帧：手环本地若残留旧预览立即被覆盖
+                            InterconnectBridge.sendToBand(StoreHolder.store?.buildConversationFrame(0) ?: "")
+                            toast(context, "聊天记录已清空")
+                            refresh++
+                        },
+                    )
+                }
+            }
+        }
     }
 
     val c = detailConv

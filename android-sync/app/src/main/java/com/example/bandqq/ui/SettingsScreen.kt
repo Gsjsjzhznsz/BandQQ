@@ -75,6 +75,8 @@ fun SettingsScreen(
     var dndEnd by remember { mutableStateOf("07:00") }
     var groupPushMode by remember { mutableIntStateOf(0) }
     var emojiNative by remember { mutableStateOf(true) }
+    var autoLaunchEnabled by remember { mutableStateOf(false) }
+    var autoLaunchDelay by remember { mutableIntStateOf(10) }
     var testChatType by remember { mutableStateOf("private") }   // 模拟器：private | group
     var testScenario by remember { mutableStateOf("text") }      // 模拟器：text/at/image/face/reply/recall/voice/file/long
     var loaded by remember { mutableStateOf(false) }
@@ -95,6 +97,8 @@ fun SettingsScreen(
         dndEnd = cfg.dndEnd
         groupPushMode = cfg.groupPushMode
         emojiNative = cfg.emojiNative
+        autoLaunchEnabled = cfg.autoLaunchEnabled
+        autoLaunchDelay = cfg.autoLaunchDelaySec
         // 默认 WebUI 地址：由 HTTP 地址推导同主机 :5099（SnowLuma WebUI 默认端口）
         webuiUrl = cfg.webuiUrl.ifBlank {
             runCatching {
@@ -218,7 +222,9 @@ fun SettingsScreen(
                                             webuiUrl = webuiUrl.trim(),
                                         )
                                     )
-                                    toast(context, "配置已保存")
+                                    // v2.7.0：保存后立即推给手环，免重启快应用
+                                    SyncService.pushQuickRepliesNow?.invoke()
+                                    toast(context, "配置已保存并同步快捷回复")
                                 }
                             },
                             colors = ButtonDefaults.buttonColorsPrimary(),
@@ -257,11 +263,28 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Text(
-                        text = "保存后生效；发送内容保留 CQ 码原文，按钮标签 = 剥离 CQ/表情后的前 6 个字",
+                        text = "发送内容保留 CQ 码原文，按钮标签 = 剥离 CQ/表情后的前 6 个字",
                         modifier = Modifier.padding(top = 8.dp),
                         fontSize = 12.sp,
                         color = colorScheme.onSurfaceSecondary,
                     )
+                    // v2.7.0：单独保存 + 立即同步（此前需重启快应用才能生效）
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                configManager.save(
+                                    ConfigHolder.config.copy(
+                                        quickReplies = quickReplies.split("\n").map { it.trim() }
+                                            .filter { it.isNotEmpty() },
+                                    )
+                                )
+                                SyncService.pushQuickRepliesNow?.invoke()
+                                toast(context, "已保存并同步到手环")
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColorsPrimary(),
+                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                    ) { Text("保存并同步到手环（即时生效）") }
                 }
             }
 
@@ -412,9 +435,57 @@ fun SettingsScreen(
                 }
             }
 
+            // ===== 快应用自动拉起（v2.7.0 用户置顶需求）=====
+            SmallTitle(text = "快应用自动拉起")
+            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 5)) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    SwitchPreference(
+                        title = "新消息自动拉起快应用",
+                        summary = "手环QQ 未打开时收到新消息，延迟后自动通过互联拉起快应用同步展示；" +
+                            "拉起前会发系统通知预告（运动健康的通知同步会把它显示在手环上）",
+                        checked = autoLaunchEnabled,
+                        onCheckedChange = { on ->
+                            autoLaunchEnabled = on
+                            scope.launch { configManager.setAutoLaunchEnabled(on) }
+                            if (!on) {
+                                // 关闭即撤销待执行任务与预告通知（AutoLauncher 为单例 object，无 NPE 风险）
+                                com.example.bandqq.sync.AutoLauncher.onSettingDisabled()
+                            }
+                        },
+                    )
+                    Text(
+                        text = "拉起延迟",
+                        modifier = Modifier.padding(top = 14.dp),
+                        fontSize = 14.sp,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        listOf("5秒" to 5, "10秒" to 10, "15秒" to 15, "30秒" to 30).forEach { (label, sec) ->
+                            Button(
+                                onClick = {
+                                    autoLaunchDelay = sec
+                                    scope.launch { configManager.setAutoLaunchDelay(sec) }
+                                },
+                                colors = if (autoLaunchDelay == sec) ButtonDefaults.buttonColorsPrimary() else ButtonDefaults.buttonColors(),
+                                modifier = Modifier.weight(1f),
+                            ) { Text(label, fontSize = 13.sp) }
+                        }
+                    }
+                    Text(
+                        text = "延迟内打开过手环QQ 或点击预告通知，本次自动拉起自动取消；勿扰时段/群聊过滤命中" +
+                            "的消息不会触发拉起。需同步服务运行且小米运动健康已连接手环。",
+                        modifier = Modifier.padding(top = 8.dp),
+                        fontSize = 12.sp,
+                        color = colorScheme.onSurfaceSecondary,
+                    )
+                }
+            }
+
             // ===== SnowLuma WebUI =====
             SmallTitle(text = "SnowLuma WebUI")
-            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 5)) {
+            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 6)) {
                 Column(
                     modifier = Modifier.padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -443,7 +514,7 @@ fun SettingsScreen(
 
             // ===== 关于内嵌 SnowLuma =====
             SmallTitle(text = "关于协议端")
-            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 6)) {
+            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 7)) {
                 Text(
                     text = "SnowLuma 为 hook 型协议端，需要向桌面版 QQ 进程注入（ptrace），" +
                         "无法直接内嵌进 APK。推荐用 Termux 一键脚本把协议端跑在本机：" +

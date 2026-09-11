@@ -131,6 +131,11 @@ class SyncService : Service() {
         @Volatile
         var testPush: ((String, String) -> String)? = null
             private set
+
+        /** 快捷回复即时同步钩子（v2.7.0）：设置页保存后立即推给手环，免重启快应用 */
+        @Volatile
+        var pushQuickRepliesNow: (() -> Unit)? = null
+            private set
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -175,6 +180,8 @@ class SyncService : Service() {
         oneBot.startWithListener(broker)
         InterconnectBridge.register(broker)
         testPush = { chatType, scenario -> broker.pushTestMessage(chatType, scenario) }
+        pushQuickRepliesNow = { broker.pushQuickReplies() }
+        AutoLauncher.init(this)
         InterconnectBridge.init(this)
     }
 
@@ -202,6 +209,8 @@ class SyncService : Service() {
     override fun onDestroy() {
         isRunning = false
         testPush = null
+        pushQuickRepliesNow = null
+        AutoLauncher.cancelPending("service destroyed")
         oneBot.stop()
         InterconnectBridge.unregister(broker)
         scope.cancel()

@@ -1,8 +1,8 @@
-# BandQQ v2.6.0 — 小米手环 9/10/11 QQ 消息助手（手环快应用 + 安卓同步器）
+# BandQQ v2.7.0 — 小米手环 9/10/11 QQ 消息助手（手环快应用 + 安卓同步器）
 
 > 🧠 **AI 协作记忆库**：[`MEMORY.md`](MEMORY.md) — 本项目的跨会话持久记忆（架构 / bug 台账 / 构建配方 / 任务清单）。任何新会话恢复上下文，先读它。
 
-[![Version](https://img.shields.io/badge/version-2.6.0-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-2.7.0-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
 
 **BandQQ** 是一套开源的「小米手环 QQ 消息助手」双端方案：手环端运行 Vela 快应用（rpk），手机端运行安卓同步器（APK），通过小米互联蓝牙通道把 QQ 消息实时同步到手环，支持直接在手环上**查看 / 回复 / 翻历史消息 / 收图**。
 
@@ -10,7 +10,23 @@
 
 > 关键词：小米手环9 / Mi Band 9 / 小米手环10 / 小米手环11 / Mi Band 11 / 小米手环QQ / 小米手环9 Pro / Redmi Watch / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / Stapxs-QQ-Lite-X / wearable QQ / smartband chat / Mi Band QQ client
 
-## v2.6.0 更新日志（当前版本）
+## v2.7.0 更新日志（当前版本）
+
+### 新功能
+1. **快应用自动拉起（互联 launchWearApp，置顶需求）**：手环QQ 未打开时收到新消息，延迟 N 秒自动通过互联拉起快应用完成同步展示，无需手动打开。设置页新增「快应用自动拉起」专区：总开关（默认关）+ 拉起延迟档位（5/10/15/30 秒）。拉起前先发一条系统通知「将于 N 秒后自动打开手环QQ」——运动健康的应用通知同步会把它镜像到手环，作为预告；点击通知或延迟内手动打开快应用即自动取消本次拉起；勿扰时段/群聊过滤命中的消息不触发。实现上 `AutoLauncher` 只调 `launchWearApp` 不动鉴权/监听链，与心跳重连循环无并发冲突；消息风暴自动去重（同一时刻至多一个待执行任务）。
+2. **手机端联系人/聊天记录列表头像**：新增 `AvatarCircle` 组件（与手环端同一套 id 色相散列 + 首字符），联系人页与聊天记录页每行展示彩色头像圆，两端视觉统一；固定尺寸 Box 居中排版，修复此前行内元素偏下的观感。
+3. **快捷回复即时同步**：设置页新增「保存并同步到手环（即时生效）」按钮，主「保存」按钮也附带同步 —— 改完快捷回复手环立即生效，不再需要重启快应用。
+4. **@我 消息动效**：聊天页 @我 气泡金色描边 + 呼吸光晕动画（仅动 border-color/背景亮度，不触发布局重排，低端手环无掉帧风险；RPK 编译产物已验证 keyframes 正常生成）；首页「@我」角标同步呼吸动效。
+
+### 修复
+5. **手环清空记录后被「重新同步」根治**：旧实现手环端 `api.send(clear_all_history)` 未 await 且失败静默 —— 清空请求丢失后手机端仍保留全部记录，下次会话同步时全部推回手环。现在：手环端 await + 3 次重试（间隔 1.5s）+ 成功后回拉会话确认；手机端收到清空请求后回推权威会话帧（ack）；手机端「清空全部聊天记录」也加二次确认弹窗；两端确认文案均明示「会请求对端同步清除」。
+6. **手环应用图标纯黑**：图标底色 #0D1015（13,16,21）与手环 AMOLED 桌面纯黑存在肉眼可辨的色差（“两个黑不一样”），通道级重着色为 #000000（含过渡带压暗，无色阶环），`scripts/recolor-icon-black.py` 可复跑。
+7. **清空后 @我 角标残留**：手机端 `clearAllHistory` 此前不清 @我 未读集合，清空后手环列表仍残留「@我」提示。
+
+### 保持不变
+- APK 签名同源（SHA-256 `af8819e2…b004`），可**直接覆盖安装**。
+
+## v2.6.0 更新日志（历史版本）
 
 ### 修复
 1. **预测性返回开关彻底重做（KernelSU 原版实现逐行对齐）**：克隆 KernelSU 源码实证——开关处理器只写偏好 + 更新 UI，**不反射、不 recreate**（flag 在窗口 attach 时由系统读取，运行期切换本就必须重启生效）。此前 v2.4.7~v2.5.0 反复修的「点击闪烁/被踢回上级菜单/开关回弹」从根上消失：开关点击即生效地保存，摘要明示「重启应用后生效」，无任何页面刷新。

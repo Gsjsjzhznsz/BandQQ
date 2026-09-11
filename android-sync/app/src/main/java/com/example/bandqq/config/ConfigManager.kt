@@ -43,7 +43,10 @@ data class AppConfig(
     val dndStart: String = "23:00",    // 勿扰开始（HH:mm，支持跨零点）
     val dndEnd: String = "07:00",      // 勿扰结束（HH:mm）
     val groupPushMode: Int = 0,        // 群聊推送：0=全部 1=仅@我(含@全体) 2=不推送
-    val emojiNative: Boolean = true    // v2.6.0 表情：true=QQ表情/emoji 映射为原生 emoji 透传；false=降级 [表情] 占位（手环字形缺失时）
+    val emojiNative: Boolean = true,   // v2.6.0 表情：true=QQ表情/emoji 映射为原生 emoji 透传；false=降级 [表情] 占位（手环字形缺失时）
+    // ===== 快应用自动拉起（v2.7.0）：快应用未打开时收到新消息延迟拉起同步展示 =====
+    val autoLaunchEnabled: Boolean = false, // 默认关：拉起属主动行为，由用户在设置专区显式开启
+    val autoLaunchDelaySec: Int = 10        // 收到消息到拉起的延迟（3~120s，设置页档位可选）
 )
 
 object ConfigHolder {
@@ -74,6 +77,8 @@ class ConfigManager(private val context: Context) {
         val DND_END = stringPreferencesKey("dnd_end")
         val GROUP_PUSH_MODE = intPreferencesKey("group_push_mode")
         val EMOJI_NATIVE = booleanPreferencesKey("emoji_native")
+        val AUTO_LAUNCH_ENABLED = booleanPreferencesKey("auto_launch_enabled")
+        val AUTO_LAUNCH_DELAY = intPreferencesKey("auto_launch_delay_sec")
     }
 
     suspend fun load(): AppConfig {
@@ -104,7 +109,9 @@ class ConfigManager(private val context: Context) {
             dndEnabled = prefs[Keys.DND_ENABLED] ?: default.dndEnabled,
             dndStart = prefs[Keys.DND_START] ?: default.dndStart,
             dndEnd = prefs[Keys.DND_END] ?: default.dndEnd,
-            groupPushMode = prefs[Keys.GROUP_PUSH_MODE] ?: default.groupPushMode
+            groupPushMode = prefs[Keys.GROUP_PUSH_MODE] ?: default.groupPushMode,
+            autoLaunchEnabled = prefs[Keys.AUTO_LAUNCH_ENABLED] ?: default.autoLaunchEnabled,
+            autoLaunchDelaySec = prefs[Keys.AUTO_LAUNCH_DELAY] ?: default.autoLaunchDelaySec
         )
         ConfigHolder.config = cfg
         return cfg
@@ -133,6 +140,8 @@ class ConfigManager(private val context: Context) {
             prefs[Keys.DND_START] = config.dndStart
             prefs[Keys.DND_END] = config.dndEnd
             prefs[Keys.GROUP_PUSH_MODE] = config.groupPushMode
+            prefs[Keys.AUTO_LAUNCH_ENABLED] = config.autoLaunchEnabled
+            prefs[Keys.AUTO_LAUNCH_DELAY] = config.autoLaunchDelaySec
         }
         ConfigHolder.config = config
     }
@@ -263,5 +272,24 @@ class ConfigManager(private val context: Context) {
     suspend fun setEmojiNative(enabled: Boolean) {
         context.dataStore.edit { it[Keys.EMOJI_NATIVE] = enabled }
         ConfigHolder.config = ConfigHolder.config.copy(emojiNative = enabled)
+    }
+
+    // ===== 快应用自动拉起（v2.7.0）=====
+
+    fun observeAutoLaunchEnabled(): Flow<Boolean> =
+        context.dataStore.data.map { it[Keys.AUTO_LAUNCH_ENABLED] ?: false }
+
+    suspend fun setAutoLaunchEnabled(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.AUTO_LAUNCH_ENABLED] = enabled }
+        ConfigHolder.config = ConfigHolder.config.copy(autoLaunchEnabled = enabled)
+    }
+
+    /** 拉起延迟档位（秒） */
+    fun observeAutoLaunchDelay(): Flow<Int> =
+        context.dataStore.data.map { it[Keys.AUTO_LAUNCH_DELAY] ?: 10 }
+
+    suspend fun setAutoLaunchDelay(sec: Int) {
+        context.dataStore.edit { it[Keys.AUTO_LAUNCH_DELAY] = sec }
+        ConfigHolder.config = ConfigHolder.config.copy(autoLaunchDelaySec = sec)
     }
 }

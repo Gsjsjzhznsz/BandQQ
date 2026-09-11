@@ -24,7 +24,7 @@
     <div class="mask" if="{{confirmShow}}">
       <div class="confirm-box">
         <text class="confirm-title">警告</text>
-        <text class="confirm-desc">将清空本手环与手机端保存的全部聊天记录，此操作不可恢复，确定继续？</text>
+        <text class="confirm-desc">将清空手环本地记录，并请求手机端清除其保存的全部聊天记录，两端同步清空且不可恢复，确定继续？</text>
         <div class="confirm-btns">
           <text class="confirm-cancel" onclick="cancelClear">取消</text>
           <text class="confirm-ok" onclick="doClear">确定</text>
@@ -114,12 +114,25 @@
       } catch (e) {
         console.error('clear local fail', e)
       }
-      // 通知手机端同步清空，失败不影响本地
-      try {
-        api.send(protocol.clearAllHistory())
-      } catch (e) {
-        console.error('clear remote fail', e)
+      // v2.7.0 修复「手环清了又被重新同步回去」：
+      // 旧实现 api.send 未 await 且失败静默 —— 清空请求丢失后手机端仍保留全部记录，
+      // 下次会话同步时全部推回手环。现在 await + 重试 3 次（间隔 1.5s），确认送达。
+      const frame = protocol.clearAllHistory()
+      for (let i = 0; i < 3; i++) {
+        try {
+          await api.send(frame)
+          console.log('[BANDQQ] clear_all_history delivered, attempt ' + (i + 1))
+          // 发送成功后再确认一次：拉取手机端权威会话列表，正常应为空列表
+          setTimeout(() => {
+            try { api.send(protocol.getConversations()) } catch (e) {}
+          }, 800)
+          return
+        } catch (e) {
+          console.error('clear remote fail, attempt ' + (i + 1), e)
+          if (i < 2) await new Promise((r) => setTimeout(r, 1500))
+        }
       }
+      prompt.showToast({ message: '已清空本地，手机端清除失败，可重试' })
     }
   }
 </script>

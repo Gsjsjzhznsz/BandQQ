@@ -129,6 +129,10 @@ class MessageBroker(
             }
             "clear_all_history" -> {
                 store.clearAllHistory()
+                log("clear_all_history from band -> cleared, reply empty conversation frame as ack")
+                // v2.7.0 ack：回推权威会话帧（已空）。若本帧丢失/失败，手环端重试机制会再发；
+                // 手环收到空列表后立即覆盖本地残留预览，两端状态严格一致
+                bandSender(store.buildConversationFrame(seq))
                 return true
             }
             "get_visible_contacts" -> {
@@ -176,6 +180,9 @@ class MessageBroker(
             return
         }
         bandSender(frame)
+        // v2.7.0 快应用自动拉起：仅在消息实际推送且快应用未打开时触发；
+        // 去重/延迟/通知/拉起细节由 AutoLauncher 管理（设置页「快应用自动拉起」专区开关）
+        AutoLauncher.scheduleIfEnabled()
     }
 
     /**
