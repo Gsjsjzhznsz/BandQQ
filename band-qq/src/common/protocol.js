@@ -47,6 +47,22 @@ function clearAllHistory() {
   return { type: 'clear_all_history', seq: nextSeq() }
 }
 
+/** v2.8.0 双端互通：拉取手机端设置快照（返回 settings_state 帧） */
+function getSettings() {
+  return { type: 'get_settings', seq: nextSeq() }
+}
+
+/**
+ * v2.8.0 双端互通：手环设置页改动回传（settings_update）。
+ * 只带变化的字段（undefined 不序列化），手机端 applyBandSettings 兼容空字段。
+ */
+function updateSettings(patch) {
+  const frame = { type: 'settings_update', seq: nextSeq() }
+  if (typeof patch.msg_vibrate === 'boolean') frame.msg_vibrate = patch.msg_vibrate
+  if (typeof patch.emoji_native === 'boolean') frame.emoji_native = patch.emoji_native
+  return frame
+}
+
 /** 手环打开聊天页时上报已读，手机端清零未读并回推会话列表 */
 function readChat(targetId) {
   return { type: 'read_chat', seq: nextSeq(), target_id: targetId }
@@ -166,6 +182,8 @@ export default {
   getHistoryOlder,
   clearAllHistory,
   readChat,
+  getSettings,
+  updateSettings,
   stripEmoji,
   markEmoji,
   degradeContent,
@@ -184,6 +202,8 @@ export {
   getHistoryOlder,
   clearAllHistory,
   readChat,
+  getSettings,
+  updateSettings,
   stripEmoji,
   markEmoji,
   degradeContent,

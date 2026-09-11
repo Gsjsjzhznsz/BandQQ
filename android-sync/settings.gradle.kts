@@ -14,3 +14,4 @@ dependencyResolutionManagement {
 }
 rootProject.name = "android-sync"
 include(":app")
+include(":devtools")

@@ -136,6 +136,11 @@ class SyncService : Service() {
         @Volatile
         var pushQuickRepliesNow: (() -> Unit)? = null
             private set
+
+        /** 双端互通设置推送钩子（v2.8.0）：手机端设置变化后立即下发 settings_state 快照 */
+        @Volatile
+        var pushSettingsNow: (() -> Unit)? = null
+            private set
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -181,6 +186,13 @@ class SyncService : Service() {
         InterconnectBridge.register(broker)
         testPush = { chatType, scenario -> broker.pushTestMessage(chatType, scenario) }
         pushQuickRepliesNow = { broker.pushQuickReplies() }
+        // v2.8.0 双端互通：手机端为设置权威源，改动后立即下发快照
+        pushSettingsNow = { broker.pushSettingsState() }
+        broker.settingsWriter = { emoji, vibrate ->
+            ConfigManager(this).applyBandSettings(emoji, vibrate)
+        }
+        // v2.8.0 拉起提示震动：档位经 ConfigHolder 读取（0不震/1短震×2/2长震）
+        AutoLauncher.initAlertHook { bandAlert(broker) }
         AutoLauncher.init(this)
         InterconnectBridge.init(this)
     }
@@ -210,11 +222,25 @@ class SyncService : Service() {
         isRunning = false
         testPush = null
         pushQuickRepliesNow = null
+        pushSettingsNow = null
         AutoLauncher.cancelPending("service destroyed")
         oneBot.stop()
         InterconnectBridge.unregister(broker)
         scope.cancel()
         super.onDestroy()
+    }
+
+    /**
+     * v2.8.0 拉起提示震动帧：mode 1=短震×2 2=长震（0 已在置位时过滤，不会到达）。
+     * 手环端 app.ux 收到后调 @system.vibrator；放在 IO 线程发（互联 sendMessage 异步）。
+     */
+    private fun bandAlert(broker: MessageBroker) {
+        val mode = ConfigHolder.config.autoLaunchVibrate.coerceIn(1, 2)
+        val obj = com.google.gson.JsonObject()
+        obj.addProperty("type", "band_alert")
+        obj.addProperty("seq", 0)
+        obj.addProperty("mode", mode)
+        broker.bandSender(obj.toString())
     }
 
     private fun createChannel() {

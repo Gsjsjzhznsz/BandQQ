@@ -1,147 +1,75 @@
-
----
-Task ID: 3
-Agent: main (Super Z)
-Task: v2.2.0 —— 手环图标深色背景 + MIUIx 液态玻璃/悬浮栏（用户反馈第二轮）
-
-Work Log:
-- 读取用户上传的 Gsjsjzhznsz/BandQQ MEMORY.md，确认真正基线是本仓库 v2.1.0（versionCode 21，含 stapxs 特性重做/性能 v2/SnowLuma 调研定论），此前在 Astroptis 旧基线上的工作按此对齐
-- keystore.jks 与 rpk pem 均已由用户回传仓库，签名指纹 af8819e2... 验证一致（v2.2.0 APK 实测 V2 signer SHA-256 匹配，覆盖安装兼容）
-- 手环图标：icon_preview.png（用户上传的白底企鹅 logo）flood-fill 换深底 #0D1015 → src/common/icon.png 108×108 RGB；rpk 解包验证四角纯深色无 alpha
-- Android：深色自适应图标（mipmap-anydpi-v26 + xxxhdpi 前景 PNG + radial 深色渐变背景 vector）+ manifest icon 声明；BandQQApp 重构为液态玻璃悬浮栏（miuix-blur drawBackdrop+blur+colorControls+BloomStroke，Android<13 回退 FloatingNavigationBar）；4 Screen 底部 padding 96dp 穿透
-- 新依赖 miuix-blur-android:0.9.3；manifest uses-sdk tools:overrideLibrary（application 标签上无效，第一次尝试失败学到的）
-- 容器会话中途再次重置 → scripts/setup-buildenv.sh 按记忆配方一键重建成功（配方可靠性得到验证）
-- 版本线：Android + 手环 manifest 均升至 2.2.0 / versionCode 22；产物 bandqq-watch-2.2.0.rpk + bandqq-sync-release-2.2.0.apk 交付 download/
-
----
-Task ID: 4
-Agent: main (Super Z)
-Task: v2.3.0 —— 渲染问题修复 + KernelSU 同款主题设置（用户反馈：渲染异常/与 KernelSU 不一致）
-
-Work Log:
-- 稀疏克隆 tiann/KernelSU 调研：确认其 manager 用同一套 miuix 0.9.3（ui/icons/navigation3/preference/blur 全家桶），主题实现 = miuix ThemeController + ColorSchemeMode 六模式 + LaunchedEffect 联动状态栏图标；其液态玻璃底栏 = 自写 944 行 liquid 组件（vibrancy/lens/innerShadow 均非 miuix API，此前误判为 miuix 超前 API）
-- 渲染差异根因定位（两个）：① 旧 BandQQTheme 裸调 MiuixTheme(content) 走 colors 默认值重载 → 永远浅色、不跟随系统深色、状态栏图标颜色错误；② 液态玻璃 backdrop 采集层未垫底色（背景画在登记层外）→ 模糊采样透明像素 → 底栏发黑/花屏
-- Theme.kt 重写：ThemeMode 六模式枚举 + ThemeController(colorSchemeMode, isDark) + Monet 模式（Android 13+ 读系统色板，12+ 系统 Md3 角色，<12 回退 miuix 蓝种子色）+ WindowInsetsControllerCompat 同步状态栏/导航栏图标明暗
-- BandQQApp 修复：backdrop 改 rememberLayerBackdrop { drawRect(background); drawContent() }（对齐 KernelSU rememberBlurBackdrop）；玻璃栏配方整体换为 KernelSU 同款 textureBlur(blurRadius=25f, surface 87% blend)，弃用自试的 drawBackdrop+colorControls+BloomStroke
-- 新增「主题与外观」设置区块（miuix-preference ArrowPreference + SwitchPreference + WindowDialog 单选 RadioButton 列表），build.gradle.kts 补回丢失的 miuix-preference-android:0.9.3 依赖（v2.x 重写时遗漏）
-- MainActivity enableEdgeToEdge（SmallTopAppBar 自带窗口 inset 内边距已验证）+ DataStore Flow 直驱全局主题即时生效；values/values-night 窗口背景防深色冷启动闪白；manifest 重复 xmlns:tools 修复
-- 构建 v2.3.0（versionCode 23）成功，aapt2/apksigner 验证：SHA-256 af8819e2... 与历史版本同源，覆盖安装兼容
-
-Stage Summary:
-- 产物：download/bandqq-sync-release-2.3.0.apk（~12MB）
-- 关键知识入库 MEMORY.md：KernelSU 主题配方（ThemeController）、backdrop 垫底色铁律、textureBlur 配方、miuix-blur 所有效果均门控 isRuntimeShaderSupported（13+）
-
----
-Task ID: 5
-Agent: main (Super Z)
-Task: v2.4.0 —— 液态玻璃无效/主题设置打不开/交互对齐 KernelSU（用户反馈第三轮）
-
-Work Log:
-- 问题定位：① v2.3.0 玻璃栏 textureBlur 配方虽修复采样，但各屏滚动容器自带 bottom=96dp 内边距 → 内容永远不会出现在底栏后方，玻璃无东西可模糊 ≈ 实色条；② 0.9.3 WindowDialog 在本项目窗口体系下无法弹出（组件依赖较重，弃用对话框方案）；③ 操作逻辑与 KernelSU 不一致源于自绘简化底栏
-- 整体移植 KernelSU 已验证的液态玻璃栈（7 文件，包名映射 me.weishu→com.example.bandqq）：ui/liquid/{Vibrancy,CombinedBackdrop,Lens,InnerShadow} + ui/animation/{DampedDragAnimation,InteractiveHighlight,DragGestureInspector} + ui/component/FloatingBottomBar（可拖拽 pill/镜头折射/重力感应高光/按键交互）；KernelSU 针对同样的 miuix 0.9.3 适配过（InteractiveHighlight 用 android.graphics.RuntimeShader + asBrush 替代方案）
-- 主题设置改为 KernelSU 式全屏推入页 ThemeScreen（TabRow 三档 + 动态取色 Switch + 液态玻璃 Switch + 返回箭头/BackHandler），BandQQApp 顶层 AnimatedVisibility 推入，置于底栏之上（z 序最末）——彻底绕开对话框问题
-- BandQQApp 接 FloatingBottomBar：33+ 时 isBlurEnabled=navGlass（关闭=实色拖拽 pill，同 KernelSU 交互），<33 回退 FloatingNavigationBar；InteractiveHighlight 内 RuntimeShader 为字段初始化，<33 构造必崩 → 必须只在 glassActive 分支组合
-- 四屏底部改造：滚动容器 padding 去掉 bottom=96dp + 末尾 Spacer(112dp)，内容从底栏下穿过，玻璃有东西可模糊
-- 主题页由设置页 ArrowPreference「主题与外观」推入；SettingsScreen 保存改用 ConfigHolder.config.copy 保留未编辑字段
-- 构建途中 daemon OOM 被杀一次，重跑成功；v2.4.0（versionCode 24）验签 af8819e2 同源
-
-Stage Summary:
-- 产物：download/bandqq-sync-release-2.4.0.apk（~12MB）
-- 教训入库：玻璃效果三要素=垫底色+内容穿过底栏+KernelSU 配方；WindowDialog(0.9.3) 在本工程慎用，全屏推入页更稳
-
----
-Task ID: 6
-Agent: main (Super Z)
-Task: v2.4.1 —— 底栏缩成颗粒修复 + KSU 完整外观设置项（模糊/悬浮二级/角标/预测性返回/界面缩放）+ 动画对齐（用户反馈第四轮）
-
-Work Log:
-- 「底栏缩成一个颗粒」根因定位：FloatingBottomBar 外层 Box 为 width(IntrinsicSize.Min)，Row 内 FloatingBottomBarItem 是 weight(1f) 子项 —— weight 子项在 intrinsic 测量中宽度=0，Row 的 min intrinsic 宽度=0 → 整条底栏塌缩成颗粒。KSU 原版在 BottomBarMiuix.kt 里给 item 传了 Modifier.defaultMinSize(minWidth = 76.dp) 兜底，我们上一轮搬运时漏掉了这一行。修复：BottomBar.kt 补 defaultMinSize(minWidth=76.dp)
-- 对照 KSU MainActivity 重构主界面骨架：BandQQApp 改 Scaffold(topBar/bottomBar) + HorizontalPager（页面横向跟手滑动，底栏点击 animateScrollToPage 联动，替代原 AnimatedContent）+ 双 backdrop（blurBackdrop=rememberBlurBackdrop(enableBlur) 供顶栏/普通底栏 textureBlur；backdrop=rememberLayerBackdrop{drawRect(surface);drawContent()} 供悬浮玻璃，仅悬浮+玻璃开时注册 layerBackdrop）
-- 新增 BottomBar.kt（对齐 KSU BottomBarMiuix 双形态）：非悬浮=BlurredBar 包 NavigationBar（模糊时本体 Color.Transparent）；悬浮=FloatingBottomBar(isBlurEnabled=glass)。未读角标挂「聊天记录」页签（miuix Badge/BadgedBox；注意 0.9.3 BadgedBox 的 badge 参数是 BoxScope.() -> Unit，声明变量须包装成字面 lambda badge={badge()}，否则类型不匹配）
-- ThemeScreen 按用户清单对齐 KSU ColorPaletteScreenMiuix 全项：主题预览卡片（迷你手机框实时反映 模式/Monet/悬浮/玻璃 状态）+ TabRow 三档 + Monet 开关 + 关键色 OverlayDropdownPreference(默认+15 色) + 「模糊」开关(13+) + 「悬浮底栏」总开关 + 「液态玻璃」二级开关(AnimatedVisibility 悬浮&&13+，KSU 同款从属关系) + 「导航栏角标」+ 「预测性返回手势」(14+) + 「界面缩放」ArrowPreference 内嵌 Slider(0.8~1.1 keyPoints 磁吸+Step 触感) + ScaleDialog 数值输入(80~110%)
-- ConfigManager 扩展 6 配置项：keyColor/enableBlur/enableFloatingBottomBar/enableNavigationBadge/enablePredictiveBack/pageScale(float)，各配 observe Flow + suspend setter + save/load 持久化
-- MainActivity 全量 collectAsState + CompositionLocalProvider(LocalEnableBlur/LocalEnableFloatingBottomBar/LocalEnableFloatingBottomBarGlass/LocalEnableNavigationBadge)，对齐 KSU theme/Theme.kt 的 Local 定义；Theme.kt BandQQTheme 增加 keyColor(种子色) 与 pageScale(包 LocalDensity 缩放全局密度+字宽) 参数
-- 图标依赖教训：material-icons-extended 3.5 万类导致 mergeDexRelease OOM daemon 被杀（4G 内存容器无 root 不能加 swap）→ 改用 miuix-icons extended 已有图标映射：Wallpaper→Theme、Colorize→Tune、BlurOn→CloudFill、CallToAction→HorizontalSplit、WaterDrop→Scan、Pin→Pin、MenuOpen→Sidebar、AspectRatio→GridView；material-icons-extended 依赖已回退删除
-- manifest 加 android:enableOnBackInterceptCallback 系……实为 enableOnBackInvokedCallback="true"（预测性返回硬条件）；versionCode 26 / versionName 2.4.1；构建两次 daemon OOM 后成功（icons-extended 移除后稳定）
-- 交付验证：aapt2 vc26/2.4.1，apksigner SHA-256 af8819e2 同源可覆盖装
-
-Stage Summary:
-- 产物：download/bandqq-sync-release-2.4.1.apk（12MB）
-- 核心教训入库：① FloatingBottomBarItem 必须 defaultMinSize(minWidth) 否则 IntrinsicSize.Min 塌缩成颗粒 ② 0.9.3 BadgedBox.badge 是 BoxScope receiver lambda ③ icons-extended 在 4G 内存容器 dex OOM，用 miuix icons 替代
-
----
-Task ID: 7
-Agent: main (Super Z)
-Task: v2.4.2 —— 顶栏遮挡内容 / 底栏偏下 / 预测性返回手势无效果（用户反馈第五轮，附截图）
-
-Work Log:
-- 截图分析：① 顶栏「主页」下方卡片被裁切（内容从 y=0 铺到顶栏后面）② 悬浮底栏贴屏幕底边（无导航栏 inset 余量）③ 主题设置里「预测性返回手势」开关拨了没反应
-- 顶栏遮挡根因：外层 Scaffold topBar + content lambda 忽略 innerPadding（`) { _ ->`）。对照 KSU MainActivity 源码确认其真实结构：外层 Scaffold 只有 bottomBar（`pagerContent(innerPadding.calculateBottomPadding())`），顶栏在每页内部的 Scaffold（HomePagerMiuix 等：Scaffold(topBar=BlurredBar(TopAppBar), contentWindowInsets=systemBars∪cutout 仅水平){ LazyColumn(contentPadding=innerPadding) }）——内容从顶栏下穿过，玻璃才有东西可糊
-- 重构：新增 ui/component/PageScaffold.kt（每页独立 Scaffold+BlurredBar 顶栏+独立 rememberBlurBackdrop+layerBackdrop 注册+仅水平 contentWindowInsets）；BandQQApp 外层删 topBar、只传 bottomInnerPadding；Home/Contact/History/Settings 四屏全部签名加 bottomInnerPadding:Dp 并包 PageScaffold，滚动列首尾 Spacer(顶栏高+16dp)/Spacer(bottomInnerPadding+12dp)，清除三处遗留 Spacer(112dp)（含 StatusCard 内部一处脏 Spacer）
-- 底栏偏下根因：BottomBar 悬浮分支漏搬 KSU padding——补 `navigationBars inset>0 ? 8dp+inset : 28dp` 底距 + start/end 28dp + 容器 pointerInput detectTapGestures{} 防点击穿透（KSU BottomBarMiuix 92-93 行同款）
-- 预测性返回无效果根因：v2.4.1 在 manifest 写死 enableOnBackInvokedCallback=true，静态值恒覆盖设置；KSU 真实配方 = manifest 不写 + Application.onCreate（API≥34）HiddenApiBypass.addHiddenApiExemptions 后反射调 ApplicationInfo.setEnableOnBackInvokedCallback(observePredictiveBack.first())。照搬：新增 BandQQApplication（companion 反射 helper），manifest 删静态开关加 android:name，MainActivity.onCreate 幂等重应用（温启动即生效），ConfigManager enablePredictiveBack 默认 false→true（避免删静态 true 后行为回归），依赖 org.lsposed.hiddenapibypass:6.1
-- 构建坑两次：① 离线模式无 hiddenapibypass 缓存 → 在线拉取 ② daemon 又 OOM 消失一次 → 重跑成功；另修编译错 calculateBottomPadding 是 PaddingValues 成员函数无顶层 import
-- 产物验证：aapt2 versionCode 27/2.4.2，apksigner SHA-256 af8819e2 同源覆盖装
-
-Stage Summary:
-- 产物：download/bandqq-sync-release-2.4.2.apk（~12MB）
-- 经验入库 MEMORY.md v2.4.2 节：KSU「每页自带 Scaffold」架构、backdrop 分层（页内顶栏/外层底栏各一个）、悬浮栏 inset padding、预测性返回反射配方
-
----
-Task ID: 8
-Agent: main (Super Z)
-Task: v2.4.3 —— UI 排版优化 + 后台保活向导（多品牌）+ 动画速度/延迟设置（用户反馈第六轮）
-
-Work Log:
-- 主页排版重构：状态卡/快捷操作/实时日志三区 SmallTitle 分节；4 个全宽堆叠按钮改为「快捷操作」Card 内 2×2 网格（启动服务为主色），按钮文案精简（检查手环/测试连接）；删除 HomeScreen 私有 enterReveal
-- 动画系统：UiMotion.kt 重写为 LocalMotionSpeed/LocalMotionStagger CompositionLocal + 统一 listItemReveal(entered,index)（时长=基础/速度，延迟=index×间隔/速度）；ConfigManager 新增 motionSpeed(0.5~2.0)/motionStagger(0~200ms) 两键 + Flow/setter；MainActivity collectAsState 注入；BandQQApp 推入页 tween 时长跟随速度
-- ThemeScreen 新增「动画」设置区：动画速度（Play 图标，0.5x~2.0x keyPoints 磁吸）+ 动画延迟（Timer 图标，0~200ms keyPoints），均为 ArrowPreference+bottomAction Slider（界面缩放同款模式，onClick 留空不响应点击）
-- KeepAliveScreen 后台保活向导：一键申请电池优化白名单（ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS，失败回退优化列表页）+ 打开应用信息（ACTION_APPLICATION_DETAILS_SETTINGS）；白名单状态 PowerManager.isIgnoringBatteryOptimizations，LifecycleEventObserver ON_RESUME 自动刷新；品牌 FlowRow chips 按 Build.MANUFACTURER 自动识别（xiaomi/huawei/honor/oppo/oneplus/vivo/samsung→对应方案，未匹配回「通用」）；六套分步教程（自启动/省电策略无限制/锁屏清理从不/最近任务锁定/神隐模式/应用速冻/后台高耗电/深度睡眠等，每步含老版本路径兜底）
-- SettingsScreen 新增「后台保活」区块 ArrowPreference；BandQQApp 挂 KeepAliveScreen 推入（与 ThemeScreen 同款 AnimatedVisibility，BackHandler 优先级 keepAlive > theme）
-- 编译两处报错速修：HomeScreen 误删 tween 导入（StatusCard 呼吸动画还在用）；androidx.annotation.SuppressLint 不可用直接删除
-- 构建 v2.4.3（versionCode 28）成功；aapt2/apksigner 验证 af8819e2 同源覆盖装
-
-Stage Summary:
-- 产物：download/bandqq-sync-release-2.4.3.apk（~12MB）
-- 经验入库 MEMORY.md v2.4.3 节：动画 CompositionLocal 注入模式、ArrowPreference.onClick 可空、SuppressLint 不可用、Button 无 text 具名参数
+# worklog.md
 
 ---
 Task ID: 9
 Agent: main (Super Z)
-Task: v2.4.4 —— 预测返回/Monet/保活三修 + 动画补全 + Stapxs 撤回借鉴 + 代码重读优化（用户反馈第七轮）
+Task: band-qq v2.4.4 —— 用户第七轮反馈：预测返回终修 + Monet 修复 + 保活权限检测 + 动画补全 + Stapxs 借鉴 + 代码重读优化
 
 Work Log:
-- 容器重置重建：仓库重克隆；JDK17（清华镜像 17.0.20.1）+Gradle8.13（腾讯镜像）+SDK；android-37 目录陷阱新变体=AGP 每次构建重装 android-37.0，必须 cp 保留两份而非 mv
-- 预测性返回终修：observePredictiveBack Flow 默认值 false→true（与 AppConfig 一致，启动反射设置不再误关）；ThemeScreen 开关回调立即 BandQQApplication.setEnableOnBackInvokedCallback + activity.recreate()（KSU ColorPaletteScreen 同款）
-- Monet 修复：研读 miuix Scaffold 源码发现 popup slot 只覆盖自身 content 且推入页是外层 Scaffold 兄弟节点 → 盖住 MiuixPopupHost；推入页移入 content slot 覆盖 Box + bottomBar AnimatedVisibility 随推入收起； KSU popupHost={} 子页+默认外层结构同构确认
-- 动画补全：四屏加 isActive 参数（page==settledPage），LaunchedEffect(isActive) 触发 reveal（修预组合页动画跑完现象）；ThemeScreen 两处二级展开补 expand/shrink+fade（tween<IntSize>，跟随 motionSpeed）；listItemReveal index 封顶 6
-- KeepAliveScreen 重写：权限检测 4 项卡（电池优化/通知/自启动需手动/前台服务 SyncService.isRunning）+ 状态 chip + 直达按钮；品牌自启动 Intent 组件矩阵 7 品牌 10 组件逐个尝试降级应用详情；ON_RESUME+2s 轮询刷新；Toast 反馈
-- Stapxs 撤回移植：parseRecallEvent + onRecall 默认实现 + messageId 全链路 + recallMessage 内容替换 + 会话帧推送（手环零改动）；OneBotClient WS onMessage 先试 recall
-- 代码重读优化 6 项：OkHttpClient 共享、OneBotStateBus、unread 事件驱动+兜底轮询、LogPanel 去 AnimatedVisibility、duplicates 上限、SettingsScreen/HistoryScreen 排版
-- 构建 v2.4.4（vc29）成功；单测 93 通过 1（GameProtocolDetectorTest 容器固有）；aapt2/apksigner 验证交付 download/bandqq-sync-release-2.4.4.apk
+- 容器重置：重克隆 BandQQ、重建构建环境（JDK17/Gradle8.13/SDK37）；发现 android-37 目录陷阱新变体——AGP 每次构建按库存清单重装 android-37.0，必须 cp 保留两份不能 mv
+- 预测性返回双重根因：① observePredictiveBack() Flow 默认值 false ≠ AppConfig true → 启动反射设置误关；② 开关只写配置不立即应用。修复=默认值统一 + ThemeScreen 回调立即反射设置 + activity.recreate()（KSU 同款）
+- Monet 无法调节根因：推入页（ThemeScreen/KeepAliveScreen）是外层 Scaffold 兄弟节点，整体盖住外层 MiuixPopupHost 的下拉浮层（popup slot 只覆盖 content 内部）。修复=推入页移入 content slot 覆盖 Box + bottomBar 随推入收起（KSU 同构）
+- 动画补全：四屏 isActive 参数（预组合页不再提前跑完 reveal）；ThemeScreen 二级展开 expand/shrink+fade 跟随动画速度；listItemReveal 级联 index 封顶 6（修 200 联系人末项等 20s 缺陷）
+- KeepAliveScreen 重写：4 项权限检测卡（电池优化/通知/自启动需手动/前台服务）+ 状态 chip + 品牌自启动页直达 Intent 矩阵（7 品牌 10 组件，失败降级应用详情）
+- Stapxs 借鉴（性能优先）：消息撤回提示移植——parseRecallEvent + recallMessage 内容替换 + 会话帧推送，手环端零改动零流量
+- 代码重读 6 项优化：OkHttpClient 全局共享、OneBotStateBus（连接状态实时感知）、未读角标事件驱动、LogPanel 去 AnimatedVisibility、duplicates 上限、Settings/History 排版重排
+- 构建 v2.4.4（vc29），aapt2/apksigner 验证同源（af8819e2），交付 download/bandqq-sync-release-2.4.4.apk；git commit 本地完成，push 因容器重置后无 GitHub 凭据未完成（需用户提供 token 或自行推送）
 
 Stage Summary:
-- 产物：download/bandqq-sync-release-2.4.4.apk（~12MB，vc29，签名 af8819e2 同源）
-- 三大 bug 根因全部入库 MEMORY.md v2.4.4 节（预测返回默认值+立即应用、推入页盖浮层、预组合动画）
+- 产物：/home/z/my-project/download/bandqq-sync-release-2.4.4.apk
+- 三大 bug 根因与修复全部入库仓库 MEMORY.md v2.4.4 节，commit 1831ddb
 
 ---
 Task ID: 10
 Agent: main (Super Z)
-Task: band-qq v2.4.5 —— 用户第八轮反馈：Monet/预测返回点击崩溃 + 通知权限 + 无障碍向导缺失 + 图标白边 + 动画延迟 + SnowLuma 原生移植调研 + 手环端功能（性能优先）
+Task: band-qq v2.4.5 全量交付（崩溃/权限/动画/图标/手环功能/SnowLuma 调研）
 
 Work Log:
-- 崩溃排查：对照 KSU 源码（重克隆）+ 反汇编 miuix 0.9.3（DynamicColors 全 try-catch、ThemeController/MiuixTheme(controller) 与 KSU 同构）排除库内 Monet 路径；锁定 v2.4.4 两个增量（自定义 expand/shrink spec、recreate 后 rememberSaveable 恢复推入页）采取三层防御：回退默认动画、推入页改 remember、新增 CrashGuard 崩溃落盘+设置页查看页
-- 通知权限：manifest POST_NOTIFICATIONS + MainActivity 串行链式请求（修同 launcher 连发取消 bug）+ KeepAlive 行内申请
-- 无障碍：KeepAlive 5 项检测（新增无障碍干扰检查行，ENABLED_ACCESSIBILITY_SERVICES 计数）
-- 动画延迟：isActive/底栏选中 settledPage→currentPage
-- 图标：rebuild-icon.py 蓝圆羽化裁切去白描边环，三端产物重生成
-- 手环端功能：撤回帧(push_message+recall=1)按 time 原位替换+灰显样式；@我 三层链路（parser CQ:at 检测→at/cat 标志→手环气泡金色高亮+列表角标）；convSignature 纳入 cat
-- SnowLuma 调研：克隆 1.14.15 源码核实仍为桌面 NTQQ 注入型，结论+Termux 一键脚本 snowluma-termux.sh + docs 研究文档
-- 构建 vc30/2.4.5，验签同源，交付 download/；本地单测 93 通过（仅容器固有 GameProtocolDetectorTest 失败）
+- 崩溃三层防御：ThemeScreen 回退 KSU 默认动画、推入页 remember（防 recreate 恢复推入态）、CrashGuard 崩溃落盘+设置页查看
+- 通知权限：manifest+串行链式请求+保活行内申请；无障碍检测行回归（5 项）
+- 动画延迟根治：settledPage→currentPage；图标白边根治：rebuild-icon.py 圆裁切去描边环三端重生成
+- 手环端新功能：撤回实时原位替换+灰显、@我 金色高亮+列表角标（手机预算/手环零计算）
+- SnowLuma 调研：docs/snowluma-native-android-research.md + scripts/snowluma-termux.sh 一键本机部署
+- 构建 vc30/2.4.5 验签同源交付；MEMORY.md/worklog 更新；git push（用户 token）成功 4c51ca3..25719ef
 
 Stage Summary:
-- 产物：download/bandqq-sync-release-2.4.5.apk + bandqq-watch-release-2.4.5.rpk
-- MEMORY.md v2.4.5 节入库；如再崩溃由 CrashGuard 提供堆栈
+- download/bandqq-sync-release-2.4.5.apk（12.1MB）+ bandqq-watch-release-2.4.5.rpk（252KB）
+- 建议用户：装 APK+rpk 实测；若再崩溃用设置页「崩溃日志」复制反馈
+
+---
+Task ID: 11
+Agent: main (Super Z)
+Task: band-qq v2.4.6 —— 用户第八轮反馈：两选项点击仍崩（附堆栈）+ 无障碍权限没有申请 + 更新 README/记忆文件
+
+Work Log:
+- 堆栈定位：崩溃点=MiuixPopupHost.PopupEntry → NavigationBackHandler → "No NavigationEventDispatcher was provided via LocalNavigationEventDispatcherOwner"——点击 Monet/预测性返回都会弹窗，一个根因两个崩溃，与选项处理器无关
+- 根因实证：下载 google maven sources jar 验证——ComponentActivity 1.12.4 才实现 NavigationEventDispatcherOwner + initializeViewTreeOwners 挂 decorView + onBackPressedDispatcher.eventDispatcher 统一管线；navigationevent-compose 的 Local 默认 null 靠 ViewTree 兜底；工程 activity-compose 1.9.1 必崩
+- 修复：activity-compose 1.12.4（POM 要求 compose-runtime 1.7.0，与 BOM 2024.09.03 无冲突，自带 navigationevent 1.0.2）+ MainActivity setContent 显式 CompositionLocalProvider 注入 owner（Popup/Dialog 子树双保险）
+- 无障碍：v2.4.5 只有"干扰检查"行、应用自身无服务可开。新增 KeepAliveAccessibilityService（空实现+canRetrieveWindowContent=false）+ manifest + res/xml 配置 + strings；KeepAliveScreen 新增「无障碍保活（本应用）」行（Settings.Secure 判定自身组件 + ON_RESUME 刷新 + 直达设置）；干扰检查改 enabledForeignServiceCount 排除自身
+- 通知权限核实：v2.4.5 的 manifest+串行请求已存在（本轮无需改动）
+- 文档（用户点名）：README 标题/徽章 v2.1.0→v2.4.6，补 v2.4.6 与 v2.4.2~v2.4.5 全部缺失更新日志；MEMORY.md 当前版本行 + v2.4.6 章节（含"勿靠记忆猜版本行为，下载 sources jar 实证"备忘）
+- 构建：vc31/2.4.6；daemon OOM 一次（GRADLE_OPTS 降堆 -Xmx1400m/-Xmx900m 重试过）；aapt2 验 service 打包；apksigner af8819e2 同源；交付 download/bandqq-sync-release-2.4.6.apk（12MB）
+- git commit 7f15b81，token 推送成功 25719ef..7f15b81
+
+Stage Summary:
+- 产物：/home/z/my-project/download/bandqq-sync-release-2.4.6.apk（覆盖安装即可）
+- 双崩溃根治 + 无障碍可申请；建议用户装后重点回归：Monet 下拉、预测性返回开关、保活向导无障碍开启
+
+---
+Task ID: 12
+Agent: main (Super Z)
+Task: band-qq v2.4.7 —— 预测开关点击被踢回上级菜单修复 + APP 实用功能增强
+
+Work Log:
+- 预测开关 UX 根因：flag 需 recreate 生效（ViewRootImpl 仅 attach 时读）+ 推入态故意 remember → 重建回主页。新增 ui/RecreateCoordinator（reopenScreen+armed），recreate 前记录、BandQQApp LaunchedEffect 消费自动重新推入；armed 区分冷启动
+- 新功能三件套（手机端判断/手环零感知，符合架构铁律）：ConfigManager 四新键；MessageBroker.onEvent 在入库后仅拦截 bandSender（勿扰跨零点判断 + 群聊 0全部/1仅@我/2不推）；pushTestMessage 固定 bandqq-test 会话 + SyncService companion testPush 钩子
+- SettingsScreen 新增「消息推送策略」区块（SwitchPreference 勿扰+时间校验保存、三档按钮、一键测试推送），reveal index 顺延
+- 构建 vc32/2.4.7 一次通过，验签同源，交付 download/bandqq-sync-release-2.4.7.apk
+- README 补 v2.4.7 日志、MEMORY.md v2.4.7 章节，git 推送 7f15b81..7c7d149
+
+Stage Summary:
+- 产物：/home/z/my-project/download/bandqq-sync-release-2.4.7.apk（12MB，覆盖安装）
+- 建议用户回归：①预测开关点击后应刷新并留在主题设置页 ②设置页勿扰/群聊三档/测试推送
 
 ---
 Task ID: 13
@@ -149,15 +77,71 @@ Agent: main (Super Z)
 Task: band-qq v2.5.0 —— 预测开关落盘竞态根治 + 手环11适配 + 解析器修复 + 新消息振动 + 测试推送模拟器
 
 Work Log:
-- 容器重置恢复：重新克隆仓库（7c7d149）+ Temurin JDK17 + Gradle 8.13 + commandlinetools + platforms;android-37.0/build-tools 37.0.0（SDK37 新版号）
-- 预测开关根因：ThemeScreen scope.launch{写盘} 后同步 recreate()，重组作用域销毁杀掉未调度的写协程，配置从未落盘 → 修复为同一协程顺序执行（落盘→反射→recreate）
-- 手环11适配：index/chat/settings/compose 四页定高容器改 flex:1（原高度和恰为490，212宽屏放大后溢出21px）；compose .page 补 width/height:100%；manifest 2.5.0/vc31
-- 解析器：isAtMe 双格式（数组段+CQ字符串）；degradeContent at/reply 段可读化；degradeCqString 新增（string 格式 CQ 码降级）
-- 手环振动：app.ux push_message 分支短振动（is_self/recall/visible 三重过滤）
-- 模拟器：MessageBroker.pushTestMessage(chatType,scenario) 九场景走真实解析管线，SyncService 钩子改签名，SettingsScreen 会话类型+九宫格场景 UI
-- 构建：APK vc33 验签同源（af8819e2）交付 download/bandqq-sync-release-2.5.0.apk（12.2MB）；RPK 交付 download/bandqq-watch-release-2.5.0.rpk（252KB）；单测 51/52（api.js 门控为存量失败）
-- README 标题/徽章/关键词/v2.5.0 日志更新；MEMORY 版本行+v2.5.0 章节；git commit+push
+- 容器重置恢复：重新克隆（7c7d149）+ 重建工具链（Temurin JDK17/Gradle 8.13/cmdline-tools/android-37.0+build-tools 37.0.0）
+- 预测开关根因：launch{写盘} 后同步 recreate()，写协程未及调度即被销毁 → 同一协程顺序执行修复
+- 手环11：四页定高容器改 flex:1 + compose .page 补 100% + RPK manifest 2.5.0/vc31
+- 解析器：isAtMe 双格式 + at/reply 段可读化 + degradeCqString
+- 手环振动：app.ux push_message 短振动（三重过滤）
+- 模拟器：pushTestMessage(chatType,scenario) 九场景真实管线，钩子改 (String,String)->String，SettingsScreen 九宫格 UI
+- 构建：APK vc33 验签同源 + RPK 2.5.0 交付 download/；README/MEMORY/worklog 更新；git push 7c7d149..2c36544
 
 Stage Summary:
-- 产物：bandqq-sync-release-2.5.0.apk + bandqq-watch-release-2.5.0.rpk（覆盖安装/推送即可）
-- 回归建议：①预测开关点击→刷新→保持开启→手势生效 ②模拟器九场景逐一验证手环展示 ③Band11 实机四页布局无裁切 ④新消息振动
+- 产物：bandqq-sync-release-2.5.0.apk（12.2MB）+ bandqq-watch-release-2.5.0.rpk（252KB）
+- 回归建议：预测开关刷新后保持开启、模拟器九场景、Band11 布局、新消息振动
+
+---
+Task ID: 14
+Agent: main (Super Z)
+Task: band-qq v2.6.0 —— 预测返回 KSU 原版重做+真实手势动画 / 测试消息入库防掉同步 / 手环表情支持 / Band 9/10 视觉修复 / Vela 虚拟机多模态验收
+
+Work Log:
+- 容器重置恢复：重克隆(2c36544) + 工具链重建（Temurin JDK17 + Gradle8.13 + platforms;android-37.0 两份拷贝陷阱复现处理）
+- 克隆 KernelSU 实证预测返回实现：开关只落盘不 recreate（下次启动生效）；我方 recreate 路线即闪烁根源 → ThemeScreen 同构重写 + RecreateCoordinator 删除 + 推入页回归 rememberSaveable
+- BandQQApp 新增 PredictiveBackHandler：手势期间推入页跟手位移/缩放/淡出，离散返回兼容（activity-compose 1.12.4 源码验证），替代三个 BackHandler
+- 「手环一会就删除」双保险：pushTestMessage 入库手机聊天记录 + RPK store.js setVisibleContacts 保留有消息临时会话
+- 表情支持：OneBotParser 80 项 QQ face→emoji（NapCat 官方 id 表），emojiNative 配置 + 设置页开关（防真机 tofu）
+- Vela 虚拟机基建：aiot VVD 手动装 SDK（vela-watch-5.0 自定义分辨率镜像）+ vvd-ctl.js（创建/无头启动/gRPC截屏/触摸）+ emulator-setup.sh；Band11 212x520 与 Band9 192x490 双机并行
+- 多模态截图验收：首页/设置/聊天/输入四页双分辨率全部截图检查；发现并修复首页空态折行、设置页清空项竖排两 bug；键盘 480px 系横滑设计非溢出；watch5.0 镜像字体无 emoji 字形（GBK 符号/颜文字正常）
+- 构建 APK vc34/2.6.0 + RPK 2.6.0 同源验签交付 download/；README/MEMORY 更新；git 推送
+
+Stage Summary:
+- 产物：bandqq-sync-release-2.6.0.apk + bandqq-watch-release-2.6.0.rpk（覆盖安装）
+- 回归建议：①预测开关点击无闪烁、重启后手势有跟手动画 ②测试推送消息在手机聊天记录可见且手环不掉 ③表情渲染（若真机方框→设置页关「表情原生渲染」）④Band 10/11 首页/设置无折行
+---
+Task ID: 15
+Agent: main (Super Z)
+Task: band-qq v2.7.0 —— 互联自动拉起快应用(置顶) + 联系人头像/偏下修复 + 手环图标纯黑 + @动效 + 快捷回复即时同步 + 清空记录同步根治
+
+Work Log:
+- 摸底：InterconnectBridge 已有 launchWearApp 链路；清空同步根因定位=手环 doClear api.send 未 await 失败静默；图标底色实测 (13,16,21) 非纯黑；快捷回复仅连接时推送；手机端列表无头像
+- 新建 sync/AutoLauncher.kt（通知预告+延迟 launchWearAppNow+三路取消+风暴去重）；InterconnectBridge 新增 launchWearAppNow()/onConnect 挂钩；MessageBroker.onEvent 推送后触发
+- ConfigManager 新键 autoLaunchEnabled/autoLaunchDelaySec；SettingsScreen 新「快应用自动拉起」专区（开关+5/10/15/30s 档），reveal index 顺延
+- 快捷回复：SyncService.pushQuickRepliesNow hook + 设置页「保存并同步到手环（即时生效）」按钮 + 主保存附带
+- 清空：手环 await+3 次重试+回拉确认；手机端 ack 空会话帧；HistoryScreen 二次确认弹窗；clearAllHistory 补清 atUnread
+- 头像：新建 AvatarCircle.kt（hue/avatarChar 与手环同源），ContactScreen/HistoryScreen 行首 40dp 居中
+- 图标：scripts/recolor-icon-black.py 通道级重着色 #0D1015→#000000（含过渡带压暗），icon_preview+手环 icon 更新，多模态复验四角 (0,0,0) 且蓝圆企鹅无损
+- 手环端：chat.ux .bubble-at 金边+atPulse 呼吸动画（RPK 编译产物验证 keyframes 描述符生成）；index.ux .item-at 同款；settings.ux doClear 重写 + 确认文案更新
+- 版本：APK vc35/2.7.0（签名 af8819e2 同源）+ RPK 2.7.0/vc33；受影响模块单测全过（api.test.js/GameProtocolDetectorTest 2 例为存量环境失败，基线复跑同样失败）
+- README/MEMORY/worklog 更新；git 提交并推送（含此前滞留未推的 v2.6.0 commit）
+
+Stage Summary:
+- 产物：/home/z/band-qq-v2/dist/bandqq-sync-release-2.7.0.apk（12.2MB）+ dist/bandqq-watch-release-2.7.0.rpk（253KB），同步交付 /home/z/my-project/download/
+- 回归建议：①设置开启自动拉起→退出手环快应用→等一条新消息→通知预告+N 秒后快应用自动打开 ②改快捷回复点「保存并同步」→手环聊天页立即出新按钮 ③手环清空→确认文案含"请求手机清除"→手机端同步清空不再回灌 ④手环桌面看图标与背景无色差 ⑤设置里发 @我 测试消息→金色气泡呼吸动效
+
+---
+Task ID: 16
+Agent: main (Super Z)
+Task: band-qq v2.8.0 —— DevTools 模拟 OneBot 协议端 APK（用户无服务器）+ 拉起后手环震动 + 双端设置互通 + 双端关于页
+
+Work Log:
+- 容器重置恢复：重克隆(39a2c46) + 工具链重建（JDK17/Gradle8.13/cmdline-tools/android-37.0+build-tools 37.0.0）；新陷阱：AGP 找 hash string 'android-37' 而 sdkmanager 装的是 37.0 → cp -r android-37.0 android-37 + sed 修 ApiLevel=37
+- DevTools APK（新 module :devtools，独立签名同源）：WsServer.kt 手写 RFC6455（握手/掩码帧/扩展长度/分片/ping-pong，零依赖）+ HttpApiServer.kt 极简 HTTP（send_private_msg/send_group_msg 回 retcode 0+可选自动回推对方消息闭环、get_friend_list/get_group_list 模拟联系人）+ MsgBuilder 九场景 OneBot v11 数组段载荷 + MainActivity 纯代码 UI（快捷按钮/自定义发送/自动回推开关/事件日志/端口记忆）
+- 拉起震动：AutoLauncher pendingVibrate(AtomicBoolean+60s窗口)+launchAlertHook；SyncService bandAlert 发 band_alert 帧；RPK app.ux mode=1 短震×2/mode=2 长震；设置页三档（autoLaunchVibrate 0/1/2）
+- 双端互通：settings_state/settings_update 帧协议（msg_vibrate+emoji_native）；MessageBroker get_settings/settings_update 处理+settingsWriter hook；ConfigManager.applyBandSettings 变化才落盘；store.js band_settings 持久化；settings.ux 消息震动/表情渲染两行双向同步；push_message 震动判定加开关
+- 关于页：APP AboutScreen.kt（版本/作者一秋/QQ2308534727复制/仓库跳转/简介）+ BandQQApp showAbout 推入；RPK pages/about/about.ux + manifest 注册 + settings.ux 关于行；buildConfig=true 开启（AGP8）
+- 构建：APK vc36/2.8.0 + devtools vc1/1.0.0 验签同源（af8819e2）+ RPK 2.8.0/vc34（包内验证新协议/页面齐全）；node 单测 49/49 过（protocol/store），api.test.js 与 GameProtocolDetectorTest 各 1 例存量环境失败（基线一致）
+- 交付 download/ 三件产物；README/MEMORY 更新
+
+Stage Summary:
+- 产物：bandqq-sync-release-2.8.0.apk + bandqq-devtools-release-1.0.0.apk + bandqq-watch-release-2.8.0.rpk
+- 回归建议：①装 DevTools→启动服务器→APP 默认地址直连→点模拟按钮消息到手环 ②手环回复→DevTools 日志+自动回推对方消息 ③手环设置页改「消息震动」→APP 设置页状态同步 ④开启自动拉起→拉起后手环短震×2 ⑤双端关于页信息完整

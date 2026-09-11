@@ -12,8 +12,8 @@ android {
         applicationId = "com.example.bandqq"
         minSdk = 26
         targetSdk = 34
-        versionCode = 35
-        versionName = "2.7.0"
+        versionCode = 36
+        versionName = "2.8.0"
     }
 
     signingConfigs {
@@ -46,6 +46,8 @@ android {
 
     buildFeatures {
         compose = true
+        // 关于页展示版本号需要 BuildConfig.VERSION_NAME（AGP 8 默认关闭生成）
+        buildConfig = true
     }
 
     lint {

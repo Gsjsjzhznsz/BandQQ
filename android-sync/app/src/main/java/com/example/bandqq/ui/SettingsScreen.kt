@@ -59,6 +59,7 @@ fun SettingsScreen(
     onOpenThemeSettings: () -> Unit = {},
     onOpenKeepAlive: () -> Unit = {},
     onOpenCrashLog: () -> Unit = {},
+    onOpenAbout: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -77,6 +78,8 @@ fun SettingsScreen(
     var emojiNative by remember { mutableStateOf(true) }
     var autoLaunchEnabled by remember { mutableStateOf(false) }
     var autoLaunchDelay by remember { mutableIntStateOf(10) }
+    var autoLaunchVibrate by remember { mutableIntStateOf(1) }
+    var bandMsgVibrate by remember { mutableStateOf(true) }
     var testChatType by remember { mutableStateOf("private") }   // 模拟器：private | group
     var testScenario by remember { mutableStateOf("text") }      // 模拟器：text/at/image/face/reply/recall/voice/file/long
     var loaded by remember { mutableStateOf(false) }
@@ -99,6 +102,8 @@ fun SettingsScreen(
         emojiNative = cfg.emojiNative
         autoLaunchEnabled = cfg.autoLaunchEnabled
         autoLaunchDelay = cfg.autoLaunchDelaySec
+        autoLaunchVibrate = cfg.autoLaunchVibrate
+        bandMsgVibrate = cfg.bandMsgVibrate
         // 默认 WebUI 地址：由 HTTP 地址推导同主机 :5099（SnowLuma WebUI 默认端口）
         webuiUrl = cfg.webuiUrl.ifBlank {
             runCatching {
@@ -370,7 +375,24 @@ fun SettingsScreen(
                         checked = emojiNative,
                         onCheckedChange = { on ->
                             emojiNative = on
-                            scope.launch { configManager.setEmojiNative(on) }
+                            scope.launch {
+                                configManager.setEmojiNative(on)
+                                // v2.8.0 双端互通：改动立即下发 settings_state 快照到手环
+                                SyncService.pushSettingsNow?.invoke()
+                            }
+                        },
+                    )
+                    // ===== 新消息手环震动（v2.8.0 双端互通：手环设置页也可改，双向同步）=====
+                    SwitchPreference(
+                        title = "新消息手环震动",
+                        summary = "新消息推到手环时短震提醒；手环端设置页同步提供此开关，两端实时互通",
+                        checked = bandMsgVibrate,
+                        onCheckedChange = { on ->
+                            bandMsgVibrate = on
+                            scope.launch {
+                                configManager.setBandMsgVibrate(on)
+                                SyncService.pushSettingsNow?.invoke()
+                            }
                         },
                     )
                     // ===== 测试推送模拟器（v2.5.0）：私聊/群聊 × 多种消息类型 =====
@@ -474,6 +496,33 @@ fun SettingsScreen(
                         }
                     }
                     Text(
+                        text = "拉起后手环震动",
+                        modifier = Modifier.padding(top = 14.dp),
+                        fontSize = 14.sp,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        listOf("不震" to 0, "短震×2" to 1, "长震" to 2).forEach { (label, mode) ->
+                            Button(
+                                onClick = {
+                                    autoLaunchVibrate = mode
+                                    scope.launch { configManager.setAutoLaunchVibrate(mode) }
+                                },
+                                colors = if (autoLaunchVibrate == mode) ButtonDefaults.buttonColorsPrimary() else ButtonDefaults.buttonColors(),
+                                modifier = Modifier.weight(1f),
+                            ) { Text(label, fontSize = 13.sp) }
+                        }
+                    }
+                    Text(
+                        text = "快应用被后台自动打开时手环震动一下提醒，避免没注意到；" +
+                            "手动打开快应用不会震动。",
+                        modifier = Modifier.padding(top = 8.dp),
+                        fontSize = 12.sp,
+                        color = colorScheme.onSurfaceSecondary,
+                    )
+                    Text(
                         text = "延迟内打开过手环QQ 或点击预告通知，本次自动拉起自动取消；勿扰时段/群聊过滤命中" +
                             "的消息不会触发拉起。需同步服务运行且小米运动健康已连接手环。",
                         modifier = Modifier.padding(top = 8.dp),
@@ -524,6 +573,16 @@ fun SettingsScreen(
                     modifier = Modifier.padding(12.dp),
                     fontSize = 13.sp,
                     color = colorScheme.onSurfaceSecondary,
+                )
+            }
+
+            // ===== 关于 BandQQ（v2.8.0）：仓库/作者/联系/简介 =====
+            SmallTitle(text = "关于")
+            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 8)) {
+                ArrowPreference(
+                    title = "关于 BandQQ",
+                    summary = "版本、GitHub 仓库、作者与联系方式",
+                    onClick = onOpenAbout,
                 )
             }
 

@@ -338,6 +338,8 @@ object InterconnectBridge {
         broker?.bandSender?.invoke(SyncStatePush.buildFrame())
         broker?.pushVisibleContacts()
         broker?.pushQuickReplies()
+        // v2.8.0 双端互通：连接建立即下发设置快照（手环本地持久化，变更经 settings_update 回传）
+        broker?.pushSettingsState()
     }
 
     fun onDisconnect() {

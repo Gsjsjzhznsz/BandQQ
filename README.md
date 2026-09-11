@@ -1,8 +1,8 @@
-# BandQQ v2.7.0 — 小米手环 9/10/11 QQ 消息助手（手环快应用 + 安卓同步器）
+# BandQQ v2.8.0 — 小米手环 9/10/11 QQ 消息助手（手环快应用 + 安卓同步器）
 
 > 🧠 **AI 协作记忆库**：[`MEMORY.md`](MEMORY.md) — 本项目的跨会话持久记忆（架构 / bug 台账 / 构建配方 / 任务清单）。任何新会话恢复上下文，先读它。
 
-[![Version](https://img.shields.io/badge/version-2.7.0-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-2.8.0-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
 
 **BandQQ** 是一套开源的「小米手环 QQ 消息助手」双端方案：手环端运行 Vela 快应用（rpk），手机端运行安卓同步器（APK），通过小米互联蓝牙通道把 QQ 消息实时同步到手环，支持直接在手环上**查看 / 回复 / 翻历史消息 / 收图**。
 
@@ -10,7 +10,18 @@
 
 > 关键词：小米手环9 / Mi Band 9 / 小米手环10 / 小米手环11 / Mi Band 11 / 小米手环QQ / 小米手环9 Pro / Redmi Watch / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / Stapxs-QQ-Lite-X / wearable QQ / smartband chat / Mi Band QQ client
 
-## v2.7.0 更新日志（当前版本）
+## v2.8.0 更新日志（当前版本）
+
+### 新功能
+1. **BandQQ DevTools 开发者测试工具 APK（全新独立应用）**：模拟 OneBot 协议端（正向 WS 服务器 + HTTP API 服务器，零第三方依赖手写实现），没有 OneBot/SnowLuma 服务器的用户也能完整体验与调试全链路。启动后 BandQQ 同步器用默认地址（ws://127.0.0.1:3001 / http://127.0.0.1:3000）直连即可。支持：私聊/群聊 × 文本/@我/图片/表情/引用回复/语音/文件/长文本/撤回 一键模拟（真实 OneBot v11 数组段格式，走 APP 完整解析管线）；自定义消息（昵称+内容）；模拟好友/群列表（APP 连接后自动拉取出现在联系人页）；收到手环回复可自动回推一条对方消息（闭环演示：「手环回复 → 协议端收到 → 对方再回复」，手环上直接看到对话流）；全程事件日志；端口可配并记忆。
+2. **自动拉起后手环震动提示**：快应用被后台自动打开时手环震动一下（用户可能没注意到屏幕亮了），手动打开快应用不震动。设置页「快应用自动拉起」专区新增「拉起后手环震动」三档：不震 / 短震×2（默认，与消息单次短震区分）/ 长震。实现：launchWearApp 成功后置位待震标志，快应用真正连上（心跳 pong）时经 `band_alert` 帧下发，60s 时间窗口防拉起失败后残留误震。
+3. **双端设置互通**：「消息震动」（新消息手环振动）与「表情渲染」两项影响快应用的设置复制到手环端设置页，**双向实时互通**——手机端改动立即经 `settings_state` 快照帧下发（连接建立时也会下发）；手环端改动经 `settings_update` 帧回传手机端落盘（DataStore 持久化），变化才回推确认帧，防同步风暴；手环本地 storage 缓存加速启动，两端均即时生效无需重启。
+4. **双端关于页**：手机端设置页新增「关于 BandQQ」推入页（含应用图标、版本号、作者、联系方式、GitHub 仓库直达按钮、QQ 号一键复制、项目简介）；手环端设置页新增「关于」行跳转关于页面。作者一秋，联系方式 QQ 2308534727，仓库 Gsjsjzhznsz/BandQQ。
+
+### 保持不变
+- APK 签名同源（SHA-256 `af8819e2…b004`），可**直接覆盖安装**；DevTools 为独立应用（同签名）。
+
+## v2.7.0 更新日志（历史版本）
 
 ### 新功能
 1. **快应用自动拉起（互联 launchWearApp，置顶需求）**：手环QQ 未打开时收到新消息，延迟 N 秒自动通过互联拉起快应用完成同步展示，无需手动打开。设置页新增「快应用自动拉起」专区：总开关（默认关）+ 拉起延迟档位（5/10/15/30 秒）。拉起前先发一条系统通知「将于 N 秒后自动打开手环QQ」——运动健康的应用通知同步会把它镜像到手环，作为预告；点击通知或延迟内手动打开快应用即自动取消本次拉起；勿扰时段/群聊过滤命中的消息不触发。实现上 `AutoLauncher` 只调 `launchWearApp` 不动鉴权/监听链，与心跳重连循环无并发冲突；消息风暴自动去重（同一时刻至多一个待执行任务）。

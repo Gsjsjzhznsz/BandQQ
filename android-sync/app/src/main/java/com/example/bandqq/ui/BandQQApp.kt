@@ -68,6 +68,7 @@ fun BandQQApp() {
     var showThemeScreen by rememberSaveable { mutableStateOf(false) }
     var showKeepAlive by rememberSaveable { mutableStateOf(false) }
     var showCrashLog by rememberSaveable { mutableStateOf(false) }
+    var showAbout by rememberSaveable { mutableStateOf(false) }
 
     // 推入页动画时长跟随「动画速度」设置（速度越快时长越短）
     val motionSpeed = LocalMotionSpeed.current.coerceIn(0.5f, 2f)
@@ -83,7 +84,7 @@ fun BandQQApp() {
     // 两种模式都由 PredictiveBackHandler 统一接管（activity-compose 1.12.4 源码实证：
     // 非预测路径 onBackCompleted 也会启动一次性 session 并立即 close，即 collect 完整走完）。
     var backProgress by remember { mutableFloatStateOf(0f) }
-    val overlayOpen = showThemeScreen || showKeepAlive || showCrashLog
+    val overlayOpen = showThemeScreen || showKeepAlive || showCrashLog || showAbout
     // 必须无条件调用（enabled 参数控制），避免条件组合改变 handler 优先级
     PredictiveBackHandler(enabled = overlayOpen) { progress ->
         try {
@@ -91,6 +92,7 @@ fun BandQQApp() {
             backProgress = 0f
             // 手势提交（或离散返回）：按优先级关闭最顶层推入页
             when {
+                showAbout -> showAbout = false
                 showCrashLog -> showCrashLog = false
                 showKeepAlive -> showKeepAlive = false
                 showThemeScreen -> showThemeScreen = false
@@ -211,6 +213,7 @@ fun BandQQApp() {
                             onOpenThemeSettings = { showThemeScreen = true },
                             onOpenKeepAlive = { showKeepAlive = true },
                             onOpenCrashLog = { showCrashLog = true },
+                            onOpenAbout = { showAbout = true },
                         )
                     }
                 },
@@ -247,6 +250,16 @@ fun BandQQApp() {
                 modifier = Modifier.fillMaxSize(),
             ) {
                 CrashLogScreen(onBack = { showCrashLog = false }, modifier = predictiveTransform)
+            }
+
+            // 关于页（v2.8.0）：仓库/作者/联系/简介，同款全屏推入
+            AnimatedVisibility(
+                visible = showAbout,
+                enter = slideInVertically { it } + fadeIn(tween(pushIn)),
+                exit = slideOutVertically { it } + fadeOut(tween(pushOut)),
+                modifier = Modifier.fillMaxSize(),
+            ) {
+                AboutScreen(onBack = { showAbout = false }, modifier = predictiveTransform)
             }
         }
     }

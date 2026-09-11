@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- BandQQ DevTools：深色 Material 主题（开发者工具定位，默认暗色护眼） -->
+    <style name="Theme.DevTools" parent="Theme.Material3.Dark.NoActionBar">
+        <item name="android:windowBackground">#FF10141A</item>
+        <item name="android:statusBarColor">#FF10141A</item>
+        <item name="android:navigationBarColor">#FF10141A</item>
+    </style>
+</resources>

@@ -46,7 +46,10 @@ data class AppConfig(
     val emojiNative: Boolean = true,   // v2.6.0 表情：true=QQ表情/emoji 映射为原生 emoji 透传；false=降级 [表情] 占位（手环字形缺失时）
     // ===== 快应用自动拉起（v2.7.0）：快应用未打开时收到新消息延迟拉起同步展示 =====
     val autoLaunchEnabled: Boolean = false, // 默认关：拉起属主动行为，由用户在设置专区显式开启
-    val autoLaunchDelaySec: Int = 10        // 收到消息到拉起的延迟（3~120s，设置页档位可选）
+    val autoLaunchDelaySec: Int = 10,       // 收到消息到拉起的延迟（3~120s，设置页档位可选）
+    val autoLaunchVibrate: Int = 1,         // v2.8.0 拉起后手环震动提示：0=不震 1=短震×2 2=长震
+    // ===== 双端互通设置（v2.8.0）：RPK 设置页可改并回传，手机端可改并下发 =====
+    val bandMsgVibrate: Boolean = true      // 新消息手环振动（经 settings_state 帧同步到手环）
 )
 
 object ConfigHolder {
@@ -79,6 +82,8 @@ class ConfigManager(private val context: Context) {
         val EMOJI_NATIVE = booleanPreferencesKey("emoji_native")
         val AUTO_LAUNCH_ENABLED = booleanPreferencesKey("auto_launch_enabled")
         val AUTO_LAUNCH_DELAY = intPreferencesKey("auto_launch_delay_sec")
+        val AUTO_LAUNCH_VIBRATE = intPreferencesKey("auto_launch_vibrate")
+        val BAND_MSG_VIBRATE = booleanPreferencesKey("band_msg_vibrate")
     }
 
     suspend fun load(): AppConfig {
@@ -111,7 +116,9 @@ class ConfigManager(private val context: Context) {
             dndEnd = prefs[Keys.DND_END] ?: default.dndEnd,
             groupPushMode = prefs[Keys.GROUP_PUSH_MODE] ?: default.groupPushMode,
             autoLaunchEnabled = prefs[Keys.AUTO_LAUNCH_ENABLED] ?: default.autoLaunchEnabled,
-            autoLaunchDelaySec = prefs[Keys.AUTO_LAUNCH_DELAY] ?: default.autoLaunchDelaySec
+            autoLaunchDelaySec = prefs[Keys.AUTO_LAUNCH_DELAY] ?: default.autoLaunchDelaySec,
+            autoLaunchVibrate = prefs[Keys.AUTO_LAUNCH_VIBRATE] ?: default.autoLaunchVibrate,
+            bandMsgVibrate = prefs[Keys.BAND_MSG_VIBRATE] ?: default.bandMsgVibrate
         )
         ConfigHolder.config = cfg
         return cfg
@@ -142,6 +149,8 @@ class ConfigManager(private val context: Context) {
             prefs[Keys.GROUP_PUSH_MODE] = config.groupPushMode
             prefs[Keys.AUTO_LAUNCH_ENABLED] = config.autoLaunchEnabled
             prefs[Keys.AUTO_LAUNCH_DELAY] = config.autoLaunchDelaySec
+            prefs[Keys.AUTO_LAUNCH_VIBRATE] = config.autoLaunchVibrate
+            prefs[Keys.BAND_MSG_VIBRATE] = config.bandMsgVibrate
         }
         ConfigHolder.config = config
     }
@@ -291,5 +300,49 @@ class ConfigManager(private val context: Context) {
     suspend fun setAutoLaunchDelay(sec: Int) {
         context.dataStore.edit { it[Keys.AUTO_LAUNCH_DELAY] = sec }
         ConfigHolder.config = ConfigHolder.config.copy(autoLaunchDelaySec = sec)
+    }
+
+    /** 拉起后手环震动档位（0=不震 1=短震×2 2=长震，v2.8.0） */
+    fun observeAutoLaunchVibrate(): Flow<Int> =
+        context.dataStore.data.map { it[Keys.AUTO_LAUNCH_VIBRATE] ?: 1 }
+
+    suspend fun setAutoLaunchVibrate(mode: Int) {
+        context.dataStore.edit { it[Keys.AUTO_LAUNCH_VIBRATE] = mode }
+        ConfigHolder.config = ConfigHolder.config.copy(autoLaunchVibrate = mode)
+    }
+
+    // ===== 双端互通设置（v2.8.0）：手环端 settings_update 可回写，手机端改动即下发 =====
+
+    fun observeBandMsgVibrate(): Flow<Boolean> =
+        context.dataStore.data.map { it[Keys.BAND_MSG_VIBRATE] ?: true }
+
+    suspend fun setBandMsgVibrate(enabled: Boolean) {
+        context.dataStore.edit { it[Keys.BAND_MSG_VIBRATE] = enabled }
+        ConfigHolder.config = ConfigHolder.config.copy(bandMsgVibrate = enabled)
+    }
+
+    /**
+     * 手环端 settings_update 帧回写（v2.8.0 双端互通）。
+     * 在互联 IO 线程调用，直接落盘并同步 ConfigHolder；仅在值真正变化时返回 true，
+     * 供调用方决定是否回推确认帧（避免手环↔手机设置同步风暴）。
+     */
+    suspend fun applyBandSettings(emojiNative: Boolean?, msgVibrate: Boolean?): Boolean {
+        val cur = ConfigHolder.config
+        var changed = false
+        if (emojiNative != null && emojiNative != cur.emojiNative) {
+            context.dataStore.edit { it[Keys.EMOJI_NATIVE] = emojiNative }
+            changed = true
+        }
+        if (msgVibrate != null && msgVibrate != cur.bandMsgVibrate) {
+            context.dataStore.edit { it[Keys.BAND_MSG_VIBRATE] = msgVibrate }
+            changed = true
+        }
+        if (changed) {
+            ConfigHolder.config = ConfigHolder.config.copy(
+                emojiNative = emojiNative ?: cur.emojiNative,
+                bandMsgVibrate = msgVibrate ?: cur.bandMsgVibrate
+            )
+        }
+        return changed
     }
 }

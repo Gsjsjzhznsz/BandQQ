@@ -31,6 +31,8 @@ import kotlinx.coroutines.launch
  *   3. 延迟到期且快应用仍未连接 → launchWearApp 拉起；期间快应用连上（用户
  *      手动打开了）→ 自动取消并撤掉通知；
  *   4. 用户点通知 = 不想拉起 → 取消本次任务并撤掉通知。
+ *   5. v2.8.0：拉起后快应用连上时发 band_alert 帧让手环震动提示用户
+ *      （快应用被后台自动打开时用户可能没注意到），震动档位设置页可调。
  *
  * 去重：消息风暴只保留第一个待执行任务；拉起完成/取消后归零，下次消息重新排队。
  */
@@ -51,9 +53,30 @@ object AutoLauncher {
     @Volatile
     private var pendingJob: Job? = null
 
+    /**
+     * v2.8.0：拉起后待震动标志。launchWearApp 下发后置位；快应用真正连上
+     * （onBandConnected）时消费 —— 由 SyncService 注入的 alertHook 发 band_alert 帧。
+     * 若拉起失败/超时未连上，下次 connect(launchApp=true) 连上时残留标志会
+     * 误震一次，故加时间窗口：置位后 LAUNCH_ALERT_WINDOW_MS 内连上才震。
+     */
+    private val pendingVibrate = java.util.concurrent.atomic.AtomicBoolean(false)
+    @Volatile
+    private var pendingVibrateAtMs: Long = 0L
+    private const val LAUNCH_ALERT_WINDOW_MS = 60_000L
+
+    /** v2.8.0：拉起提示震动发射器（SyncService 注入：发送 band_alert 帧） */
+    @Volatile
+    var launchAlertHook: (() -> Unit)? = null
+        private set
+
     /** SyncService.onCreate 注入应用上下文 */
     fun init(context: Context) {
         appContext = context.applicationContext
+    }
+
+    /** SyncService.onCreate 注入震动发射器（band_alert 帧经互联下发） */
+    fun initAlertHook(hook: () -> Unit) {
+        launchAlertHook = hook
     }
 
     /**
@@ -81,6 +104,11 @@ object AutoLauncher {
                 }
                 LogBus.log(TAG, LogLevel.INFO, "auto launch wear app now")
                 InterconnectBridge.launchWearAppNow()
+                // v2.8.0：拉起指令已下发，标记待震动（快应用连上时消费，60s 窗口防残留误震）
+                if (ConfigHolder.config.autoLaunchVibrate > 0) {
+                    pendingVibrate.set(true)
+                    pendingVibrateAtMs = System.currentTimeMillis()
+                }
             } finally {
                 cancelNotification(ctx)
             }
@@ -95,6 +123,15 @@ object AutoLauncher {
             LogBus.log(TAG, LogLevel.INFO, "band connected, cancel pending auto launch")
         }
         appContext?.let { cancelNotification(it) }
+        // v2.8.0：若本次连接源自自动拉起，发 band_alert 让手环震动提示用户
+        if (pendingVibrate.getAndSet(false) &&
+            System.currentTimeMillis() - pendingVibrateAtMs < LAUNCH_ALERT_WINDOW_MS
+        ) {
+            LogBus.log(TAG, LogLevel.INFO, "launch alert: vibrate band (auto launch opened)")
+            try { launchAlertHook?.invoke() } catch (t: Throwable) {
+                LogBus.log(TAG, LogLevel.WARN, "launch alert failed: $t")
+            }
+        }
     }
 
     /** 用户显式取消（点通知 / 关开关）：撤销任务与通知 */

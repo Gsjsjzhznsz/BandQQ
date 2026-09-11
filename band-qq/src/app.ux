@@ -35,8 +35,8 @@ function handleMessage(msg) {
 case 'push_message':
       // v2.5.0 新消息振动提醒：手表端核心提示通道（勿扰/群聊过滤已在手机端完成，
       // 能到手的帧都是该推的）。自己发的回显、撤回同步帧、不可见会话不振动。
-      // 轻量短路判断 + 系统一次短振动，手环零额外计算。
-      if (msg.is_self !== true && msg.recall !== 1 && msg.visible !== false) {
+      // v2.8.0：受「新消息手环震动」互通开关控制（手机端/手环端均可改，双向同步）。
+      if (msg.is_self !== true && msg.recall !== 1 && msg.visible !== false && store.getSettings().msg_vibrate !== false) {
         try { require('@system.vibrator').vibrate({ mode: 'short' }) } catch (e) {}
       }
       store.upsertMessage(msg).then(() => { try { console.log('[BANDQQ] v17 upsert target=' + msg.target_id + ' len=' + (typeof msg.content === 'string' ? msg.content.length : '?') + ' isSelf=' + (msg.is_self === true)) } catch (e) {}; emit('message', msg) }).catch((e) => console.error('upsert fail', e))
@@ -68,6 +68,23 @@ case 'push_message':
       break
     case 'clear_all_history':
       store.clearAllMessages().then(() => emit('cleared'))
+      break
+    case 'settings_state':
+      // v2.8.0 双端互通：手机端设置快照落地 + 通知设置页刷新
+      store.setSettings(msg).then(() => emit('settings', msg))
+      break
+    case 'band_alert':
+      // v2.8.0 自动拉起提示震动：快应用被后台自动打开时提醒用户（手动打开不触发）。
+      // mode 1=短震×2（默认）2=长震；与 push_message 的单次短震区分。
+      try {
+        const vib = require('@system.vibrator')
+        if (msg.mode === 2) {
+          vib.vibrate({ mode: 'long' })
+        } else {
+          vib.vibrate({ mode: 'short' })
+          setTimeout(() => { try { vib.vibrate({ mode: 'short' }) } catch (e) {} }, 260)
+        }
+      } catch (e) {}
       break
     default:
       break
@@ -110,6 +127,7 @@ sendUpstream(payload) {
       api.send(protocol.getConnectState())
       api.send(protocol.getVisibleContacts())
       api.send(protocol.getConversations())
+      api.send(protocol.getSettings())
     }
     api.init({
       onMessage: handleMessage,
@@ -121,6 +139,7 @@ sendUpstream(payload) {
     api.send(protocol.getConnectState())
     api.send(protocol.getVisibleContacts())
     api.send(protocol.getConversations())
+    api.send(protocol.getSettings())
   }
 }
 

@@ -9,7 +9,7 @@
 
 ## 版本线
 - v1.1.x：旧 lineage（stapxs 移植版，源码已失传，legacy/ 有 7z 分卷）
-- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.7.0**（versionCode 35，RPK versionCode 33）
+- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.8.0**（versionCode 36，RPK versionCode 34）
 - 签名一致性：rpk 与 APK 同源证书，APK SHA-256 = af8819e27a6ec8d84537ec86937cf016e780376305328abaa4eb79e8c626b004
 
 ## v2.1.0 已完成（2026-09-09）
@@ -160,3 +160,29 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 4. **表情支持（face→emoji 映射 + 可降级开关）**：FACE_EMOJI 80 项映射进 OneBotParser（id→名称以 NapCat napcat-core/external/face_config.json 官方数据为准：0=惊讶 13=呲牙 14=微笑，勿信「0=微笑」旧民俗表）；degradeCqString 先 CQ_FACE 后通用 CQ；文本 emoji 不再强制 [表情]。**ConfigManager.emojiNative 开关**（默认 true）控制透传/降级——设置页「消息推送策略」卡内「表情原生渲染」。RPK protocol.js 旧端兼容路径同款小映射。
 5. **Vela 虚拟机验收体系（重大基建）**：aiot-toolkit 自带 VVD 模拟器（QEMU arm，@aiot-toolkit/emulator）。配方：`~/.vela/sdk` 手动装 SDK（emulator/qa/skins/modem + **vela-watch-5.0 镜像 220MB 唯一支持自定义分辨率**；vela-miwear-watch-5.0 383MB 固定尺寸）；hw.lcd.density 只接受枚举值（326 非法→320，否则 qemu 退出 138）；每台独立 grpcPort；`-no-window` 无头 + gRPC getScreenshot 截屏 + sendMouse 触摸（时序敏感，App 就绪后点击才有效）；adb 走 @miwt/adb（需 platform-tools 在 PATH），pushRpk→`pm install`→`am start`。**脚本 /home/z/my-project/scripts/vvd-ctl.js + emulator-setup.sh**。实测发现并修复：首页空态文案 212 折行孤字（字号 18+lines:1）、设置页清空项双折行（缩 4 字+flex-shrink:0）。键盘组件 480px 系 scroll-x 横滑设计非溢出。**Vela watch5.0 镜像字体无 emoji 字形（含 2600-27BF/1F000-1FAFF 全 tofu），GBK 符号（→←★☆○●◎§№）与 ASCII 颜文字正常**——真实手环固件未验证，故 emoji 透传做成可降级开关。
 6. 构建：APK vc34/2.6.0 + RPK 2.6.0/vc32 同源验签；android 单测除存量 GameProtocolDetectorTest 失败外全绿；band-qq 单测 53/54（存量 api 门控失败）。
+
+## v2.8.0（2026-09-11，versionCode 36 / RPK vc 34）— DevTools 模拟协议端 APK + 拉起后手环震动 + 双端设置互通 + 双端关于页
+
+**BandQQ DevTools 开发者测试工具 APK（全新 module :devtools，独立安装）**：
+- 用户没有 OneBot 服务器 → 手写零依赖模拟协议端：`WsServer.kt`（RFC6455 手写帧编解码：Accept=b64(sha1(key+GUID))、客户端帧掩码 XOR、126/127 扩展长度、continuation 分片、ping/pong/close；~250 行）+ `HttpApiServer.kt`（ServerSocket 极简 HTTP：POST 路由 /send_private_msg /send_group_msg → retcode 0 + 可选自动回推对方消息（闭环：「手环回复→协议端收到→对方再回复」WS 下发 message 事件，手环直接看到对话流）；/get_friend_list /get_group_list → 模拟联系人，APP 连接后自动拉取出现在联系人页）；UI 纯代码构建（无 XML 布局），org.json 内置 JSON
+- MsgBuilder：与 APP 端 pushTestMessage 同源的 OneBot v11 数组段载荷（self_id=10000、time=Unix秒、message_id=dev_*），九场景 + 自定义 + recallFlow（先文本后 notice.group_recall/friend_recall）
+- 使用法：启动服务器（端口基号默认 3000→WS=base+1）→ APP 保持默认地址 127.0.0.1:3001/3000 → 启动同步服务自动连上 → 点按钮发消息到手环；同机 loopback 共享网络栈，双 APK 直连无障碍
+- ⚠️ AGP 需要 platforms/android-37（非 android-37.0）：sdkmanager 装的是 37.0 且 source.properties ApiLevel=37.0，AGP 找 hash string 'android-37' —— 必须 cp -r android-37.0 android-37 并 sed 修 ApiLevel=37（v2.4.4 起的目录陷阱新变体，三份目录共存：37.0/.bak/37）
+
+**自动拉起后手环震动（band_alert 帧）**：
+- AutoLauncher：launchWearAppNow 后若 autoLaunchVibrate>0 置位 pendingVibrate(AtomicBoolean)+时间戳；onBandConnected（快应用 pong 连上）消费——60s 窗口防拉起失败残留误震；launchAlertHook 由 SyncService.initAlertHook 注入（bandAlert(broker) 发 {"type":"band_alert","mode":1|2}）
+- RPK app.ux：case 'band_alert' → mode 2=长震 / mode 1=短震+260ms 后再短震（与消息单次短震区分）
+- ConfigManager.autoLaunchVibrate: Int = 1（0不震/1短震×2/2长震）；设置页自动拉起专区三档按钮；手动打开快应用不经过该路径天然不震
+
+**双端设置互通（settings_state/settings_update 帧）**：
+- 字段：msg_vibrate（新消息手环振动，新 ConfigManager 键 bandMsgVibrate 默认 true）+ emoji_native（表情渲染，复用现有键）；手机端为权威源
+- APP→手环：MessageBroker.buildSettingsStateFrame/pushSettingsState；下发时机=InterconnectBridge.onConnect、SyncService.pushSettingsNow 钩子（设置页开关变化即调）、手环回传有变化后的确认
+- 手环→APP：settings.ux toggleVibrate/toggleEmoji → protocol.updateSettings（只带变化字段）→ MessageBroker.onBandFrame "settings_update" → settingsWriter（SyncService 注入 ConfigManager.applyBandSettings——值变才落盘返回 true）→ 回推 settings_state 确认；无变化不回推防同步风暴
+- 手环端：store.js setSettings/getSettings（storage key band_settings 持久化+启动加载+Object.assign 合并默认）；app.ux case settings_state → setSettings+emit('settings')；onCreate/onOpen pullAll 补发 get_settings
+- push_message 震动判定加 `store.getSettings().msg_vibrate !== false`；settings.ux 新增「消息震动/表情渲染」两行（点行切换 + toast），on('settings') 实时刷新文案
+
+**双端关于页**：
+- APP：ui/AboutScreen.kt（推入页同构 CrashLogScreen：Scaffold+BlurredBar+SmallTopAppBar；图标+版本 BuildConfig.VERSION_NAME（app buildFeatures 开 buildConfig=true，AGP8 默认关）+ 作者一秋/QQ 2308534727 点击复制/仓库 Gsjsjzhznsz/BandQQ 点击开浏览器/项目简介/双按钮）；BandQQApp showAbout rememberSaveable 推入 + PredictiveBackHandler 优先级链插入
+- RPK：pages/about/about.ux（hero 区图标/版本 + 简介/作者/联系/仓库卡片；192px body 双屏通吃）+ manifest router 注册 + settings.ux「关于」行 goAbout
+
+**交付**：bandqq-sync-release-2.8.0.apk（12.2MB vc36）+ bandqq-devtools-release-1.0.0.apk（4.7MB vc1 同签名）+ bandqq-watch-release-2.8.0.rpk（256KB vc34，包内验证 about 页/band_alert/settings 协议齐全）；RPK node 单测 53/54+49/49（protocol/store 全过，api.test.js 1 例存量失败）；GameProtocolDetectorTest 1 例存量失败（与 v2.7.0 基线一致，容器环境限制）

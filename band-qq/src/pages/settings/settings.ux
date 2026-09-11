@@ -15,6 +15,18 @@
         <text class="row-label">协议端</text>
         <text class="row-value">{{protocolText}}</text>
       </div>
+      <div class="card row" @click="toggleVibrate">
+        <text class="row-label">消息震动</text>
+        <text class="row-value">{{vibrateText}}</text>
+      </div>
+      <div class="card row" @click="toggleEmoji">
+        <text class="row-label">表情渲染</text>
+        <text class="row-value">{{emojiText}}</text>
+      </div>
+      <div class="card row" @click="goAbout">
+        <text class="row-label">关于</text>
+        <text class="row-value arrow">›</text>
+      </div>
       <div class="card row" @click="askClear">
         <text class="row-label">清空记录</text>
         <text class="row-value danger">清空</text>
@@ -45,6 +57,8 @@
   .row-label { font-size: 19px; color: #ffffff; lines: 1; flex-shrink: 0; }
   .row-value { flex: 1; text-align: right; font-size: 20px; color: #07c160; }
   .row-value.danger { color: #ff5a5a; }
+  .row-value.arrow { color: #999999; }
+  .row-value.dim { color: #999999; }
   .section { font-size: 16px; color: rgba(255, 255, 255, 0.6); padding: 8px 12px; }
   /* v2.5.0 Band 11 适配：主体区弹性伸展（212×520 与 192×490 双屏通吃） */
   .body { flex: 1; width: 192px; flex-direction: column; }
@@ -66,20 +80,29 @@
     private: {
       statusText: '未连接',
       protocolText: '未知',
+      vibrateText: '开',
+      emojiText: '原生',
       confirmShow: false
     },
     onShow() {
       this.refreshStatus()
+      this.refreshSettings()
       this.pullConnectState()
     },
     onInit() {
       this.$app.$def.on('state', () => this.refreshStatus())
+      // v2.8.0 双端互通：手机端改了设置 → 快照到达 → 刷新行文案
+      this.$app.$def.on('settings', () => this.refreshSettings())
     },
     onDestroy() {
       this.$app.$def.off('state')
+      this.$app.$def.off('settings')
     },
     goBack() {
       router.back()
+    },
+    goAbout() {
+      router.push({ uri: '/pages/about/about' })
     },
     async pullConnectState() {
       const api = this.$app.$def.api
@@ -88,6 +111,29 @@
       } catch (e) {
         console.error('pull connect state failed', e)
       }
+    },
+    refreshSettings() {
+      const st = this.$app.$def.store.getSettings()
+      this.vibrateText = st.msg_vibrate !== false ? '开' : '关'
+      this.emojiText = st.emoji_native !== false ? '原生' : '占位'
+    },
+    /** v2.8.0 双端互通：手环改「消息震动」→ 立即回传手机端（applyBandSettings 落盘） */
+    toggleVibrate() {
+      const app = this.$app.$def
+      const store = app.store
+      const next = store.getSettings().msg_vibrate === false
+      store.setSettings({ msg_vibrate: next }).then(() => this.refreshSettings())
+      app.sendUpstream(protocol.updateSettings({ msg_vibrate: next })).catch(() => {})
+      prompt.showToast({ message: next ? '消息震动已开启' : '消息震动已关闭' })
+    },
+    /** v2.8.0 双端互通：手环改「表情渲染」→ 回传手机端；原生=emoji直显，占位=[表情] */
+    toggleEmoji() {
+      const app = this.$app.$def
+      const store = app.store
+      const next = store.getSettings().emoji_native === false
+      store.setSettings({ emoji_native: next }).then(() => this.refreshSettings())
+      app.sendUpstream(protocol.updateSettings({ emoji_native: next })).catch(() => {})
+      prompt.showToast({ message: next ? '表情原生渲染' : '表情占位显示' })
     },
     async refreshStatus() {
       const store = this.$app.$def.store

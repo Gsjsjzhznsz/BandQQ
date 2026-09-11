@@ -9,6 +9,14 @@ const CONV_KEY = 'conv_cache'
 const MSG_PREFIX = 'msg_cache_'
 const VISIBLE_KEY = 'visible_contacts'
 const QR_KEY = 'quick_replies'
+const SETTINGS_KEY = 'band_settings'
+
+/**
+ * v2.8.0 双端互通设置（手机端为权威源，本地缓存加速启动）：
+ * - msg_vibrate：新消息手环震动
+ * - emoji_native：表情原生渲染（手环端 degradeContent 兑底时用）
+ */
+const DEFAULT_SETTINGS = { msg_vibrate: true, emoji_native: true }
 
 /** 内置默认快捷回复（手机端 v2 协议会下发覆盖） */
 const DEFAULT_QUICK_REPLIES = [
@@ -94,6 +102,7 @@ export function createStore(storageImpl) {
   let visibleContacts = []
   let connectState = null
   let quickReplies = DEFAULT_QUICK_REPLIES.slice()
+  let settings = Object.assign({}, DEFAULT_SETTINGS)
   const messagesByTarget = {}
   let initPromise = null
 
@@ -132,6 +141,11 @@ export function createStore(storageImpl) {
         try {
           const list = JSON.parse(qrRaw)
           if (Array.isArray(list) && list.length > 0) quickReplies = list
+        } catch (e) { /* 用默认 */ }
+        const stRaw = await cache.get(SETTINGS_KEY, '{}')
+        try {
+          const parsed = JSON.parse(stRaw)
+          if (parsed && typeof parsed === 'object') settings = Object.assign({}, DEFAULT_SETTINGS, parsed)
         } catch (e) { /* 用默认 */ }
       })()
       return initPromise
@@ -376,6 +390,19 @@ export function createStore(storageImpl) {
     },
     getConnectState() {
       return connectState
+    },
+    /** v2.8.0：settings_state 快照落地（手机端下发） */
+    async setSettings(st) {
+      await this.ensureInit()
+      if (!st || typeof st !== 'object') return
+      const next = Object.assign({}, settings)
+      if (typeof st.msg_vibrate === 'boolean') next.msg_vibrate = st.msg_vibrate
+      if (typeof st.emoji_native === 'boolean') next.emoji_native = st.emoji_native
+      settings = next
+      await cache.set(SETTINGS_KEY, JSON.stringify(settings))
+    },
+    getSettings() {
+      return settings
     },
     isVisible(id) {
       return visibleContacts.some((c) => c.id === id)

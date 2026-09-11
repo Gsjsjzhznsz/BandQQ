@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">BandQQ DevTools</string>
+    <string name="ws_status_idle">WS 服务器未启动</string>
+    <string name="http_status_idle">HTTP 服务器未启动</string>
+</resources>

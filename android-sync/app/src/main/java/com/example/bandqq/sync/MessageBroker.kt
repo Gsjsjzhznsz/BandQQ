@@ -6,6 +6,10 @@ import com.example.bandqq.onebot.OneBotParser
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 object HistoryDedup {
     private val map = java.util.concurrent.ConcurrentHashMap<String, Long>()
@@ -39,6 +43,15 @@ class MessageBroker(
     var autoFetchDone = false
 
     var bandSender: (String) -> Unit = {}
+
+    /**
+     * v2.8.0 双端设置互通：手环 settings_update 回写。
+     * SyncService onCreate 注入 ConfigManager::applyBandSettings；
+     * 返回 true 表示有变化（需要回推确认帧对齐两端）。
+     */
+    var settingsWriter: (suspend (emojiNative: Boolean?, msgVibrate: Boolean?) -> Boolean)? = null
+
+    private val settingsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** 手环 pong 心跳应答回调，由互联层在收到 pong 时调用以确认手环在线。 */
     var onBandPong: () -> Unit = {}
@@ -143,6 +156,24 @@ class MessageBroker(
             }
             "get_connect_state" -> {
                 bandSender(SyncStatePush.buildFrame())
+                return true
+            }
+            "get_settings" -> {
+                // v2.8.0 双端互通：手环启动时主动拉取设置快照
+                bandSender(buildSettingsStateFrame())
+                return true
+            }
+            "settings_update" -> {
+                // v2.8.0 双端互通：手环设置页改动回传（仅变化字段非空）。
+                // 回写手机端配置后回推 settings_state 确认帧；值未变化不回推，防同步风暴。
+                val emoji = obj.get("emoji_native")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean
+                val vibrate = obj.get("msg_vibrate")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean
+                if (emoji == null && vibrate == null) return true
+                val writer = settingsWriter
+                settingsScope.launch {
+                    val changed = try { writer?.invoke(emoji, vibrate) ?: false } catch (t: Throwable) { false }
+                    if (changed) bandSender(buildSettingsStateFrame())
+                }
                 return true
             }
             else -> return false
@@ -385,6 +416,26 @@ class MessageBroker(
         val list = OneBotParser.parseQuickReplies(raw)
         bandSender(OneBotParser.buildQuickRepliesFrame(list, 0))
         log("pushQuickReplies -> ${list.size} items")
+    }
+
+    /**
+     * v2.8.0 双端互通设置快照帧（手机端为权威源）。
+     * 下发时机：手环连接建立（onConnect）、手机端改动（pushSettingsNow 钩子）、
+     * 手环回传有变化后的确认。
+     */
+    fun pushSettingsState() {
+        bandSender(buildSettingsStateFrame())
+        log("pushSettingsState -> emoji=${ConfigHolder.config.emojiNative} vibrate=${ConfigHolder.config.bandMsgVibrate}")
+    }
+
+    private fun buildSettingsStateFrame(): String {
+        val cfg = ConfigHolder.config
+        val obj = JsonObject()
+        obj.addProperty("type", "settings_state")
+        obj.addProperty("seq", 0)
+        obj.addProperty("emoji_native", cfg.emojiNative)
+        obj.addProperty("msg_vibrate", cfg.bandMsgVibrate)
+        return obj.toString()
     }
 
     private fun log(msg: String) {
