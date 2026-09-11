@@ -9,7 +9,7 @@
 
 ## 版本线
 - v1.1.x：旧 lineage（stapxs 移植版，源码已失传，legacy/ 有 7z 分卷）
-- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.8.0**（versionCode 36，RPK versionCode 34）
+- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.8.1**（versionCode 37，RPK versionCode 35）
 - 签名一致性：rpk 与 APK 同源证书，APK SHA-256 = af8819e27a6ec8d84537ec86937cf016e780376305328abaa4eb79e8c626b004
 
 ## v2.1.0 已完成（2026-09-09）
@@ -186,3 +186,24 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 - RPK：pages/about/about.ux（hero 区图标/版本 + 简介/作者/联系/仓库卡片；192px body 双屏通吃）+ manifest router 注册 + settings.ux「关于」行 goAbout
 
 **交付**：bandqq-sync-release-2.8.0.apk（12.2MB vc36）+ bandqq-devtools-release-1.0.0.apk（4.7MB vc1 同签名）+ bandqq-watch-release-2.8.0.rpk（256KB vc34，包内验证 about 页/band_alert/settings 协议齐全）；RPK node 单测 53/54+49/49（protocol/store 全过，api.test.js 1 例存量失败）；GameProtocolDetectorTest 1 例存量失败（与 v2.7.0 基线一致，容器环境限制）
+
+## v2.8.1（2026-09-11，versionCode 37 / RPK vc 35）— DevTools 联调反馈修复：WS 断连三层加固 + 双端关于页修复 + 设置页宽松化 + DevTools 身份配置
+
+**DevTools 发送消息全链路不通（核心，用户实测：每发一条 WS 就断开重连）**：
+- 根因一（主）：OkHttp RealWebSocket.loopReader 是 catch-all —— listener.onMessage/onOpen 回调内任何异常都被当作 WebSocket failure → 立即断连。而 BandQQ 处理链（parse→入库→bandSender→互联 SDK→AutoLauncher）任一环节（尤其 xms-wearable sendMessage 同步抛、通知/节点失效）都可能抛。三层加固：① OneBotClient.onMessage/onOpen/onClosed 全链 try-catch(Throwable)（异常写 LogBus ERROR「WS onMessage exception (connection kept)」，设置页日志可查）② MessageBroker.onEvent/onState/onRecall 全链兜底（AutoLauncher.scheduleIfEnabled 单独再包）③ InterconnectBridge.sendToBand 的 messageApi.sendMessage try-catch
+- 根因二：OneBotClient.reconnect() 多重连循环竞态 —— start() 每次 ACTION_START 都新建 scope.launch 循环且旧 Job 不取消 → 两个循环在 !connected 时并发 connectOnce → 双 WS 连接（DevTools 日志「当前 2 个」）+ ws 引用互相覆盖泄漏。修复：reconnect() 先 reconnectJob?.cancel()；connectOnce() 先 runCatching{ ws?.close(1000,"reconnect") } 清旧连接
+- 诊断方法论：用户贴的 DevTools 日志模式「已发送→客户端断开→5s 重连」+「连接后立即断开」+「当前 2 个」三个特征直接锁定断连根因与双连接竞态，无需真机堆栈
+
+**手机端关于页闪退**：AboutScreen 用 painterResource(R.mipmap.ic_launcher) —— API26+ ic_launcher 是 adaptive-icon XML，Compose painterResource 只支持 Vector/Bitmap drawable → AdaptiveIconDrawable 抛 IllegalStateException（唯一用 mipmap 图标的推入页所以只有它崩）。修复：ContextCompat.getDrawable + core-ktx toBitmap()（能绘制 AdaptiveIconDrawable）→ asImageBitmap；remember 缓存 + runCatching 空安全降级
+
+**手环关于页点不进去**：settings.ux goAbout 用 uri:'/pages/about/about'（无效路由，router.push 静默失败）—— manifest 注册 path='/about'。修复=uri:'/about'（对照工作正常的 /settings /chat /compose：**Vela router.push 的 uri 用 manifest path 不是页面文件路径**）
+
+**手环设置页宽松化**：六项挤一坨 → 新增「连接/偏好/更多」节标题（.section 15px 透明度分层）；行高 52→58、边距 8→10、行距 4→6、尾部 16px 留白
+
+**DevTools「我的身份」配置**：MainActivity 新增 selfQq/selfNick 输入框（getPreferences 持久化，onPause 保存 onRestore 恢复）；MsgBuilder.messageEvent/scenarioSegments 参数化 selfId（@我 场景 at 段 qq=selfId 与事件 self_id 一致）；HttpApiServer 新增 get_login_info 标准动作（selfInfo lambda 注入返回配置身份）——@判定链（at 段==self_id==get_login_info）三处对齐，用户可配真实 QQ 号验证
+
+**其他**：AboutScreen 仓库行改完整 URL（https://github.com/Gsjsjzhznsz/BandQQ）clickable 开浏览器；about.ux GitHub 行点击复制链接（@system.clipboard feature 新注册）；版本 app vc37/2.8.1 + devtools vc2/1.1.0 + RPK 2.8.1/vc35
+
+**交付**：bandqq-sync-release-2.8.1.apk（12.2MB vc37）+ bandqq-devtools-release-1.1.0.apk（4.7MB vc2 同签名）+ bandqq-watch-release-2.8.1.rpk（257KB vc35，包内验证 settings 分组/about copyRepo/uri:'/about'/clipboard feature 全入包）；node 单测 53 过 1 挂（api.test.js 存量基线一致）
+
+**构建环境备忘**：sdkmanager 平台包名是 platforms;android-37.0（android-37 不存在）；cp -r android-37.0 android-37 后须 sed 改 package.xml 的 android-37.0→android-37 与 source.properties 的 ApiLevel=37.0→37；系统 Java21 是 JRE 无 javac（Toolchain does not provide JAVA_COMPILER），必须 Temurin JDK17（/home/z/tools/jdk-17.0.20.1+1）；4GB 内存容器 gradle 须 --no-daemon + GRADLE_OPTS -Xmx1100m/-Xmx700m 否则 daemon 被杀

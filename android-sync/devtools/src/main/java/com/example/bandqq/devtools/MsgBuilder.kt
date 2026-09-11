@@ -4,20 +4,23 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * OneBot v11 模拟事件构造器（v2.8.0 DevTools）。
+ * OneBot v11 模拟事件构造器（v2.8.0 DevTools；v2.8.1 身份可配置）。
  * 与 BandQQ 同步器内置「测试推送模拟器」同源的载荷形态（数组段格式，
  * NapCat/SnowLuma 默认上报格式），覆盖文本/@我/图片/表情/引用回复/
  * 语音/文件/长文本/撤回九类场景 + 自定义文本。
  *
  * 关键字段（与 OneBotParser.parseMessageEvent 对齐）：
  * - post_type=message, message_type=private|group
- * - self_id=10000（BandQQ 的"我"）：at 段 qq=10000 才会被判定为 @我
+ * - self_id=「我的QQ号」（v2.8.1 起可在界面配置，默认 10000）：at 段 qq=self_id
+ *   才会被判定为 @我 —— BandQQ 端 isAtMe 逻辑比对 event 的 self_id 与 at 段 qq，
+ *   两者必须一致且可通过 get_login_info 查询到同一身份，否则 @ 判定永不生效
  * - user_id=发送者；group 时 targetId=group_id，private 时 targetId=user_id
  * - time=Unix 秒（10 位，OneBot 标准；BandQQ 会统一转毫秒）
  */
 object MsgBuilder {
 
-    const val SELF_ID = 10000L
+    const val DEFAULT_SELF_ID = 10000L
+    const val SELF_ID = DEFAULT_SELF_ID // 兼容旧引用（HTTP 回推等默认身份）
     const val DEFAULT_USER_ID = 10086L
     const val DEFAULT_GROUP_ID = 20001L
 
@@ -35,11 +38,12 @@ object MsgBuilder {
     /** 文本数组段消息 */
     fun textArray(t: String): JSONArray = JSONArray().put(text(t))
 
-    /** 场景消息段：text/at/image/face/reply/voice/file/long/custom */
-    fun scenarioSegments(scenario: String, customText: String): JSONArray {
+    /** 场景消息段：text/at/image/face/reply/voice/file/long/custom。
+     *  @param selfId 我的QQ号：@我 场景的 at 段必须指向它（与事件 self_id 一致） */
+    fun scenarioSegments(scenario: String, customText: String, selfId: Long = DEFAULT_SELF_ID): JSONArray {
         return when (scenario) {
             "at" -> JSONArray()
-                .put(seg("at", "qq" to SELF_ID.toString()))
+                .put(seg("at", "qq" to selfId.toString()))
                 .put(text("刚刚的方案你觉得怎么样？这条是@我模拟消息"))
             "image" -> JSONArray()
                 .put(text("看看这张图"))
@@ -87,12 +91,13 @@ object MsgBuilder {
         nickname: String = "测试好友",
         groupId: Long? = null,
         message: Any,
+        selfId: Long = DEFAULT_SELF_ID,
     ): String {
         val event = JSONObject()
         event.put("post_type", "message")
         event.put("message_type", type)
         event.put("time", System.currentTimeMillis() / 1000)
-        event.put("self_id", SELF_ID)
+        event.put("self_id", selfId)
         event.put("user_id", userId)
         if (type == "group") event.put("group_id", groupId ?: DEFAULT_GROUP_ID)
         event.put("message_id", "dev_${System.currentTimeMillis()}_${(0..999).random()}")

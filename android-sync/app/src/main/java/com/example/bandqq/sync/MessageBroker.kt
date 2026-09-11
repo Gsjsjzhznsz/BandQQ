@@ -200,20 +200,29 @@ class MessageBroker(
     }
 
     override fun onEvent(message: OneBotMessage) {
-        // 开启"上报自身信息"时 OneBot 会回推自己发的消息：
-        // 私聊场景 targetId=senderId=selfId 会落进机器人自己的会话，且该消息已由 send_message 分支记录并回推，故跳过
-        if (message.isSelf) return
-        val frame = handleOneBotEvent(message) ?: return
-        // v2.4.7 推送策略：消息照常入库（历史/未读完整），仅拦截「推给手环」这一步，
-        // 手环不亮屏不震动；用户主动打开会话时 get_history 仍能补看（勿扰语义）
-        if (shouldSuppressPush(message)) {
-            log("push suppressed: type=${message.messageType} atMe=${message.atMe} dnd=${inDndWindow()} group=${ConfigHolder.config.groupPushMode}")
-            return
+        // v2.8.1 全链兑底：处理链上有入库/互联下发/通知/自动拉起等 Android 侧调用，
+        // 任何异常若传播回 OkHttp WS 回调都会断连（DevTools 联调时消息发不出首因）。
+        // 单条消息异常只记日志，不断连不影响后续消息。
+        try {
+            // 开启"上报自身信息"时 OneBot 会回推自己发的消息：
+            // 私聊场景 targetId=senderId=selfId 会落进机器人自己的会话，且该消息已由 send_message 分支记录并回推，故跳过
+            if (message.isSelf) return
+            val frame = handleOneBotEvent(message) ?: return
+            // v2.4.7 推送策略：消息照常入库（历史/未读完整），仅拦截「推给手环」这一步，
+            // 手环不亮屏不震动；用户主动打开会话时 get_history 仍能补看（勿扰语义）
+            if (shouldSuppressPush(message)) {
+                log("push suppressed: type=${message.messageType} atMe=${message.atMe} dnd=${inDndWindow()} group=${ConfigHolder.config.groupPushMode}")
+                return
+            }
+            bandSender(frame)
+            // v2.7.0 快应用自动拉起：仅在消息实际推送且快应用未打开时触发；
+            // 去重/延迟/通知/拉起细节由 AutoLauncher 管理（设置页「快应用自动拉起」专区开关）
+            try { AutoLauncher.scheduleIfEnabled() } catch (t: Throwable) {
+                log("auto launch schedule exception: $t")
+            }
+        } catch (t: Throwable) {
+            log("onEvent exception: $t")
         }
-        bandSender(frame)
-        // v2.7.0 快应用自动拉起：仅在消息实际推送且快应用未打开时触发；
-        // 去重/延迟/通知/拉起细节由 AutoLauncher 管理（设置页「快应用自动拉起」专区开关）
-        AutoLauncher.scheduleIfEnabled()
     }
 
     /**
@@ -361,14 +370,19 @@ class MessageBroker(
     private var testPushCounter = 0
 
     override fun onRecall(recall: com.example.bandqq.onebot.OneBotRecall) {
-        // 借鉴 Stapxs 撤回提示：手机端内容替换为标记 + 推送撤回同步帧。
-        // 手环端按 time 原位替换（不新增消息、不动未读），聊天页实时灰显，
-        // 会话帧同步推送 —— 列表预览按 convSignature 签名 diff 自动更新。
-        val recalledTime = store.recallMessage(recall.targetId, recall.messageId)
-        if (recalledTime > 0L) {
-            MessageBus.notify(recall.targetId)
-            bandSender(buildRecallFrame(recall.targetId, recalledTime))
-            bandSender(store.buildConversationFrame(0))
+        // v2.8.1：同 onEvent，全链兑底防断连
+        try {
+            // 借鉴 Stapxs 撤回提示：手机端内容替换为标记 + 推送撤回同步帧。
+            // 手环端按 time 原位替换（不新增消息、不动未读），聊天页实时灰显，
+            // 会话帧同步推送 —— 列表预览按 convSignature 签名 diff 自动更新。
+            val recalledTime = store.recallMessage(recall.targetId, recall.messageId)
+            if (recalledTime > 0L) {
+                MessageBus.notify(recall.targetId)
+                bandSender(buildRecallFrame(recall.targetId, recalledTime))
+                bandSender(store.buildConversationFrame(0))
+            }
+        } catch (t: Throwable) {
+            log("onRecall exception: $t")
         }
     }
 
@@ -391,12 +405,16 @@ class MessageBroker(
     }
 
     override fun onState(connected: Boolean) {
-        SyncState.oneBotConnected = connected
-        // 推送手环端同步状态帧 + 通知本机界面实时刷新（不再只能靠手动测试/轮询感知）
-        OneBotStateBus.notify(connected)
-        bandSender(SyncStatePush.buildFrame())
-        if (connected && !autoFetchDone) {
-            tryAutoFetch()
+        try {
+            SyncState.oneBotConnected = connected
+            // 推送手环端同步状态帧 + 通知本机界面实时刷新（不再只能靠手动测试/轮询感知）
+            OneBotStateBus.notify(connected)
+            bandSender(SyncStatePush.buildFrame())
+            if (connected && !autoFetchDone) {
+                tryAutoFetch()
+            }
+        } catch (t: Throwable) {
+            log("onState exception: $t")
         }
     }
 

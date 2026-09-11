@@ -42,6 +42,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var scrollView: ScrollView
     private lateinit var startBtn: Button
     private lateinit var chatTypeGroup: LinearLayout
+    private lateinit var selfQqInput: EditText
+    private lateinit var selfNickInput: EditText
     private lateinit var nicknameInput: EditText
     private lateinit var contentInput: EditText
     private lateinit var portInput: EditText
@@ -122,6 +124,43 @@ class MainActivity : AppCompatActivity() {
                         setOnClickListener { toggleServer() }
                     }
                     addView(startBtn)
+                }
+            )
+        })
+
+        // ===== 我的身份（v2.8.1）：@我 判定与 get_login_info 的依据 =====
+        column.addView(card {
+            orientation = LinearLayout.VERTICAL
+            addView(
+                text(
+                    "我的身份（BandQQ 的 @我 判定依据：@消息的 at 号需与此一致）",
+                    12f, 0xFF8A93A3.toInt()
+                ).apply { setPadding(0, 0, 0, dp(6)) }
+            )
+            addView(
+                LinearLayout(this@MainActivity).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    selfQqInput = EditText(this@MainActivity).apply {
+                        hint = "我的QQ号（默认10000）"
+                        inputType = InputType.TYPE_CLASS_NUMBER
+                        setText("10000")
+                        textSize = 13f
+                        setSingleLine(true)
+                        setTextColor(0xFFFFFFFF.toInt())
+                        setHintTextColor(0xFF5A6372.toInt())
+                        layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                    }
+                    addView(selfQqInput)
+                    selfNickInput = EditText(this@MainActivity).apply {
+                        hint = "我的昵称（默认：我）"
+                        textSize = 13f
+                        setSingleLine(true)
+                        setTextColor(0xFFFFFFFF.toInt())
+                        setHintTextColor(0xFF5A6372.toInt())
+                        layoutParams = LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                            .apply { marginStart = dp(8) }
+                    }
+                    addView(selfNickInput)
                 }
             )
         })
@@ -295,6 +334,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun basePort(): Int = portInput.text.toString().toIntOrNull()?.coerceIn(1024, 65535) ?: 3000
 
+    /** 我的QQ号（v2.8.1）：@我 场景 at 段与事件 self_id、get_login_info 三处一致 */
+    private fun selfQq(): Long = selfQqInput.text.toString().trim().toLongOrNull()
+        ?.takeIf { it > 0 } ?: MsgBuilder.DEFAULT_SELF_ID
+
+    private fun selfNickname(): String = selfNickInput.text.toString().trim().ifBlank { "我" }
+
     private fun toggleServer() {
         if (wsServer?.running == true || httpServer?.running == true) {
             stopServers()
@@ -313,6 +358,7 @@ class MainActivity : AppCompatActivity() {
         httpServer = HttpApiServer(
             port = base,
             autoEcho = { autoEchoSwitch.isChecked },
+            selfInfo = { selfQq() to selfNickname() },
             pushEvent = { event ->
                 wsServer?.broadcast(event)
                 uiHandler.post { appendLog("WS → 已下发事件: ${event.take(90)}") }
@@ -356,7 +402,8 @@ class MainActivity : AppCompatActivity() {
                     type = chatType,
                     nickname = nickname,
                     groupId = if (chatType == "group") MsgBuilder.DEFAULT_GROUP_ID else null,
-                    message = MsgBuilder.scenarioSegments(scenario, contentInput.text.toString()),
+                    message = MsgBuilder.scenarioSegments(scenario, contentInput.text.toString(), selfQq()),
+                    selfId = selfQq(),
                 )
                 ws.broadcast(event)
                 appendLog("已发送：${if (chatType == "group") "群聊" else "私聊"} · ${MsgBuilder.scenarioLabel(scenario)}（$nickname）")
@@ -380,6 +427,7 @@ class MainActivity : AppCompatActivity() {
             nickname = nickname,
             groupId = if (chatType == "group") MsgBuilder.DEFAULT_GROUP_ID else null,
             message = MsgBuilder.textArray(content),
+            selfId = selfQq(),
         )
         ws.broadcast(event)
         appendLog("已发送：${if (chatType == "group") "群聊" else "私聊"} · 自定义（$nickname）：${content.take(40)}")
@@ -400,8 +448,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun restorePrefs() {
-        val saved = getPreferences(MODE_PRIVATE).getInt("base_port", 3000)
-        portInput.setText(saved.toString())
+        val saved = getPreferences(MODE_PRIVATE)
+        portInput.setText(saved.getInt("base_port", 3000).toString())
+        // v2.8.1：恢复我的身份配置（QQ号/昵称），保证 @我 判定跨启动一致
+        selfQqInput.setText(saved.getString("self_qq", "10000") ?: "10000")
+        selfNickInput.setText(saved.getString("self_nick", "") ?: "")
+    }
+
+    override fun onPause() {
+        super.onPause()
+        // v2.8.1：身份配置随改随存
+        getPreferences(MODE_PRIVATE).edit()
+            .putString("self_qq", selfQqInput.text.toString().trim())
+            .putString("self_nick", selfNickInput.text.toString().trim())
+            .apply()
     }
 
     override fun onDestroy() {

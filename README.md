@@ -1,8 +1,8 @@
-# BandQQ v2.8.0 — 小米手环 9/10/11 QQ 消息助手（手环快应用 + 安卓同步器）
+# BandQQ v2.8.1 — 小米手环 9/10/11 QQ 消息助手（手环快应用 + 安卓同步器）
 
 > 🧠 **AI 协作记忆库**：[`MEMORY.md`](MEMORY.md) — 本项目的跨会话持久记忆（架构 / bug 台账 / 构建配方 / 任务清单）。任何新会话恢复上下文，先读它。
 
-[![Version](https://img.shields.io/badge/version-2.8.0-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-2.8.1-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
 
 **BandQQ** 是一套开源的「小米手环 QQ 消息助手」双端方案：手环端运行 Vela 快应用（rpk），手机端运行安卓同步器（APK），通过小米互联蓝牙通道把 QQ 消息实时同步到手环，支持直接在手环上**查看 / 回复 / 翻历史消息 / 收图**。
 
@@ -10,7 +10,20 @@
 
 > 关键词：小米手环9 / Mi Band 9 / 小米手环10 / 小米手环11 / Mi Band 11 / 小米手环QQ / 小米手环9 Pro / Redmi Watch / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / Stapxs-QQ-Lite-X / wearable QQ / smartband chat / Mi Band QQ client
 
-## v2.8.0 更新日志（当前版本）
+## v2.8.1 更新日志（当前版本）
+
+### 修复（DevTools 联调实测反馈）
+1. **DevTools 发送消息全链路不通（核心修复）**：根因是 APP 端 OneBot WS 消息处理链上任何异常都会被 OkHttp 的 loopReader catch-all 当作 WebSocket failure 立即断连（DevTools 日志表现为每发一条消息紧跟「客户端断开」，消息丢失）。三层防御修复：① `OneBotClient.onMessage/onOpen/onClosed` 全链 try-catch 兑底，异常写入同步日志（设置页可查）不断连；② `MessageBroker.onEvent/onState/onRecall` 全链兑底（入库/互联下发/自动拉起任何环节异常只记日志）；③ `InterconnectBridge.sendToBand` 互联 SDK 调用兑住同步抛出的异常。同时修复**多重连循环竞态**：`start()` 每次被调（反复点启动同步服务）都会新建重连循环且旧循环不取消 → 双 WS 连接（DevTools 日志「当前 2 个」）+ 旧连接泄漏，现在 `reconnect()` 先取消旧 Job、`connectOnce()` 前先关闭旧 ws。
+2. **手机端关于页打开即闪退**：根因是 AboutScreen 用 `painterResource(R.mipmap.ic_launcher)` 加载图标，而 API 26+ 的 ic_launcher 是 adaptive-icon XML，Compose painterResource 只支持 Vector/Bitmap drawable，遇到 AdaptiveIconDrawable 直接抛 IllegalStateException（其他推入页都没用 mipmap 图标所以只有关于页崩）。改为 `ContextCompat.getDrawable + core-ktx toBitmap()` 可绘制自适应图标。
+3. **手环端关于页点不进去**：`goAbout` 用了无效路由 `uri: '/pages/about/about'`，manifest 注册的 path 是 `/about`（router.push 对未知路由静默失败）。对照工作正常的 /settings、/chat、/compose 统一改为 `uri: '/about'`。
+4. **手环端设置页宽松化**：用户反馈六项设置挤成一坨。新增「连接 / 偏好 / 更多」三个分组节标题拉开层次，行高 52→58px、左右边距 8→10px、行距 4→6px、新增尾部留白，Band 9/10/11 双分辨率适配。
+5. **DevTools 新增「我的身份」配置（@我 判定正名）**：新增「我的QQ号」「我的昵称」输入框（持久化记忆）。@我 场景的 at 段 qq、事件 self_id、`get_login_info` 动作响应三处统一使用该身份——此前固定 self_id=10000 虽然逻辑上自洽，但用户无法确认「到底谁在被 @」，现在可以配置成自己真实的 QQ 号验证 @我 金色高亮与列表角标。HTTP API 新增 `get_login_info` 标准动作响应。
+6. **手机端关于页仓库行改为完整 GitHub 链接**：显示 `https://github.com/Gsjsjzhznsz/BandQQ` 且点击直接打开浏览器（此前只有仓库名+按钮）。
+
+### 保持不变
+- APK 签名同源（SHA-256 `af8819e2…b004`），可**直接覆盖安装**；DevTools 为独立应用（同签名）。
+
+## v2.8.0 更新日志（历史版本）
 
 ### 新功能
 1. **BandQQ DevTools 开发者测试工具 APK（全新独立应用）**：模拟 OneBot 协议端（正向 WS 服务器 + HTTP API 服务器，零第三方依赖手写实现），没有 OneBot/SnowLuma 服务器的用户也能完整体验与调试全链路。启动后 BandQQ 同步器用默认地址（ws://127.0.0.1:3001 / http://127.0.0.1:3000）直连即可。支持：私聊/群聊 × 文本/@我/图片/表情/引用回复/语音/文件/长文本/撤回 一键模拟（真实 OneBot v11 数组段格式，走 APP 完整解析管线）；自定义消息（昵称+内容）；模拟好友/群列表（APP 连接后自动拉取出现在联系人页）；收到手环回复可自动回推一条对方消息（闭环演示：「手环回复 → 协议端收到 → 对方再回复」，手环上直接看到对话流）；全程事件日志；端口可配并记忆。

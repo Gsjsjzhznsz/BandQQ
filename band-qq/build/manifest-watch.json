@@ -2,8 +2,8 @@
   "package": "com.example.bandqq",
   "name": "QQ助手",
   "icon": "/common/icon.png",
-  "versionName": "2.8.0",
-  "versionCode": 34,
+  "versionName": "2.8.1",
+  "versionCode": 35,
   "minAPILevel": 1,
   "deviceTypeList": [
     "watch"
@@ -33,6 +33,9 @@
     },
     {
       "name": "system.prompt"
+    },
+    {
+      "name": "system.clipboard"
     }
   ],
   "display": {

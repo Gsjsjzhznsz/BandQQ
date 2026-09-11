@@ -4,8 +4,13 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
+import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.toBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -27,7 +32,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.bandqq.BuildConfig
@@ -67,6 +71,16 @@ fun AboutScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
         toastMsg = null
     }
 
+    // v2.8.1 修复关于页打开即闪退：R.mipmap.ic_launcher 在 API 26+ 是 adaptive-icon XML，
+    // Compose painterResource 只支持 Vector/Bitmap drawable，遇到 AdaptiveIconDrawable 直接抛
+    // IllegalStateException（其他推入页都没用 mipmap 图标，所以只有关于页崩）。
+    // 改为 ContextCompat.getDrawable + core-ktx toBitmap（可绘制 AdaptiveIconDrawable），再转 ImageBitmap。
+    val launcherBitmap = remember {
+        runCatching {
+            ContextCompat.getDrawable(context, R.mipmap.ic_launcher)?.toBitmap()
+        }.getOrNull()
+    }
+
     Scaffold(
         modifier = modifier,
         topBar = {
@@ -104,11 +118,13 @@ fun AboutScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     modifier = Modifier.fillMaxWidth().padding(top = 12.dp, bottom = 20.dp),
                     horizontalAlignment = Alignment.CenterHorizontally,
                 ) {
-                    Image(
-                        painter = painterResource(R.mipmap.ic_launcher),
-                        contentDescription = "BandQQ 图标",
-                        modifier = Modifier.size(84.dp),
-                    )
+                    if (launcherBitmap != null) {
+                        Image(
+                            bitmap = launcherBitmap.asImageBitmap(),
+                            contentDescription = "BandQQ 图标",
+                            modifier = Modifier.size(84.dp),
+                        )
+                    }
                     Text(
                         text = "BandQQ 同步器",
                         fontSize = 22.sp,
@@ -149,7 +165,17 @@ fun AboutScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                             )
                         }
                         Row(
-                            modifier = Modifier.fillMaxWidth(),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                // v2.8.1：仓库行显示完整 GitHub 链接，点击直接打开浏览器
+                                .clickable {
+                                    runCatching {
+                                        context.startActivity(
+                                            Intent(Intent.ACTION_VIEW, Uri.parse(repoUrl))
+                                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                        )
+                                    }.onFailure { toastMsg = "打开浏览器失败" }
+                                },
                             verticalAlignment = Alignment.CenterVertically,
                         ) {
                             Text(
@@ -159,7 +185,7 @@ fun AboutScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                                 modifier = Modifier.width(76.dp),
                             )
                             Text(
-                                text = "Gsjsjzhznsz/BandQQ（点击打开）",
+                                text = repoUrl,
                                 fontSize = 14.sp,
                                 color = colorScheme.primary,
                                 modifier = Modifier.weight(1f),

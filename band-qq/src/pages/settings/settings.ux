@@ -7,6 +7,7 @@
       <text class="page-title">设置</text>
     </div>
     <scroll class="body" scroll-y="true">
+      <text class="section">连接</text>
       <div class="card row">
         <text class="row-label">互联状态</text>
         <text class="row-value">{{statusText}}</text>
@@ -15,6 +16,7 @@
         <text class="row-label">协议端</text>
         <text class="row-value">{{protocolText}}</text>
       </div>
+      <text class="section">偏好</text>
       <div class="card row" @click="toggleVibrate">
         <text class="row-label">消息震动</text>
         <text class="row-value">{{vibrateText}}</text>
@@ -23,14 +25,16 @@
         <text class="row-label">表情渲染</text>
         <text class="row-value">{{emojiText}}</text>
       </div>
+      <text class="section">更多</text>
       <div class="card row" @click="goAbout">
-        <text class="row-label">关于</text>
+        <text class="row-label">关于 BandQQ</text>
         <text class="row-value arrow">›</text>
       </div>
       <div class="card row" @click="askClear">
         <text class="row-label">清空记录</text>
         <text class="row-value danger">清空</text>
       </div>
+      <div class="tail-space"></div>
     </scroll>
 
     <div class="mask" if="{{confirmShow}}">
@@ -53,13 +57,16 @@
   .title-bar { height: 40px; align-items: center; justify-content: center; }
   .page-title { font-size: 24px; color: #ffffff; }
   .card { border-width: 1px; border-color: rgba(255, 255, 255, 0.06); border-radius: 16px; background-color: #262626; }
-  .row { height: 52px; flex-direction: row; align-items: center; margin: 4px 8px; padding: 0 12px; }
+  /* v2.8.1 设置页宽松化：行高 52→58、左右边距 8→10、行距 4→6，
+     分组节标题拉开层次，避免六个设置项挤成一坨 */
+  .row { height: 58px; flex-direction: row; align-items: center; margin: 6px 10px; padding: 0 14px; }
   .row-label { font-size: 19px; color: #ffffff; lines: 1; flex-shrink: 0; }
   .row-value { flex: 1; text-align: right; font-size: 20px; color: #07c160; }
   .row-value.danger { color: #ff5a5a; }
   .row-value.arrow { color: #999999; }
   .row-value.dim { color: #999999; }
-  .section { font-size: 16px; color: rgba(255, 255, 255, 0.6); padding: 8px 12px; }
+  .section { font-size: 14px; color: rgba(255, 255, 255, 0.45); padding: 14px 14px 2px 14px; }
+  .tail-space { height: 16px; }
   /* v2.5.0 Band 11 适配：主体区弹性伸展（212×520 与 192×490 双屏通吃） */
   .body { flex: 1; width: 192px; flex-direction: column; }
   .mask { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.65); align-items: center; justify-content: center; }
@@ -101,8 +108,11 @@
     goBack() {
       router.back()
     },
+    /** v2.8.1 修复「关于点不进去」：manifest 里 about 页注册的 path 是 /about，
+     *  旧写法 uri:'/pages/about/about' 是无效路由，router.push 静默失败无反应。
+     *  对照工作正常的 /settings、/chat、/compose 统一用 path 形式 */
     goAbout() {
-      router.push({ uri: '/pages/about/about' })
+      router.push({ uri: '/about' })
     },
     async pullConnectState() {
       const api = this.$app.$def.api

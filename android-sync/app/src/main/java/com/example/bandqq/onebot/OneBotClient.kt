@@ -79,6 +79,9 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
     fun isConnected(): Boolean = connected
 
     private fun reconnect() {
+        // v2.8.1 修复：start() 每次被调（用户在设置页反复点启动/服务重建）都会新建循环，
+        // 旧循环未取消 → 多个循环并发 connectOnce → 双连接（DevTools 日志“当前 2 个”）且旧 ws 引用被覆盖泄漏
+        reconnectJob?.cancel()
         reconnectJob = scope.launch {
             while (isActive) {
                 if (!connected) {
@@ -96,6 +99,9 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
     }
 
     private fun connectOnce() {
+        // v2.8.1：重连前先主动关闭旧 ws（若有），防止旧连接残留形成双连接
+        runCatching { ws?.close(1000, "reconnect") }
+        ws = null
         val builder = Request.Builder().url(config.wsUrl)
         if (config.wsToken.isNotBlank()) {
             builder.header("Authorization", "Bearer ${config.wsToken}")
@@ -103,24 +109,37 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
         val req = builder.build()
         ws = client.newWebSocket(req, object : WebSocketListener() {
             override fun onOpen(webSocket: WebSocket, response: Response) {
-                connected = true
-                LogBus.log("OneBotClient", LogLevel.DEBUG, "WS onOpen, connected=$connected")
-                listener?.onState(true)
+                // v2.8.1：onState 链上有互联 SDK/通知等 Android API，抛异常会被 OkHttp
+                // 视为连接失败立即断开（DevTools 联调时“连接后立即断开”的根因之一），全部兜住
+                try {
+                    connected = true
+                    LogBus.log("OneBotClient", LogLevel.DEBUG, "WS onOpen, connected=$connected")
+                    listener?.onState(true)
+                } catch (t: Throwable) {
+                    LogBus.log("OneBotClient", LogLevel.ERROR, "onOpen/onState exception: $t")
+                }
             }
 
             override fun onMessage(webSocket: WebSocket, text: String) {
-                LogBus.log("OneBotClient", LogLevel.DEBUG, "WS recv: ${text.take(300)}")
-                // 撤回通知优先（post_type=notice 事件，普通消息 parse 为 null 不再报 warn）
-                val recall = parser.parseRecallEvent(text)
-                if (recall != null) {
-                    listener?.onRecall(recall)
-                    return
-                }
-                val msg = parser.parseMessageEvent(text)
-                if (msg == null) {
-                    LogBus.log("OneBotClient", LogLevel.WARN, "WS msg parse -> null (may be meta/heartbeat)")
-                } else {
-                    listener?.onEvent(msg)
+                // v2.8.1 核心加固：OkHttp 的 loopReader 用 catch-all 把 onMessage 回调里
+                // 抛出的任何异常当成 WebSocket failure → 连接立即断开（表现：DevTools 每发
+                // 一条消息 APP 就断连重连、消息丢失）。整体兜底后单条消息处理异常只记日志不断连。
+                try {
+                    LogBus.log("OneBotClient", LogLevel.DEBUG, "WS recv: ${text.take(300)}")
+                    // 撤回通知优先（post_type=notice 事件，普通消息 parse 为 null 不再报 warn）
+                    val recall = parser.parseRecallEvent(text)
+                    if (recall != null) {
+                        listener?.onRecall(recall)
+                        return
+                    }
+                    val msg = parser.parseMessageEvent(text)
+                    if (msg == null) {
+                        LogBus.log("OneBotClient", LogLevel.WARN, "WS msg parse -> null (may be meta/heartbeat)")
+                    } else {
+                        listener?.onEvent(msg)
+                    }
+                } catch (t: Throwable) {
+                    LogBus.log("OneBotClient", LogLevel.ERROR, "WS onMessage exception (connection kept): $t")
                 }
             }
 
@@ -130,12 +149,19 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 connected = false
+                try {
+                    LogBus.log("OneBotClient", LogLevel.WARN, "WS failure: ${t.javaClass.simpleName}: ${t.message}")
+                } catch (_: Throwable) {}
                 listener?.onState(false)
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 connected = false
-                listener?.onState(false)
+                try {
+                    listener?.onState(false)
+                } catch (t: Throwable) {
+                    LogBus.log("OneBotClient", LogLevel.ERROR, "onClosed/onState exception: $t")
+                }
             }
         })
     }

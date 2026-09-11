@@ -249,9 +249,15 @@ object InterconnectBridge {
         }
         val bytes = frame.toByteArray(StandardCharsets.UTF_8)
         LogBus.log(TAG, LogLevel.DEBUG, "sendToBand frame bytes=${bytes.size}: ${frame.take(80)}")
-        messageApi.sendMessage(node.id, bytes)
-            .addOnSuccessListener { LogBus.log(TAG, LogLevel.DEBUG, "sendToBand ok (${bytes.size}B)") }
-            .addOnFailureListener { e -> LogBus.log(TAG, LogLevel.ERROR, "sendToBand failed (${bytes.size}B): ${e.message}") }
+        // v2.8.1：互联 SDK 在节点失效/通道异常时可能同步抛异常；该调用发生在 OkHttp WS
+        // 回调线程（OneBot 消息链）内，异常上抛会被 OkHttp 当作连接失败断开。全部兜住。
+        try {
+            messageApi.sendMessage(node.id, bytes)
+                .addOnSuccessListener { LogBus.log(TAG, LogLevel.DEBUG, "sendToBand ok (${bytes.size}B)") }
+                .addOnFailureListener { e -> LogBus.log(TAG, LogLevel.ERROR, "sendToBand failed (${bytes.size}B): ${e.message}") }
+        } catch (t: Throwable) {
+            LogBus.log(TAG, LogLevel.ERROR, "sendToBand exception (${bytes.size}B): $t")
+        }
     }
 
     /** 收到手环 pong：确认真实在线并重置超时计时。 */

@@ -10,7 +10,7 @@
       <div class="hero">
         <image class="icon" src="../../common/icon.png"></image>
         <text class="app-name">BandQQ</text>
-        <text class="ver">v2.8.0 · 快应用端</text>
+        <text class="ver">v2.8.1 · 快应用端</text>
       </div>
       <div class="card col">
         <text class="line">小米手环 QQ 客户端 + Android 同步器，通过小米互联双向同步 QQ 消息，支持回复、@提醒、表情、快捷回复、记录同步与自动拉起。</text>
@@ -23,9 +23,9 @@
         <text class="k">联系方式</text>
         <text class="v">QQ 2308534727</text>
       </div>
-      <div class="card col">
-        <text class="k">GitHub</text>
-        <text class="v">Gsjsjzhznsz/BandQQ</text>
+      <div class="card col" @click="copyRepo">
+        <text class="k">GitHub（点击复制链接）</text>
+        <text class="v">github.com/Gsjsjzhznsz/BandQQ</text>
       </div>
     </scroll>
   </div>
@@ -51,10 +51,26 @@
 
 <script>
   import router from '@system.router'
+  import prompt from '@system.prompt'
+  import clipboard from '@system.clipboard'
+
+  const REPO_URL = 'https://github.com/Gsjsjzhznsz/BandQQ'
 
   export default {
     goBack() {
       router.back()
+    },
+    /** v2.8.1：GitHub 行点击复制仓库链接（快应用无法打开系统浏览器，复制后到手机粘贴访问） */
+    copyRepo() {
+      try {
+        clipboard.set({
+          text: REPO_URL,
+          success: () => prompt.showToast({ message: '仓库链接已复制' }),
+          fail: () => prompt.showToast({ message: '复制失败：github.com/Gsjsjzhznsz/BandQQ' })
+        })
+      } catch (e) {
+        prompt.showToast({ message: 'github.com/Gsjsjzhznsz/BandQQ' })
+      }
     }
   }
 </script>

@@ -24,6 +24,7 @@ import java.util.concurrent.atomic.AtomicLong
 class HttpApiServer(
     private val port: Int,
     private val autoEcho: () -> Boolean,          // 收到消息动作后是否自动回推对方回复
+    private val selfInfo: () -> Pair<Long, String> = { MsgBuilder.DEFAULT_SELF_ID to "我" }, // v2.8.1 我的身份
     private val pushEvent: (String) -> Unit,      // 经 WS 下发事件（MsgBuilder 构造）
     private val onLog: (String) -> Unit,
 ) {
@@ -124,11 +125,20 @@ class HttpApiServer(
             "send_private_msg", "send_group_msg" -> handleSend(action, params)
             "get_friend_list" -> handleFriendList()
             "get_group_list" -> handleGroupList()
+            "get_login_info" -> handleLoginInfo()
             else -> {
                 onLog("HTTP 动作 $action（通用成功）")
                 ok(JSONObject())
             }
         }
+    }
+
+    /** v2.8.1：登录信息（OneBot 标准动作）——返回配置的「我的QQ号/昵称」，
+     *  BandQQ 等客户端据此确认账号身份；@我 判定依赖该身份与 at 段一致 */
+    private fun handleLoginInfo(): String {
+        val (qq, nick) = selfInfo()
+        onLog("返回登录信息：$nick（$qq）")
+        return ok(JSONObject().put("user_id", qq).put("nickname", nick))
     }
 
     /** 手环回复送达：日志 + 可选自动回推一条对方消息（闭环演示） */
