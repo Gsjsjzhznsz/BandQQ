@@ -95,12 +95,12 @@ class OneBotParser {
         } ?: return null
         val content = degradeContent(obj.get("message"))
         val selfId = obj.get("self_id")?.let { if (it.isJsonPrimitive) it.asString else it.toString() }
-        // @我 检测：原始 message 里的 CQ:at 码 qq=selfId 或 qq=all（全体）。
-        // 只在手机端做一次正则，结果随协议下发，手环零计算。
-        val rawMessage = obj.get("message")?.toString().orEmpty()
-        val atMe = selfId != null && rawMessage.contains("[CQ:at,") &&
-            (rawMessage.contains("qq=$selfId") || rawMessage.contains("qq=all") ||
-                rawMessage.contains("qq=\"$selfId\""))
+        // @我 检测（v2.5.0 修复：同时支持 CQ 字符串格式与数组段格式）：
+        // 数组格式（NapCat/SnowLuma 默认）的 message 是 JSON 数组，旧逻辑只查
+        // "[CQ:at," 字符串导致数组格式的 @我 永远检测不到、手环金色高亮失效。
+        // 只在手机端做一次遍历，结果随协议下发，手环零计算。
+        val messageElem = obj.get("message")
+        val atMe = selfId != null && isAtMe(messageElem, selfId)
         // OneBot 标准 time 为 Unix 秒（10 位），而本地发送链路使用毫秒（Date.now() 13 位）。
         // 统一转为毫秒，避免同一会话内秒/毫秒混排导致消息顺序跳变。
         val rawTime = obj.get("time")?.asLong ?: 0L
@@ -150,9 +150,52 @@ class OneBotParser {
         }
     }
 
+    /** @我/全体 检测：数组段格式与 CQ 字符串格式双兼容（手机端一次计算，手环零开销） */
+    fun isAtMe(elem: com.google.gson.JsonElement?, selfId: String): Boolean {
+        if (elem == null) return false
+        if (elem.isJsonArray) {
+            for (seg in elem.asJsonArray) {
+                if (!seg.isJsonObject) continue
+                val o = seg.asJsonObject
+                if (o.get("type")?.asString == "at") {
+                    val data = o.getAsJsonObject("data") ?: continue
+                    val qq = data.get("qq")?.let { if (it.isJsonPrimitive) it.asString else it.toString() } ?: continue
+                    if (qq == selfId || qq == "all") return true
+                }
+            }
+            return false
+        }
+        val raw = if (elem.isJsonPrimitive) elem.asString else elem.toString()
+        return raw.contains("[CQ:at,") &&
+            (raw.contains("qq=$selfId") || raw.contains("qq=all") || raw.contains("qq=\"$selfId\""))
+    }
+
+    /**
+     * CQ 字符串格式降级（v2.5.0 新增）：string 上报的协议端会把 CQ 码原样透传，
+     * 手环上直接显示一串 [CQ:image,file=...]，这里统一替换为可读标记。
+     */
+    fun degradeCqString(s: String): String {
+        var out = s
+        out = out.replace(Regex("\\[CQ:at,qq=all[^\\]]*\\]"), "@全体成员")
+        out = out.replace(Regex("\\[CQ:at,[^\\]]*name=([^,\\]]+)[^\\]]*\\]")) { m -> "@${m.groupValues[1]}" }
+        out = out.replace(Regex("\\[CQ:at,qq=(\\d+)[^\\]]*\\]")) { m -> "@${m.groupValues[1]}" }
+        out = CQ_CODE.replace(out) { m ->
+            when {
+                m.value.startsWith("[CQ:face") -> "[表情]"
+                m.value.startsWith("[CQ:image") -> "[图片]"
+                m.value.startsWith("[CQ:record") || m.value.startsWith("[CQ:voice") -> "[语音]"
+                m.value.startsWith("[CQ:video") -> "[视频]"
+                m.value.startsWith("[CQ:file") -> "[文件]"
+                m.value.startsWith("[CQ:reply") -> "[回复]"
+                else -> ""
+            }
+        }
+        return markEmoji(out.trim())
+    }
+
     fun degradeContent(message: com.google.gson.JsonElement?): String {
         if (message == null) return ""
-        if (message.isJsonPrimitive && message.asJsonPrimitive.isString) return message.asString
+        if (message.isJsonPrimitive && message.asJsonPrimitive.isString) return degradeCqString(message.asString)
         if (!message.isJsonArray) return ""
         val arr: JsonArray = message.asJsonArray
         val sb = StringBuilder()
@@ -168,6 +211,19 @@ class OneBotParser {
                 "record", "voice" -> sb.append("[语音]")
                 "video" -> sb.append("[视频]")
                 "file" -> sb.append("[文件]")
+                "reply" -> sb.append("[回复]")
+                "at" -> {
+                    // v2.5.0：数组段格式的 at 旧逻辑降成 [其他]，这里转为可读 @
+                    val data = seg.getAsJsonObject("data")
+                    val qq = data?.get("qq")?.let { if (it.isJsonPrimitive) it.asString else it.toString() }.orEmpty()
+                    val name = data?.get("name")?.takeIf { it.isJsonPrimitive }?.asString.orEmpty()
+                    when {
+                        qq == "all" -> sb.append("@全体成员")
+                        name.isNotBlank() -> sb.append("@").append(name)
+                        qq.isNotBlank() -> sb.append("@").append(qq)
+                        else -> sb.append("@某人")
+                    }
+                }
                 else -> sb.append("[其他]")
             }
         }

@@ -9,7 +9,7 @@
 
 ## 版本线
 - v1.1.x：旧 lineage（stapxs 移植版，源码已失传，legacy/ 有 7z 分卷）
-- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.4.7**（versionCode 32）
+- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.5.0**（versionCode 33，RPK versionCode 31）
 - 签名一致性：rpk 与 APK 同源证书，APK SHA-256 = af8819e27a6ec8d84537ec86937cf016e780376305328abaa4eb79e8c626b004
 
 ## v2.1.0 已完成（2026-09-09）
@@ -128,3 +128,11 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 2. **消息推送策略（用户要"日常刚需"，架构铁律=手机端预算/手环零感知）**：ConfigManager 新增 dndEnabled/dndStart/dndEnd/groupPushMode 四键；MessageBroker.onEvent 在 handleOneBotEvent **之后**仅拦截 bandSender——消息照常入库（历史/未读完整），手环不亮屏不震动，打开会话 get_history 仍能补看（勿扰语义）。群聊三档 0全部/1仅@我(含@全体)/2不推；勿扰窗口 parseHm+跨零点区间判断（start>end 即 23:00→07:00）
 3. **一键测试推送**：MessageBroker.pushTestMessage 固定 targetId=bandqq-test 复用同一会话（手环无删除会话功能，避免列表污染），不入手机端历史库；SyncService companion @Volatile testPush 钩子（onCreate 注入/onDestroy 置空），设置页调用，未运行时提示先启动服务
 4. 构建：vc32/2.4.7 一次通过；apksigner 同源；README 已补 v2.4.6/v2.4.7 日志
+
+## v2.5.0（2026-09-11，versionCode 33 / RPK vc 31）— 预测开关落盘竞态根治 + 手环11弹性布局 + 解析器数组格式修复 + 新消息振动 + 测试推送模拟器
+1. **预测性返回开关「点击刷新后又弹回关闭」根治（v2.4.7 遗留竞态）**：ThemeScreen 旧代码 `scope.launch{写盘}` 后**同步立刻** `recreate()`——重组作用域随旧 Activity 销毁被取消，写协程在首次调度前就被杀掉（DataStore edit 的 transform 未及入队），配置从未落盘；重建后 observePredictiveBack 读回 false → 开关弹回。修复=写入+反射+recreate 收进**同一个协程顺序执行**（先落盘再重建，runCatching 兜底）。教训：**「launch 后立即 recreate」= 必然竞态，凡是 recreate 前要持久化的状态必须 await 落盘**。
+2. **手环 11 适配（212×520 PPI326，与 Band9 192×490 双屏通吃）**：四个页面（index/chat/settings/compose）定高容器改 flex:1 弹性伸展（原高度和恰好 490，designWidth=192 在 212 宽屏上放大 1.104 倍后溢出 21px 裁掉底栏）；compose 的 .page 顺带补 width/height:100%（原缺失，flex 无参照会塌陷）；InputMethod 键盘已有 screenWidth 运行时自适应无需改。**要点：Vela 页面主内容区永远用 flex:1，勿写定高**。
+3. **解析器数组段格式修复（NapCat/SnowLuma 默认格式真实 bug）**：①atMe 检测旧逻辑只查 "[CQ:at," 字符串，数组格式 @我 永远失效 → 新增 OneBotParser.isAtMe 双格式兼容（数组段遍历 + CQ 字符串正则）；②degradeContent 数组段 `at` 从 [其他] 改为 @昵称/@全体成员、`reply` 显示 [回复]；③新增 degradeCqString：string 格式 message 原样透传的 CQ 码降级为 [图片]/[表情]/[语音]/[视频]/[文件]/[回复]/@… 可读标记。
+4. **手环新消息振动提醒**：app.ux handleMessage push_message 分支，条件 is_self!==true && recall!==1 && visible!==false 时 `require('@system.vibrator').vibrate({mode:'short'})`（api.js 同款惰性 require 模式）；勿扰/群聊过滤手机端已完成，手环零额外判断。
+5. **测试推送模拟器**：pushTestMessage(chatType, scenario) 构造真实 OneBot v11 事件 JSON（数组段格式）走 parseMessageEvent 完整管线（含 atMe/降级），private+group × text/at/image/face/reply/recall/voice/file/long 九场景；发送者昵称六人轮换（id 固定不堆会话），不入手机端历史库；撤回场景=先推文本再推同 time 撤回帧原位灰显；SyncService.testPush 钩子签名改 (String,String)->String 返回 toast 描述；SettingsScreen 模拟器 UI（会话类型两档 + 场景九宫格）。
+6. 构建：APK vc33/2.5.0（apksigner 同源 af8819e2）+ RPK 2.5.0/vc31；容器重置后工具链重建（Temurin JDK17 tarball + commandlinetools + platforms;android-37.0 注意 SDK37 新版号是 android-37.0 非 android-37）；band-qq 单测 51/52（api.js 门控测试为存量失败，与本轮无关）。

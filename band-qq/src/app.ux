@@ -33,6 +33,12 @@ function handleMessage(msg) {
       api.send({ type: 'pong', seq: msg.seq || 0 })
       break
 case 'push_message':
+      // v2.5.0 新消息振动提醒：手表端核心提示通道（勿扰/群聊过滤已在手机端完成，
+      // 能到手的帧都是该推的）。自己发的回显、撤回同步帧、不可见会话不振动。
+      // 轻量短路判断 + 系统一次短振动，手环零额外计算。
+      if (msg.is_self !== true && msg.recall !== 1 && msg.visible !== false) {
+        try { require('@system.vibrator').vibrate({ mode: 'short' }) } catch (e) {}
+      }
       store.upsertMessage(msg).then(() => { try { console.log('[BANDQQ] v17 upsert target=' + msg.target_id + ' len=' + (typeof msg.content === 'string' ? msg.content.length : '?') + ' isSelf=' + (msg.is_self === true)) } catch (e) {}; emit('message', msg) }).catch((e) => console.error('upsert fail', e))
       break
     case 'conversation_list':

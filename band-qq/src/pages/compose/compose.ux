@@ -36,12 +36,13 @@
 </template>
 
 <style>
-  .page { flex-direction: column; background-color: #000000; }
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
   .top-bar { height: 78px; flex-direction: row; align-items: center; justify-content: space-between; padding: 0 8px; }
   .btn { width: 48px; height: 34px; }
   .done-btn { width: 112px; height: 48px; text-align: center; line-height: 48px; font-size: 22px; color: #ffffff; background-color: #07c160; border-radius: 24px; }
-  .preview-box { height: 112px; padding: 8px 10px; align-items: flex-start; justify-content: flex-start; }
-  .preview-scroll { width: 176px; height: 96px; }
+  /* v2.5.0 Band 11 适配：预览区弹性伸展（212×520 与 192×490 双屏通吃） */
+  .preview-box { flex: 1; padding: 8px 10px; align-items: flex-start; justify-content: flex-start; }
+  .preview-scroll { width: 176px; flex: 1; }
   .preview-text { font-size: 24px; color: #0d84ff; line-height: 34px; text-align: left; word-break: break-all; }
   .mask { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.65); align-items: center; justify-content: center; }
   .confirm-box { width: 176px; background-color: #2b2b2b; border-radius: 14px; padding: 14px; flex-direction: column; }

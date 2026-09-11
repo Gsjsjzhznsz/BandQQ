@@ -1,16 +1,31 @@
-# BandQQ v2.4.7 — 小米手环 9 QQ 消息助手（手环快应用 + 安卓同步器）
+# BandQQ v2.5.0 — 小米手环 9/10/11 QQ 消息助手（手环快应用 + 安卓同步器）
 
 > 🧠 **AI 协作记忆库**：[`MEMORY.md`](MEMORY.md) — 本项目的跨会话持久记忆（架构 / bug 台账 / 构建配方 / 任务清单）。任何新会话恢复上下文，先读它。
 
-[![Version](https://img.shields.io/badge/version-2.4.7-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-2.5.0-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
 
 **BandQQ** 是一套开源的「小米手环 QQ 消息助手」双端方案：手环端运行 Vela 快应用（rpk），手机端运行安卓同步器（APK），通过小米互联蓝牙通道把 QQ 消息实时同步到手环，支持直接在手环上**查看 / 回复 / 翻历史消息 / 收图**。
 
 > **上游仓库说明**：本项目上游为 [Astroptis/band-qq-assistant](https://github.com/Astroptis/band-qq-assistant)。v2.x 系列以上游 main（opencode 基线）为底重写：性能架构升级为「手机端预处理 + 手环零计算直渲染」，并带回未读角标 / 快捷回复 / 历史翻页 / 彩色头像等特性。感谢上游作者的奠基工作。
 
-> 关键词：小米手环9 / Mi Band 9 / 小米手环QQ / 小米手环9 Pro / Redmi Watch / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / Stapxs-QQ-Lite-X / wearable QQ / smartband chat / Mi Band QQ client
+> 关键词：小米手环9 / Mi Band 9 / 小米手环10 / 小米手环11 / Mi Band 11 / 小米手环QQ / 小米手环9 Pro / Redmi Watch / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / Stapxs-QQ-Lite-X / wearable QQ / smartband chat / Mi Band QQ client
 
-## v2.4.7 更新日志（当前版本）
+## v2.5.0 更新日志（当前版本）
+
+### 修复
+1. **预测性返回开关真正可用了**：v2.4.7 仍留有一个竞态——配置写入协程刚 `launch` 就 `recreate()`，重组作用域随 Activity 销毁把写协程一起取消，配置从未落盘；重建后读回 false，表现为「点击后界面刷新、开关又弹回关闭」。现在写入、反射设置、recreate 收进**同一个协程顺序执行**（先落盘再重建），点击后界面刷新、开关保持开启、手势立即生效。
+2. **数组段格式（NapCat/SnowLuma 默认）@我 检测失效修复**：旧逻辑只查 `[CQ:at,` 字符串，数组格式消息的 @我 永远检测不到（金色高亮/列表角标失效）；同时数组段格式的 `at` 段降级从 `[其他]` 改为 `@昵称`/`@全体成员`，`reply` 段显示 `[回复]`。
+3. **CQ 字符串格式消息显示修复**：string 上报的协议端此前会把 `[CQ:image,file=…]` 原样透传到手环，现统一降级为 `[图片]`/`[表情]`/`[语音]`/`[视频]`/`[文件]`/`[回复]`/`@…` 可读标记。
+
+### 新功能
+4. **小米手环 11 适配（212×520，PPI 326）**：会话列表/聊天/设置/回复输入四个页面的定高容器全部改为弹性布局（Band 9 为 192×490），两代屏幕双通吃，未来异形屏同样自适应；键盘组件此前已有 screenWidth 运行时自适应。
+5. **手环新消息振动提醒**：收到新消息（非自己回显/撤回帧/隐藏会话）短振动一次——勿扰/群聊过滤已在手机端完成，手环零额外判断，补齐手表端最核心的提醒通道。
+6. **测试推送模拟器**（替代原一键测试推送）：私聊/群聊 × 文本/@我/图片/表情/引用回复/撤回/语音/文件/长文本 九种场景，构造真实 OneBot v11 事件走完整解析管线（含 atMe 检测/内容降级/撤回原位替换），发送者昵称自动轮换，不入历史库不污染真实会话。
+
+### 保持不变
+- APK 签名同源（SHA-256 `af8819e2…b004`），可**直接覆盖安装**。
+
+## v2.4.7 更新日志（历史版本）
 
 ### 修复
 1. **预测性返回开关不再「点击被踢回上级菜单」**：开关需要 `activity.recreate()` 才能让系统开关生效，而推入态为防崩溃故意不保存 → 重建后回主页，看起来像开关坏了。现在 recreate 前记录当前推入页，重建后自动重新推入（带自然进入动画），冷启动不受影响。

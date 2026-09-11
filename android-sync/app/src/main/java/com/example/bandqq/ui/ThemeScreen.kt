@@ -311,18 +311,23 @@ fun ThemeScreen(onBack: () -> Unit) {
                             },
                             checked = predictiveBack,
                             onCheckedChange = { on ->
-                                scope.launch { configManager.setPredictiveBack(on) }
-                                // KSU 同款：立即反射设置 + recreate，否则要重进应用才能生效。
-                                // recreate 前记录当前推入页，重建后 BandQQApp 自动重新推入（v2.4.7：
-                                // 否则用户视角是「点开关被踢回主页」，以为开关坏了）
-                                val app = context.applicationContext as? BandQQApplication
-                                if (app != null) {
-                                    BandQQApplication.setEnableOnBackInvokedCallback(
-                                        app.applicationInfo, on,
-                                    )
-                                    RecreateCoordinator.reopenScreen = "theme"
-                                    RecreateCoordinator.armed = true
-                                    (context as? Activity)?.recreate()
+                                // v2.5.0 根因修复：写入与 recreate 必须在同一个协程里顺序执行。
+                                // 旧写法 scope.launch{写盘} 后立即 recreate —— 重组作用域随 Activity
+                                // 销毁被取消，写协程在首次运行前就被杀掉，配置从未落盘；
+                                // 重建后读回 false → 表现为「开关刷新后又弹回关闭」。
+                                scope.launch {
+                                    runCatching { configManager.setPredictiveBack(on) }
+                                    // KSU 同款：立即反射设置 + recreate，否则要重进应用才能生效。
+                                    // recreate 前记录当前推入页，重建后 BandQQApp 自动重新推入
+                                    val app = context.applicationContext as? BandQQApplication
+                                    if (app != null) {
+                                        BandQQApplication.setEnableOnBackInvokedCallback(
+                                            app.applicationInfo, on,
+                                        )
+                                        RecreateCoordinator.reopenScreen = "theme"
+                                        RecreateCoordinator.armed = true
+                                        (context as? Activity)?.recreate()
+                                    }
                                 }
                             },
                         )

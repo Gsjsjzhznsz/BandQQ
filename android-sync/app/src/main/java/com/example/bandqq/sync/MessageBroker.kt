@@ -3,6 +3,8 @@ package com.example.bandqq.sync
 import com.example.bandqq.config.ConfigHolder
 import com.example.bandqq.onebot.OneBotMessage
 import com.example.bandqq.onebot.OneBotParser
+import com.google.gson.JsonArray
+import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 
 object HistoryDedup {
@@ -214,23 +216,91 @@ class MessageBroker(
     }.getOrNull()
 
     /**
-     * 一键测试推送（v2.4.7）：向手环发一条固定会话的测试消息，验证蓝牙链路与推送管线。
-     * 固定 targetId 复用同一会话，不污染真实联系人列表，也不入手机端历史库。
+     * 一键测试推送（v2.5.0 升级为多场景模拟器）：
+     * 构造真实 OneBot v11 事件 JSON（数组段格式），走与真实消息完全一致的解析管线
+     * （parseMessageEvent → degradeContent/atMe 检测 → toHandBandFrame），
+     * 私聊/群聊 × 文本/@我/图片/表情/引用回复/撤回/语音/文件/长文本。
+     * 不入手机端历史库（不污染真实会话），仅推手环验证蓝牙链路与展示效果。
+     *
+     * @param chatType "private" | "group"
+     * @param scenario text/at/image/face/reply/recall/voice/file/long
+     * @return 结果描述（供界面 toast），空串表示构造失败
      */
-    fun pushTestMessage(): Boolean {
-        val msg = OneBotMessage(
-            messageType = "private",
-            targetId = "bandqq-test",
-            senderId = "bandqq-test",
-            senderName = "BandQQ 测试",
-            content = "[测试] 同步链路正常：这条消息经 手机端 → 蓝牙互联 → 手环 推送成功。可在会话列表长按关闭提示音或忽略本会话。",
-            time = System.currentTimeMillis(),
-            isSelf = false,
-        )
-        bandSender(parser.toHandBandFrame(msg, visible = true, targetName = "BandQQ 测试"))
-        log("pushTestMessage sent")
-        return true
+    fun pushTestMessage(chatType: String = "private", scenario: String = "text"): String {
+        val group = chatType == "group"
+        val targetName = if (group) "BandQQ 体验群" else "BandQQ 测试"
+        val senders = listOf("小明", "测试喵", "群友小王", "BandQQ 机器人", "阿瑶", "测试员")
+        testPushCounter++
+        val senderName = senders[testPushCounter % senders.size]
+        val nowSec = System.currentTimeMillis() / 1000
+        // 发送者 id 固定（10086/群 20001），昵称轮换 —— 同一会话内演示不同群友，不产生测试会话堆积
+        fun seg(type: String, vararg kv: Pair<String, String>): JsonObject {
+            val o = JsonObject()
+            o.addProperty("type", type)
+            val d = JsonObject()
+            for ((k, v) in kv) d.addProperty(k, v)
+            o.add("data", d)
+            return o
+        }
+        fun arr(vararg e: JsonObject): JsonArray {
+            val a = JsonArray()
+            for (x in e) a.add(x)
+            return a
+        }
+        fun text(t: String) = seg("text", "text" to t)
+
+        val message: JsonArray = when (scenario) {
+            // @我 场景：at 段 qq 指向 self_id=10000，走真实 atMe 检测（手环金色高亮）
+            "at" -> arr(
+                seg("at", "qq" to "10000"),
+                text("刚刚的方案你觉得怎么样？这条是@我模拟消息"),
+            )
+            "image" -> arr(text("看看这张图"), seg("image", "file" to "test.jpg", "url" to "https://example.com/test.jpg"))
+            "face" -> arr(seg("face", "id" to "1"), text("哈哈，这是表情消息测试"))
+            "reply" -> arr(seg("reply", "id" to "-1"), text("收到，马上处理！这条是引用回复测试"))
+            "voice" -> arr(text("发来一条语音"), seg("record", "file" to "test.amr"))
+            "file" -> arr(seg("file", "name" to "需求文档.pdf", "size" to "102400"))
+            "long" -> arr(
+                text(
+                    "这是一条长文本测试：\n第一行模拟群通知内容，检查多行折行\n" +
+                        "第二行 BandQQ 手环端应完整展示不截断\n第三行 滑动查看后续\n—— 完"
+                )
+            )
+            else -> arr(text(if (group) "大家好，这是群聊模拟消息" else "你好呀，这是私聊模拟消息"))
+        }
+        val event = JsonObject()
+        event.addProperty("post_type", "message")
+        event.addProperty("message_type", if (group) "group" else "private")
+        event.addProperty("time", nowSec)
+        event.addProperty("self_id", 10000L)
+        event.addProperty("user_id", 10086L)
+        if (group) event.addProperty("group_id", 20001L)
+        event.addProperty("message_id", "test_${System.currentTimeMillis()}")
+        val sender = JsonObject()
+        sender.addProperty("nickname", senderName)
+        sender.addProperty("user_id", 10086L)
+        event.add("sender", sender)
+        event.add("message", message)
+
+        val parsed = parser.parseMessageEvent(event.toString()) ?: return ""
+        return if (scenario == "recall") {
+            // 撤回场景：先推一条普通文本，再按同一 time 推撤回帧（手环原位灰显替换）
+            val first = parsed.copy(content = "过一会儿我会撤回这条消息")
+            bandSender(parser.toHandBandFrame(first, visible = true, targetName = targetName))
+            bandSender(buildRecallFrame(first.targetId, first.time))
+            bandSender(store.buildConversationFrame(0))
+            "已模拟：${if (group) "群聊" else "私聊"} · 撤回（发送者：$senderName）"
+        } else {
+            val label = when (scenario) {
+                "at" -> "@我"; "image" -> "图片"; "face" -> "表情"; "reply" -> "引用回复"
+                "voice" -> "语音"; "file" -> "文件"; "long" -> "长文本"; else -> "文本"
+            }
+            bandSender(parser.toHandBandFrame(parsed, visible = true, targetName = targetName))
+            "已模拟：${if (group) "群聊" else "私聊"} · $label（发送者：$senderName）"
+        }
     }
+
+    private var testPushCounter = 0
 
     override fun onRecall(recall: com.example.bandqq.onebot.OneBotRecall) {
         // 借鉴 Stapxs 撤回提示：手机端内容替换为标记 + 推送撤回同步帧。

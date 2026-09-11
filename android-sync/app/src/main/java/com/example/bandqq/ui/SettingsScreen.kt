@@ -74,6 +74,8 @@ fun SettingsScreen(
     var dndStart by remember { mutableStateOf("23:00") }
     var dndEnd by remember { mutableStateOf("07:00") }
     var groupPushMode by remember { mutableIntStateOf(0) }
+    var testChatType by remember { mutableStateOf("private") }   // 模拟器：private | group
+    var testScenario by remember { mutableStateOf("text") }      // 模拟器：text/at/image/face/reply/recall/voice/file/long
     var loaded by remember { mutableStateOf(false) }
     var entered by remember { mutableStateOf(false) }
 
@@ -336,18 +338,65 @@ fun SettingsScreen(
                         fontSize = 12.sp,
                         color = colorScheme.onSurfaceSecondary,
                     )
+                    // ===== 测试推送模拟器（v2.5.0）：私聊/群聊 × 多种消息类型 =====
+                    Text(
+                        text = "测试推送模拟器",
+                        modifier = Modifier.padding(top = 14.dp),
+                        fontSize = 14.sp,
+                    )
+                    Text(
+                        text = "构造真实 OneBot 事件走完整解析管线，验证手环各消息形态展示（不污染历史库）",
+                        modifier = Modifier.padding(top = 4.dp),
+                        fontSize = 12.sp,
+                        color = colorScheme.onSurfaceSecondary,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        listOf("私聊" to "private", "群聊" to "group").forEach { (label, id) ->
+                            Button(
+                                onClick = { testChatType = id },
+                                colors = if (testChatType == id) ButtonDefaults.buttonColorsPrimary() else ButtonDefaults.buttonColors(),
+                                modifier = Modifier.weight(1f),
+                            ) { Text(label) }
+                        }
+                    }
+                    listOf(
+                        listOf("文本" to "text", "@我" to "at", "图片" to "image"),
+                        listOf("表情" to "face", "引用回复" to "reply", "撤回" to "recall"),
+                        listOf("语音" to "voice", "文件" to "file", "长文本" to "long"),
+                    ).forEach { rowScenarios ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            rowScenarios.forEach { (label, id) ->
+                                Button(
+                                    onClick = { testScenario = id },
+                                    colors = if (testScenario == id) ButtonDefaults.buttonColorsPrimary() else ButtonDefaults.buttonColors(),
+                                    modifier = Modifier.weight(1f),
+                                ) { Text(label, fontSize = 13.sp) }
+                            }
+                        }
+                    }
                     Button(
                         onClick = {
                             val hook = SyncService.testPush
                             if (hook == null) {
                                 toast(context, "同步服务未运行，请先到保活向导启动服务")
-                            } else if (hook.invoke()) {
-                                toast(context, "已发送测试消息，请在手环查看「BandQQ 测试」会话")
+                            } else {
+                                val result = hook.invoke(testChatType, testScenario)
+                                if (result.isBlank()) {
+                                    toast(context, "测试事件构造失败，请查看日志")
+                                } else {
+                                    toast(context, result + "，请在手环查看测试会话")
+                                }
                             }
                         },
                         colors = ButtonDefaults.buttonColorsPrimary(),
-                        modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
-                    ) { Text("一键测试推送（验证手机→手环链路）") }
+                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                    ) { Text("发送模拟消息（手机 → 蓝牙 → 手环）") }
                 }
             }
 

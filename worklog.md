@@ -142,3 +142,22 @@ Work Log:
 Stage Summary:
 - 产物：download/bandqq-sync-release-2.4.5.apk + bandqq-watch-release-2.4.5.rpk
 - MEMORY.md v2.4.5 节入库；如再崩溃由 CrashGuard 提供堆栈
+
+---
+Task ID: 13
+Agent: main (Super Z)
+Task: band-qq v2.5.0 —— 预测开关落盘竞态根治 + 手环11适配 + 解析器修复 + 新消息振动 + 测试推送模拟器
+
+Work Log:
+- 容器重置恢复：重新克隆仓库（7c7d149）+ Temurin JDK17 + Gradle 8.13 + commandlinetools + platforms;android-37.0/build-tools 37.0.0（SDK37 新版号）
+- 预测开关根因：ThemeScreen scope.launch{写盘} 后同步 recreate()，重组作用域销毁杀掉未调度的写协程，配置从未落盘 → 修复为同一协程顺序执行（落盘→反射→recreate）
+- 手环11适配：index/chat/settings/compose 四页定高容器改 flex:1（原高度和恰为490，212宽屏放大后溢出21px）；compose .page 补 width/height:100%；manifest 2.5.0/vc31
+- 解析器：isAtMe 双格式（数组段+CQ字符串）；degradeContent at/reply 段可读化；degradeCqString 新增（string 格式 CQ 码降级）
+- 手环振动：app.ux push_message 分支短振动（is_self/recall/visible 三重过滤）
+- 模拟器：MessageBroker.pushTestMessage(chatType,scenario) 九场景走真实解析管线，SyncService 钩子改签名，SettingsScreen 会话类型+九宫格场景 UI
+- 构建：APK vc33 验签同源（af8819e2）交付 download/bandqq-sync-release-2.5.0.apk（12.2MB）；RPK 交付 download/bandqq-watch-release-2.5.0.rpk（252KB）；单测 51/52（api.js 门控为存量失败）
+- README 标题/徽章/关键词/v2.5.0 日志更新；MEMORY 版本行+v2.5.0 章节；git commit+push
+
+Stage Summary:
+- 产物：bandqq-sync-release-2.5.0.apk + bandqq-watch-release-2.5.0.rpk（覆盖安装/推送即可）
+- 回归建议：①预测开关点击→刷新→保持开启→手势生效 ②模拟器九场景逐一验证手环展示 ③Band11 实机四页布局无裁切 ④新消息振动

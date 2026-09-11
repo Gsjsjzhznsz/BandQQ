@@ -42,8 +42,8 @@
   .send-status { height: 22px; flex-direction: row; align-items: center; justify-content: center; }
   .send-status-text { font-size: 15px; color: #0d84ff; }
   .page-title { font-size: 22px; color: #ffffff; max-width: 170px; lines: 1; text-overflow: ellipsis; }
-  /* 消息区高度固定，列表项不参与高度计算（抖动根治） */
-  .msg-area { height: 230px; flex-direction: column; }
+  /* v2.5.0 Band 11 适配：消息区弹性伸展（212×520 与 192×490 双屏通吃） */
+  .msg-area { flex: 1; flex-direction: column; }
   .older-wrap { height: 34px; flex-direction: row; justify-content: center; align-items: center; }
   .older-btn { font-size: 15px; color: #0d84ff; padding: 4px 12px; }
   .msg-item { width: 192px; padding: 0 8px; margin-top: 8px; flex-direction: row; flex-shrink: 0; }

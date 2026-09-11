@@ -126,9 +126,10 @@ class SyncService : Service() {
             context.startService(Intent(context, SyncService::class.java).setAction(ACTION_STOP))
         }
 
-        /** 测试推送钩子（v2.4.7）：服务运行时由 onCreate 注入，设置页「一键测试推送」调用 */
+        /** 测试推送钩子（v2.5.0 多场景模拟器）：服务运行时由 onCreate 注入，设置页调用。
+         *  参数 (chatType: "private"|"group", scenario)，返回结果描述供 toast */
         @Volatile
-        var testPush: (() -> Boolean)? = null
+        var testPush: ((String, String) -> String)? = null
             private set
     }
 
@@ -173,7 +174,7 @@ class SyncService : Service() {
         }
         oneBot.startWithListener(broker)
         InterconnectBridge.register(broker)
-        testPush = { broker.pushTestMessage() }
+        testPush = { chatType, scenario -> broker.pushTestMessage(chatType, scenario) }
         InterconnectBridge.init(this)
     }
 
