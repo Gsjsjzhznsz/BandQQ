@@ -1,5 +1,6 @@
 package com.example.bandqq.onebot
 
+import com.example.bandqq.BuildConfig
 import com.example.bandqq.config.EndpointConfig
 import com.example.bandqq.sync.LogBus
 import com.example.bandqq.sync.LogLevel
@@ -114,6 +115,13 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
                 try {
                     connected = true
                     LogBus.log("OneBotClient", LogLevel.DEBUG, "WS onOpen, connected=$connected")
+                    // v2.8.2：握手即经 WS 上报身份（echo=bandqq-<版本>）。
+                    // 真实协议端会按 OneBot 标准应答此动作（Stapxs 同款行为）；
+                    // DevTools 1.2.0 会把它打进日志（「BandQQ APP x.y.z」），
+                    // 联调时一眼确认对端连接的是哪个版本的 APP。
+                    val identify = "{\"action\":\"get_version_info\",\"params\":{},\"echo\":\"bandqq-${BuildConfig.VERSION_NAME}\"}"
+                    webSocket.send(identify)
+                    LogBus.log("OneBotClient", LogLevel.DEBUG, "WS identify sent (echo=bandqq-${BuildConfig.VERSION_NAME})")
                     listener?.onState(true)
                 } catch (t: Throwable) {
                     LogBus.log("OneBotClient", LogLevel.ERROR, "onOpen/onState exception: $t")
@@ -134,7 +142,8 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
                     }
                     val msg = parser.parseMessageEvent(text)
                     if (msg == null) {
-                        LogBus.log("OneBotClient", LogLevel.WARN, "WS msg parse -> null (may be meta/heartbeat)")
+                        // v2.8.2 降噪：meta_event（lifecycle/heartbeat）也会走到这里，属正常协议帧
+                        LogBus.log("OneBotClient", LogLevel.DEBUG, "WS non-message frame (meta/action response)")
                     } else {
                         listener?.onEvent(msg)
                     }

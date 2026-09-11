@@ -21,21 +21,30 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * BandQQ DevTools（v2.8.0）—— 模拟 OneBot 协议端的开发者测试工具。
+ * BandQQ DevTools（v1.2.0）—— 模拟 OneBot 协议端的开发者测试工具。
  *
  * 使用方法：
  * 1. 打开本工具，点「启动服务器」（默认 WS :3001 / HTTP :3000）；
  * 2. BandQQ 同步器 APP 设置里，OneBot 地址保持默认（ws://127.0.0.1:3001 与
  *    http://127.0.0.1:3000）或改指本机，点「测试连接」应显示可连；
  * 3. 启动同步服务后 APP 自动连上 WS 并拉取模拟联系人；
+ *    v1.2.0：BandQQ 2.8.2+ 连上后会经 WS 上报身份，日志显示「BandQQ APP x.y.z」——
+ *    若连接日志无此行，说明对端不是最新 APP（旧版收到事件会异常断连）；
  * 4. 点下方按钮发送模拟消息 → APP 入库 → 蓝牙推到手环展示；
  * 5. 手环回复 → 本工具日志显示收到的动作 → （开关开启时）自动回推对方消息，
  *   形成「手环 ⇄ 协议端」完整闭环，全程无需真实 QQ 服务器。
+ *
+ * v1.2.0 协议补全：WS 动作 echo 应答 / lifecycle connect / 30s 心跳元事件 /
+ * 断连归因日志（close code、写入失败、读空闲收割）/ HTTP 中文 body 字节读修复。
  */
 class MainActivity : AppCompatActivity() {
 
     private var wsServer: WsServer? = null
     private var httpServer: HttpApiServer? = null
+    private var actionRouter: ActionRouter? = null
+
+    /** 最近一次事件下发时间：用于识别「下发后客户端秒断」并给出升级提示 */
+    private val lastBroadcastAt = java.util.concurrent.atomic.AtomicLong(0L)
 
     private lateinit var statusText: TextView
     private lateinit var logView: TextView
@@ -352,24 +361,44 @@ class MainActivity : AppCompatActivity() {
         val base = basePort()
         val wsPort = base + 1
         val log: (String) -> Unit = { msg -> appendLog(msg) }
-        wsServer = WsServer(wsPort) { kind, detail ->
-            uiHandler.post { appendLog(detail) }
-        }.also { it.start() }
-        httpServer = HttpApiServer(
-            port = base,
+        val router = ActionRouter(
             autoEcho = { autoEchoSwitch.isChecked },
             selfInfo = { selfQq() to selfNickname() },
             pushEvent = { event ->
-                wsServer?.broadcast(event)
-                uiHandler.post { appendLog("WS → 已下发事件: ${event.take(90)}") }
+                lastBroadcastAt.set(System.currentTimeMillis())
+                val failures = wsServer?.broadcast(event).orEmpty()
+                uiHandler.post {
+                    appendLog("WS → 已下发事件: ${event.take(90)}")
+                    if (failures.isNotEmpty()) appendLog("⚠ 下发失败：${failures.joinToString()}（客户端连接已死/被冻结）")
+                }
             },
             onLog = { msg -> uiHandler.post { appendLog(msg) } },
-        ).also { it.start() }
+        )
+        actionRouter = router
+        wsServer = WsServer(wsPort, router) { kind, detail ->
+            uiHandler.post {
+                appendLog(detail)
+                if (kind == "close") maybeReportSuspectClose()
+            }
+        }.also { it.start() }
+        httpServer = HttpApiServer(port = base, router = router, onLog = log).also { it.start() }
         startBtn.text = "停止服务器"
         statusText.text = "运行中：WS :$wsPort · HTTP :$base"
         statusText.setTextColor(0xFF63E07C.toInt())
         getPreferences(MODE_PRIVATE).edit().putInt("base_port", base).apply()
         appendLog("DevTools 就绪：请打开 BandQQ APP → 设置 → 启动同步服务（地址保持 ws://127.0.0.1:${wsPort}）")
+        appendLog("提示：BandQQ 2.8.2+ 连上后日志会出现「BandQQ APP x.y.z」身份行；没有即旧版 APP")
+    }
+
+    /** 下发事件后 4s 内客户端断开：大概率旧版 APP 解析异常断连或被系统冻结，给出可操作提示 */
+    private fun maybeReportSuspectClose() {
+        val last = lastBroadcastAt.get()
+        if (last == 0L) return
+        val delta = System.currentTimeMillis() - last
+        if (delta in 0..4000) {
+            appendLog("⚠ 事件下发后 ${delta}ms 客户端即断开 —— 同步器 APP 低于 2.8.2 时收到事件解析异常会断连")
+            appendLog("  请安装最新 bandqq-sync-release APK，并在系统省电策略中允许 BandQQ 后台运行")
+        }
     }
 
     private fun stopServers() {
@@ -377,6 +406,8 @@ class MainActivity : AppCompatActivity() {
         httpServer?.stop()
         wsServer = null
         httpServer = null
+        actionRouter = null
+        lastBroadcastAt.set(0L)
         startBtn.text = "启动服务器"
         statusText.text = "服务器未启动"
         statusText.setTextColor(0xFFFFC864.toInt())
@@ -387,6 +418,7 @@ class MainActivity : AppCompatActivity() {
         val ws = wsServer?.takeIf { it.running } ?: run {
             toastUi("请先启动服务器"); return
         }
+        lastBroadcastAt.set(System.currentTimeMillis())
         val nickname = nicknameInput.text.toString().trim().ifBlank {
             if (chatType == "group") "群友小王" else "测试好友"
         }
@@ -415,6 +447,7 @@ class MainActivity : AppCompatActivity() {
         val ws = wsServer?.takeIf { it.running } ?: run {
             toastUi("请先启动服务器"); return
         }
+        lastBroadcastAt.set(System.currentTimeMillis())
         val content = contentInput.text.toString().trim()
         if (content.isEmpty()) {
             toastUi("请输入消息内容"); return

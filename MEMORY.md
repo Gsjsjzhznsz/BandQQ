@@ -9,7 +9,7 @@
 
 ## 版本线
 - v1.1.x：旧 lineage（stapxs 移植版，源码已失传，legacy/ 有 7z 分卷）
-- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.8.1**（versionCode 37，RPK versionCode 35）
+- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.8.2**（versionCode 38，RPK versionCode 35 无改动）+ DevTools 1.2.0（vc3）
 - 签名一致性：rpk 与 APK 同源证书，APK SHA-256 = af8819e27a6ec8d84537ec86937cf016e780376305328abaa4eb79e8c626b004
 
 ## v2.1.0 已完成（2026-09-09）
@@ -207,3 +207,17 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 **交付**：bandqq-sync-release-2.8.1.apk（12.2MB vc37）+ bandqq-devtools-release-1.1.0.apk（4.7MB vc2 同签名）+ bandqq-watch-release-2.8.1.rpk（257KB vc35，包内验证 settings 分组/about copyRepo/uri:'/about'/clipboard feature 全入包）；node 单测 53 过 1 挂（api.test.js 存量基线一致）
 
 **构建环境备忘**：sdkmanager 平台包名是 platforms;android-37.0（android-37 不存在）；cp -r android-37.0 android-37 后须 sed 改 package.xml 的 android-37.0→android-37 与 source.properties 的 ApiLevel=37.0→37；系统 Java21 是 JRE 无 javac（Toolchain does not provide JAVA_COMPILER），必须 Temurin JDK17（/home/z/tools/jdk-17.0.20.1+1）；4GB 内存容器 gradle 须 --no-daemon + GRADLE_OPTS -Xmx1100m/-Xmx700m 否则 daemon 被杀
+
+## v2.8.2 + DevTools 1.2.0（2026-09-12，app versionCode 38 / DevTools vc 3 / RPK 无改动）— 版本互认断连定位 + DevTools 协议补全 + HTTP 中文 body 字节读修复
+
+**用户二次实测仍断连的定位结论（重要方法论）**：新日志「已发送→客户端断开→1~5s 重连」的间隔节奏（连接 5s 内失败=下次 5s 档，>5s 失败=1s 档）与 OneBotClient.reconnect 循环（!connected 分支 delay(5000) / connected 分支 delay(1000)）完全吻合 → 断连源于 APP 端 WS failure。v2.8.1 的 try-catch 加固在 APP 2.8.1 内，旧版 2.8.0 APP 收事件异常仍断连 → 高度怀疑用户未更新同步器 APK。为终结猜谜加了**版本互认**：
+- APP 2.8.2：OneBotClient.onOpen 后立即经 WS 发 `{"action":"get_version_info","params":{},"echo":"bandqq-${BuildConfig.VERSION_NAME}"}`（Stapxs 同款标准行为，真实协议端正常应答无副作用）
+- DevTools 1.2.0：WS 收到动作帧 → ActionRouter 应答 + echo 回带 + 日志「WS 动作 get_version_info（BandQQ APP x.y.z）→ 已应答」——用户日志无此行=旧版 APP 一眼识破
+- 下发事件后 4s 内断开自动追加升级提示；同步器启动日志记录版本 v2.8.2(vc38)
+
+**DevTools 1.2.0 协议补全**：
+- WsServer 重写：handshake 后下发 lifecycle connect 元事件；全局 30s 心跳 meta_event（ScheduleAtFixedRate，clients 空跳过）；客户端动作帧解析应答（此前只打日志从不回包——标准 OneBot 客户端连上后等 echo 应答）；断连归因（close 帧解析 code/reason 如测试连接的 probe done / TCP EOF / 60s 读空闲收割——客户端 20s ping 未达=对端已死被冻结）；broadcast 逐条上报写入失败（含 deadReason）
+- HttpApiServer 重写：**修复中文 body 读取 bug**——此前 BufferedReader 按字符数读 Content-Length（字节数），中文请求体（手环快捷回复几乎全中文）必然少读阻塞 8s 超时不回包 → 手环回复 APP 端 send failed 且 DevTools 无日志（v2.8.0~1.1.0 手环回复收不到的隐藏元凶！）。改字节级：读头到 \r\n\r\n（StringBuilder 尾 4 字节判定，StringBuilder 无 endsWith）→ 读满 Content-Length 字节 → UTF-8 解码
+- 新增 ActionRouter：HTTP 与 WS 共用一套动作应答（get_version_info 真实数据/get_login_info/get_status/联系人/send_*/通用成功）；注意 selfId() 直取方法不能走 handle("get_login_info") 否则每 30s 心跳刷动作日志
+
+**交付**：bandqq-sync-release-2.8.2.apk（12.2MB vc38）+ bandqq-devtools-release-1.2.0.apk（4.7MB vc3 同签名）；RPK 保持 2.8.1 不变；app 单测 94 过 1 挂（GameProtocolDetectorTest 存量基线一致）；测试依赖 junit/mockwebserver 需在线解析（容器离线缓存无）

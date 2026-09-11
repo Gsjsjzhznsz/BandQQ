@@ -1,31 +1,23 @@
 package com.example.bandqq.devtools
 
-import org.json.JSONArray
-import org.json.JSONObject
-import java.io.BufferedReader
-import java.io.BufferedWriter
-import java.io.InputStreamReader
-import java.io.OutputStreamWriter
+import java.io.BufferedOutputStream
+import java.io.InputStream
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.Executors
-import java.util.concurrent.atomic.AtomicLong
 
 /**
- * 极简 HTTP API 服务器（零第三方依赖，v2.8.0 DevTools）：
- * 模拟 OneBot HTTP 端口（默认 3000），接收 BandQQ 同步器的动作请求：
- * - POST /send_private_msg  /send_group_msg  → retcode 0；可选自动回推一条
- *   对方消息（经 WS 下发 message 事件），完整演示「手环回复 → 对方收到 →
- *   对方再回复」的闭环。
- * - POST /get_friend_list / get_group_list → 返回模拟好友/群列表，
- *   BandQQ 连接后自动拉取联系人即可看到示例联系人。
- * - 其余动作 → retcode 0 通用成功（保持客户端流程不中断）。
+ * HTTP API 服务器（零第三方依赖，v1.2.0 DevTools 重写）：
+ * 模拟 OneBot HTTP 端口（默认 3000），动作经 ActionRouter 与 WS 共用同一套应答。
+ *
+ * v1.2.0 修复的关键 bug：请求体此前按「字符数」读 Content-Length（字节数），
+ * 任何含中文的请求体（手环快捷回复几乎全是中文）都会少读/阻塞至 8s 超时且不回包，
+ * 表现为手环回复后 APP 端「send failed」、DevTools 收不到任何回复日志。
+ * 现改为按字节精确读取（先读头到 \r\n\r\n，再读满 Content-Length 字节）。
  */
 class HttpApiServer(
     private val port: Int,
-    private val autoEcho: () -> Boolean,          // 收到消息动作后是否自动回推对方回复
-    private val selfInfo: () -> Pair<Long, String> = { MsgBuilder.DEFAULT_SELF_ID to "我" }, // v2.8.1 我的身份
-    private val pushEvent: (String) -> Unit,      // 经 WS 下发事件（MsgBuilder 构造）
+    private val router: ActionRouter,
     private val onLog: (String) -> Unit,
 ) {
 
@@ -33,7 +25,6 @@ class HttpApiServer(
     private val pool = Executors.newCachedThreadPool { r ->
         Thread(r, "http-api").apply { isDaemon = true }
     }
-    private val messageIdSeq = AtomicLong(1000)
 
     @Volatile
     var running = false
@@ -74,39 +65,52 @@ class HttpApiServer(
     private fun handle(socket: Socket) {
         try {
             socket.soTimeout = 8000
-            val reader = BufferedReader(InputStreamReader(socket.getInputStream(), Charsets.UTF_8))
-            val requestLine = reader.readLine() ?: return
+            socket.tcpNoDelay = true
+            val input = socket.getInputStream()
+            // ---- 读取请求头（字节级，遇 \r\n\r\n 结束）----
+            val headerBytes = StringBuilder()
+            var b: Int
+            while (headerBytes.length < 32 * 1024) {
+                b = input.read()
+                if (b == -1) break
+                headerBytes.append(b.toChar())
+                val n = headerBytes.length
+                if (n >= 4 &&
+                    headerBytes[n - 1] == '\n' && headerBytes[n - 2] == '\r' &&
+                    headerBytes[n - 3] == '\n' && headerBytes[n - 4] == '\r'
+                ) break
+            }
+            val headerText = headerBytes.toString()
+            val lines = headerText.split("\r\n")
+            val requestLine = lines.firstOrNull() ?: return
             var contentLength = 0
-            while (true) {
-                val line = reader.readLine() ?: break
-                if (line.isEmpty()) break
-                if (line.lowercase().startsWith("content-length:")) {
-                    contentLength = line.substringAfter(':').trim().toIntOrNull() ?: 0
+            for (l in lines.drop(1)) {
+                if (l.lowercase().startsWith("content-length:")) {
+                    contentLength = l.substringAfter(':').trim().toIntOrNull() ?: 0
                 }
             }
-            val body = if (contentLength > 0) {
-                val buf = CharArray(contentLength)
-                var off = 0
-                while (off < contentLength) {
-                    val n = reader.read(buf, off, contentLength - off)
-                    if (n < 0) break
-                    off += n
-                }
-                String(buf, 0, off)
-            } else ""
+            // ---- 按字节精确读取请求体（修复中文多字节错位）----
+            val bodyBytes = ByteArray(contentLength.coerceAtLeast(0))
+            var off = 0
+            while (off < bodyBytes.size) {
+                val n = input.read(bodyBytes, off, bodyBytes.size - off)
+                if (n < 0) break
+                off += n
+            }
+            val body = String(bodyBytes, 0, off, Charsets.UTF_8)
 
             val parts = requestLine.split(" ")
             val method = parts.getOrNull(0) ?: "GET"
             val path = (parts.getOrNull(1) ?: "/").substringBefore('?')
             val response = route(method, path, body)
 
-            val writer = BufferedWriter(OutputStreamWriter(socket.getOutputStream(), Charsets.UTF_8))
-            writer.write("HTTP/1.1 200 OK\r\n")
-            writer.write("Content-Type: application/json; charset=utf-8\r\n")
-            writer.write("Content-Length: ${response.toByteArray(Charsets.UTF_8).size}\r\n")
-            writer.write("Connection: close\r\n\r\n")
-            writer.write(response)
-            writer.flush()
+            val out = BufferedOutputStream(socket.getOutputStream())
+            out.write("HTTP/1.1 200 OK\r\n".toByteArray(Charsets.ISO_8859_1))
+            out.write("Content-Type: application/json; charset=utf-8\r\n".toByteArray(Charsets.ISO_8859_1))
+            out.write("Content-Length: ${response.toByteArray(Charsets.UTF_8).size}\r\n".toByteArray(Charsets.ISO_8859_1))
+            out.write("Connection: close\r\n\r\n".toByteArray(Charsets.ISO_8859_1))
+            out.write(response.toByteArray(Charsets.UTF_8))
+            out.flush()
         } catch (t: Throwable) {
             onLog("HTTP 处理异常: ${t.message}")
         } finally {
@@ -115,81 +119,18 @@ class HttpApiServer(
     }
 
     private fun route(method: String, path: String, body: String): String {
-        if (method != "POST") {
+        val action = path.trim('/').substringAfterLast('/').ifBlank { "index" }
+        val params = try { org.json.JSONObject(body.ifBlank { "{}" }) } catch (_: Exception) { org.json.JSONObject() }
+        return if (method == "POST") {
+            router.handle(action, params, null)
+        } else {
             // BandQQ 测试连接可能发 GET；统一回标准成功结构
-            return ok(JSONObject())
-        }
-        val action = path.trim('/').substringAfterLast('/')
-        val params = try { JSONObject(body.ifBlank { "{}" }) } catch (e: Exception) { JSONObject() }
-        return when (action) {
-            "send_private_msg", "send_group_msg" -> handleSend(action, params)
-            "get_friend_list" -> handleFriendList()
-            "get_group_list" -> handleGroupList()
-            "get_login_info" -> handleLoginInfo()
-            else -> {
-                onLog("HTTP 动作 $action（通用成功）")
-                ok(JSONObject())
-            }
+            org.json.JSONObject()
+                .put("status", "ok")
+                .put("retcode", 0)
+                .put("data", org.json.JSONObject())
+                .put("echo", org.json.JSONObject.NULL)
+                .toString()
         }
     }
-
-    /** v2.8.1：登录信息（OneBot 标准动作）——返回配置的「我的QQ号/昵称」，
-     *  BandQQ 等客户端据此确认账号身份；@我 判定依赖该身份与 at 段一致 */
-    private fun handleLoginInfo(): String {
-        val (qq, nick) = selfInfo()
-        onLog("返回登录信息：$nick（$qq）")
-        return ok(JSONObject().put("user_id", qq).put("nickname", nick))
-    }
-
-    /** 手环回复送达：日志 + 可选自动回推一条对方消息（闭环演示） */
-    private fun handleSend(action: String, params: JSONObject): String {
-        val message = params.optString("message", "")
-        val isGroup = action == "send_group_msg"
-        val targetId = params.optLong(if (isGroup) "group_id" else "user_id", 0L).toString()
-        val status = JSONObject()
-            .put("message_id", messageIdSeq.incrementAndGet())
-        onLog("收到 ${if (isGroup) "群聊" else "私聊"}回复 → ${if (isGroup) "群 $targetId" else "好友 $targetId"}：${message.take(60)}")
-        if (autoEcho()) {
-            // 对方"收到后回复"，user_id 与消息来源一致，落入同一会话
-            val userId = if (isGroup) 10086L else targetId.toLongOrNull() ?: 10086L
-            val nickname = if (isGroup) "群友小王" else "测试好友"
-            val groupId = if (isGroup) targetId.toLongOrNull() ?: 20001L else null
-            val event = MsgBuilder.messageEvent(
-                type = if (isGroup) "group" else "private",
-                userId = userId,
-                nickname = nickname,
-                groupId = groupId,
-                message = MsgBuilder.textArray("收到！这是一条自动回推的模拟回复：你刚才发的「${message.take(12)}」我看到了"),
-            )
-            pushEvent(event)
-            onLog("已自动回推一条对方消息（可在设置关闭）")
-        }
-        return ok(status)
-    }
-
-    /** 模拟好友列表：BandQQ 连接后自动拉取，出现在手机端联系人页 */
-    private fun handleFriendList(): String {
-        val data = JSONArray()
-        data.put(JSONObject().put("user_id", 10086L).put("nickname", "测试好友"))
-        data.put(JSONObject().put("user_id", 10010L).put("nickname", "BandQQ 机器人"))
-        data.put(JSONObject().put("user_id", 10001L).put("nickname", "阿瑶"))
-        onLog("返回模拟好友列表（${data.length()} 人）")
-        return ok(data)
-    }
-
-    private fun handleGroupList(): String {
-        val data = JSONArray()
-        data.put(JSONObject().put("group_id", 20001L).put("group_name", "BandQQ 体验群"))
-        data.put(JSONObject().put("group_id", 20002L).put("group_name", "手环玩家俱乐部"))
-        onLog("返回模拟群列表（${data.length()} 个）")
-        return ok(data)
-    }
-
-    private fun ok(data: Any): String =
-        JSONObject()
-            .put("status", "ok")
-            .put("retcode", 0)
-            .put("data", data)
-            .put("echo", JSONObject.NULL)
-            .toString()
 }

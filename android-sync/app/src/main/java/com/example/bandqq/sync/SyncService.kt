@@ -7,6 +7,7 @@ import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.os.IBinder
+import com.example.bandqq.BuildConfig
 import com.example.bandqq.R
 import com.example.bandqq.config.ConfigHolder
 import com.example.bandqq.config.ConfigManager
@@ -152,6 +153,11 @@ class SyncService : Service() {
     override fun onCreate() {
         super.onCreate()
         isRunning = true
+        // v2.8.2：启动即记录版本，用户贴日志时可直接定位 APP 版本（联调 DevTools 必备）
+        try {
+            LogBus.log("SyncService", LogLevel.INFO,
+                "BandQQ 同步器 v${BuildConfig.VERSION_NAME} (vc${BuildConfig.VERSION_CODE}) 启动")
+        } catch (_: Throwable) {}
         createChannel()
         configManager = ConfigManager(this)
         parser = OneBotParser()

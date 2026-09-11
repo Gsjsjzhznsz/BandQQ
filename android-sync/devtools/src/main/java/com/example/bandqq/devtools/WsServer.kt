@@ -6,31 +6,38 @@ import java.io.InputStream
 import java.io.OutputStream
 import java.net.ServerSocket
 import java.net.Socket
+import java.net.SocketTimeoutException
 import java.security.MessageDigest
 import java.util.Base64
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicLong
+import org.json.JSONObject
 
 /**
- * 极简 WebSocket 服务器（零第三方依赖，v2.8.0 DevTools）：
- * 模拟 OneBot 正向 WS 事件端口（默认 3001），BandQQ 同步器 APP 以
- * ws://127.0.0.1:3001 连接后，本工具即可向其下发模拟 OneBot 事件。
- *
- * 实现范围（面向本工具的实际需要）：
+ * WebSocket 服务器（零第三方依赖，v1.2.0 DevTools 重写）：
+ * 模拟 OneBot 正向 WS 事件端口（默认 3001）。v1.2.0 起为完整 OneBot 正向 WS 端：
  * - RFC6455 握手（Sec-WebSocket-Accept = b64(sha1(key + GUID))）
- * - 文本帧收发（含 126/127 扩展长度与 continuation 分片拼接）
- * - ping/pong 心跳、close 关闭握手
- * - 只读不解析客户端文本（OneBot 客户端仅下行事件，上行走 HTTP API）
+ * - 文本帧收发（含 126/127 扩展长度）、ping/pong、close 关闭握手
+ * - 连接建立即下发 lifecycle connect 元事件，之后每 30s 下发心跳元事件
+ *   （OneBot 标准保活语义；BandQQ/ Stapxs 等客户端按此判活）
+ * - 客户端动作帧（{"action":...,"echo":...}）→ ActionRouter 应答并原样回带 echo
+ * - 断连精细归因日志：客户端主动 close 帧带 code/reason、写入失败、60s 读空闲收割
+ *   （此前"客户端断开"无法区分是 APP 主动断、异常断还是已被系统冻结，联调困难）
  */
 class WsServer(
     private val port: Int,
+    private val router: ActionRouter?,
     private val onEvent: (kind: String, detail: String) -> Unit, // kind: open/close/log
 ) {
 
     private var serverSocket: ServerSocket? = null
     private val pool = Executors.newCachedThreadPool { r ->
         Thread(r, "ws-server").apply { isDaemon = true }
+    }
+    private val heartbeat = Executors.newSingleThreadScheduledExecutor { r ->
+        Thread(r, "ws-heartbeat").apply { isDaemon = true }
     }
     private val clients = CopyOnWriteArrayList<WsConn>()
     private val connSeq = AtomicLong(0)
@@ -59,6 +66,13 @@ class WsServer(
                     }
                 }
             }
+            // OneBot 11 心跳：30s 周期向所有在线客户端下发 meta_event.heartbeat
+            heartbeat.scheduleAtFixedRate({
+                if (!running || clients.isEmpty()) return@scheduleAtFixedRate
+                val selfId = routerSelfId()
+                val frame = ActionRouter.heartbeatEvent(selfId, HEARTBEAT_MS)
+                for (c in clients) c.sendText(frame)
+            }, HEARTBEAT_MS, HEARTBEAT_MS, TimeUnit.MILLISECONDS)
             true
         } catch (t: Throwable) {
             onEvent("log", "WS 启动失败(端口被占用?)：${t.message}")
@@ -67,21 +81,31 @@ class WsServer(
         }
     }
 
+    private fun routerSelfId(): Long = router?.selfId() ?: MsgBuilder.DEFAULT_SELF_ID
+
     fun stop() {
         running = false
+        runCatching { heartbeat.shutdownNow() }
         runCatching { serverSocket?.close() }
         serverSocket = null
         clients.forEach { runCatching { it.close() } }
         clients.clear()
     }
 
-    /** 向全部已连接的 BandQQ 客户端广播一条文本帧（模拟 OneBot 事件） */
-    fun broadcast(text: String) {
-        val dead = mutableListOf<WsConn>()
+    /**
+     * 向全部已连接客户端广播一条文本帧。
+     * @return 失败连接的描述列表（空 = 全部送达）；此前写入失败静默移除，
+     *         联调时无法区分"消息没发出去"还是"客户端秒断"，现在逐条上报。
+     */
+    fun broadcast(text: String): List<String> {
+        val failures = mutableListOf<String>()
         for (c in clients) {
-            if (!c.sendText(text)) dead.add(c)
+            if (!c.sendText(text)) {
+                failures.add("#${c.id}(${c.deadReason ?: "写入失败"})")
+                removeClient(c, "下发失败：${c.deadReason ?: "写入异常"}")
+            }
         }
-        dead.forEach { removeClient(it) }
+        return failures
     }
 
     private fun handleAccept(socket: Socket) {
@@ -95,19 +119,21 @@ class WsServer(
         try {
             conn.readLoop()
         } finally {
-            removeClient(conn)
+            removeClient(conn, conn.endReason ?: "连接关闭")
         }
     }
 
-    private fun removeClient(conn: WsConn) {
+    private fun removeClient(conn: WsConn, reason: String) {
         if (clients.remove(conn)) {
-            onEvent("close", "客户端断开 WS (#${conn.id}，剩余 ${clients.size} 个)")
+            onEvent("close", "客户端断开 WS (#${conn.id}，剩余 ${clients.size} 个) · $reason")
         }
         runCatching { conn.close() }
     }
 
     companion object {
         private const val WS_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
+        private const val HEARTBEAT_MS = 30_000L
+        private const val IDLE_TIMEOUT_MS = 60_000 // 读空闲收割：客户端 pings 每 20s 必达，超时=对端已死
         fun acceptKey(clientKey: String): String {
             val sha1 = MessageDigest.getInstance("SHA-1").digest((clientKey + WS_GUID).toByteArray())
             return Base64.getEncoder().encodeToString(sha1)
@@ -121,6 +147,10 @@ class WsServer(
         private val writeLock = Any()
         @Volatile
         private var closed = false
+        /** 连接结束原因（供断开日志归因） */
+        @Volatile var endReason: String? = null
+        /** 最近一次写入失败原因（供 broadcast 上报） */
+        @Volatile var deadReason: String? = null
 
         fun close() {
             if (closed) return
@@ -128,7 +158,7 @@ class WsServer(
             runCatching { socket.close() }
         }
 
-        /** RFC6455 升级握手：解析 GET 请求头，回 101 + Accept */
+        /** RFC6455 升级握手：解析 GET 请求头，回 101 + Accept，随后下发 lifecycle connect */
         fun handshake(): Boolean {
             return try {
                 socket.soTimeout = 10_000
@@ -145,7 +175,9 @@ class WsServer(
                     }
                     line = readLine()
                 }
-                socket.soTimeout = 0
+                socket.tcpNoDelay = true
+                socket.keepAlive = true
+                socket.soTimeout = IDLE_TIMEOUT_MS
                 if (!requestLine.uppercase().startsWith("GET") || clientKey.isEmpty()) {
                     onEvent("log", "WS 非 WebSocket 握手请求: $requestLine")
                     return false
@@ -157,6 +189,8 @@ class WsServer(
                 output.write(resp.toByteArray(Charsets.ISO_8859_1))
                 output.flush()
                 onEvent("log", "WS 握手完成: $requestLine")
+                // OneBot 11 lifecycle connect 元事件
+                sendText(ActionRouter.lifecycleEvent(routerSelfId()))
                 true
             } catch (t: Throwable) {
                 onEvent("log", "WS 握手异常: ${t.message}")
@@ -176,20 +210,26 @@ class WsServer(
             }
         }
 
-        /** 读循环：解析帧直到对端关闭；ping 回 pong，close 回 close */
+        /** 读循环：解析帧直到对端关闭；动作帧应答、ping 回 pong、close 回 close */
         fun readLoop() {
             val fragmented = StringBuilder()
             while (!closed && running) {
                 val frame = try {
-                    readFrame() ?: break
+                    readFrame() ?: run { endReason = "对端关闭连接(TCP EOF)"; null }
+                } catch (e: SocketTimeoutException) {
+                    endReason = "读空闲超时 ${IDLE_TIMEOUT_MS / 1000}s（客户端 20s ping 未达，疑似 APP 已被系统冻结/杀死）"
+                    null
                 } catch (t: Throwable) {
-                    break
+                    endReason = "读帧异常: ${t.javaClass.simpleName}: ${t.message}"
+                    null
                 }
+                if (frame == null) break
                 when (frame.opcode) {
                     0x1, 0x2 -> {
                         val text = String(frame.payload, Charsets.UTF_8)
                         if (frame.fin) {
-                            onEvent("log", "WS 收到客户端帧: ${text.take(120)}")
+                            fragmented.setLength(0)
+                            handleClientText(text)
                         } else {
                             fragmented.append(text)
                         }
@@ -197,13 +237,17 @@ class WsServer(
                     0x0 -> {
                         fragmented.append(String(frame.payload, Charsets.UTF_8))
                         if (frame.fin && fragmented.isNotEmpty()) {
-                            onEvent("log", "WS 收到分片帧: ${fragmented.take(120)}")
+                            val whole = fragmented.toString()
                             fragmented.setLength(0)
+                            handleClientText(whole)
                         }
                     }
                     0x9 -> sendRaw(0xA, frame.payload) // ping -> pong
                     0xA -> {} // pong
                     0x8 -> {
+                        // RFC6455 close 帧：2 字节大端 code + UTF-8 reason
+                        val (code, reason) = parseClose(frame.payload)
+                        endReason = "客户端主动关闭 close(code=$code${if (reason.isNotBlank()) ", reason=\"$reason\"" else ""})"
                         sendRaw(0x8, frame.payload.takeIf { it.size <= 125 } ?: ByteArray(0))
                         break
                     }
@@ -213,11 +257,59 @@ class WsServer(
             close()
         }
 
+        /** 客户端动作帧 → ActionRouter 应答（echo 原样回带）；非动作 JSON 仅记录 */
+        private fun handleClientText(text: String) {
+            val shown = text.take(200)
+            val action = try {
+                val obj = JSONObject(text)
+                if (obj.has("action")) obj else null
+            } catch (_: Throwable) { null }
+            if (action == null) {
+                onEvent("log", "WS 收到客户端帧: $shown")
+                return
+            }
+            val name = action.optString("action", "")
+            val params = action.optJSONObject("params") ?: JSONObject()
+            val echo: Any? = action.opt("echo")
+            val router = this@WsServer.router
+            if (router == null) {
+                onEvent("log", "WS 收到动作 $name（无路由，忽略）: $shown")
+                return
+            }
+            val resp = try {
+                router.handle(name, params, echo)
+            } catch (t: Throwable) {
+                onEvent("log", "WS 动作 $name 处理异常: ${t.message}")
+                JSONObject()
+                    .put("status", "failed")
+                    .put("retcode", 1200)
+                    .put("msg", "internal error: ${t.message}")
+                    .also { if (echo != null) it.put("echo", echo.toString()) }
+                    .toString()
+            }
+            // BandQQ 2.8.2+ 握手即上报身份（echo=bandqq-<版本>），旧版 APP 无此动作
+            val echoStr = echo?.toString() ?: ""
+            val identityHint = if (echoStr.startsWith("bandqq-")) "（BandQQ APP ${echoStr.removePrefix("bandqq-")}）" else ""
+            val ok = sendText(resp)
+            onEvent("log", "WS 动作 $name$identityHint → 已应答${if (ok) "" else "（写入失败）"}")
+        }
+
+        private fun parseClose(payload: ByteArray): Pair<Int, String> {
+            return if (payload.size >= 2) {
+                val code = ((payload[0].toInt() and 0xff) shl 8) or (payload[1].toInt() and 0xff)
+                val reason = if (payload.size > 2) String(payload, 2, payload.size - 2, Charsets.UTF_8) else ""
+                code to reason
+            } else 1005 to ""
+        }
+
         fun sendText(text: String): Boolean = sendRaw(0x1, text.toByteArray(Charsets.UTF_8))
 
-        /** 发送一帧（服务器->客户端不掩码） */
+        /** 发送一帧（服务器->客户端不掩码）；失败记录原因并标记连接死亡 */
         private fun sendRaw(opcode: Int, payload: ByteArray): Boolean {
-            if (closed) return false
+            if (closed) {
+                deadReason = "连接已关闭"
+                return false
+            }
             return try {
                 synchronized(writeLock) {
                     val header = mutableListOf<Byte>()
@@ -241,6 +333,8 @@ class WsServer(
                 }
                 true
             } catch (t: Throwable) {
+                deadReason = "${t.javaClass.simpleName}: ${t.message}"
+                closed = true
                 false
             }
         }

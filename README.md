@@ -1,8 +1,8 @@
-# BandQQ v2.8.1 — 小米手环 9/10/11 QQ 消息助手（手环快应用 + 安卓同步器）
+# BandQQ v2.8.2 — 小米手环 9/10/11 QQ 消息助手（手环快应用 + 安卓同步器）
 
 > 🧠 **AI 协作记忆库**：[`MEMORY.md`](MEMORY.md) — 本项目的跨会话持久记忆（架构 / bug 台账 / 构建配方 / 任务清单）。任何新会话恢复上下文，先读它。
 
-[![Version](https://img.shields.io/badge/version-2.8.1-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-2.8.2-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
 
 **BandQQ** 是一套开源的「小米手环 QQ 消息助手」双端方案：手环端运行 Vela 快应用（rpk），手机端运行安卓同步器（APK），通过小米互联蓝牙通道把 QQ 消息实时同步到手环，支持直接在手环上**查看 / 回复 / 翻历史消息 / 收图**。
 
@@ -10,7 +10,26 @@
 
 > 关键词：小米手环9 / Mi Band 9 / 小米手环10 / 小米手环11 / Mi Band 11 / 小米手环QQ / 小米手环9 Pro / Redmi Watch / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / Stapxs-QQ-Lite-X / wearable QQ / smartband chat / Mi Band QQ client
 
-## v2.8.1 更新日志（当前版本）
+## v2.8.2 + DevTools 1.2.0 更新日志（当前版本）
+
+### 背景：用户二次实测仍「发消息→断连」
+DevTools 日志特征（每条「已发送」后紧跟「客户端断开」，1~5s 后重连）与 APP 端重连循环节奏完全吻合：v2.8.1 的断连修复（try-catch 兑底）**在同步器 APK 2.8.1 内**，旧版 2.8.0 APP 收到事件解析异常仍会断连。本轮除双向协议补全外，重点新增**版本互认机制**，让旧版 APP 在日志里无处遁形。
+
+### DevTools 1.2.0（协议补全 + 断连归因）
+1. **WS 服务端成为完整 OneBot 正向端**：连接建立即下发 lifecycle connect 元事件 + 每 30s 心跳元事件（OneBot 标准保活语义）；客户端动作帧（`{"action":...,"echo":...}`）→ 解析并应答、echo 原样回带（此前 WS 收到客户端帧只打日志从不回包）；HTTP 与 WS 共用 `ActionRouter` 同一套应答逻辑（get_version_info/get_login_info/get_status/get_friend_list/get_group_list/send_*）。
+2. **HTTP 请求体字节读修复（手环回复收不到的隐藏元凶）**：此前按字符数读 Content-Length（字节数），含中文的请求体（手环快捷回复几乎全是中文）必然少读/阻塞至 8s 超时且不回包 → APP 端 send failed、DevTools 收不到回复日志。改为字节级精确读取（读头到 \r\n\r\n → 读满 Content-Length 字节）。
+3. **断连归因日志**：断开时区分客户端主动 close（带 code/reason，如测试连接的 `code=1000 reason=probe done`）、TCP EOF、读空闲收割（60s，客户端 20s ping 未达=对端已死）、下发写入失败（逐条上报）。下发事件后 4s 内客户端断开自动追加提示：「同步器 APP 低于 2.8.2 时收到事件解析异常会断连，请升级 APK」。
+
+### BandQQ 同步器 2.8.2（版本互认 + 降噪）
+1. **WS 握手即上报身份**：`onOpen` 后立即经 WS 发送 `{"action":"get_version_info","echo":"bandqq-<版本>"}`（Stapxs 同款标准行为，真实协议端会正常应答）。DevTools 1.2.0 日志直接显示「WS 动作 get_version_info（BandQQ APP 2.8.2）→ 已应答」——**没有这行就是对端连的不是最新 APP**。
+2. 服务启动日志记录版本（「BandQQ 同步器 v2.8.2 (vc38) 启动」），设置页日志面板可直接确认。
+3. meta_event（lifecycle/心跳）解析降噪：WARN → DEBUG（DevTools 1.2.0 起每 30s 有心跳帧，属正常协议流量）。
+
+### 保持不变
+- APK 签名同源（SHA-256 `af8819e2…b004`），可**直接覆盖安装**；DevTools 为独立应用（同签名）。
+- 手环端 RPK 无改动，保持 2.8.1。
+
+## v2.8.1 更新日志（历史版本）
 
 ### 修复（DevTools 联调实测反馈）
 1. **DevTools 发送消息全链路不通（核心修复）**：根因是 APP 端 OneBot WS 消息处理链上任何异常都会被 OkHttp 的 loopReader catch-all 当作 WebSocket failure 立即断连（DevTools 日志表现为每发一条消息紧跟「客户端断开」，消息丢失）。三层防御修复：① `OneBotClient.onMessage/onOpen/onClosed` 全链 try-catch 兑底，异常写入同步日志（设置页可查）不断连；② `MessageBroker.onEvent/onState/onRecall` 全链兑底（入库/互联下发/自动拉起任何环节异常只记日志）；③ `InterconnectBridge.sendToBand` 互联 SDK 调用兑住同步抛出的异常。同时修复**多重连循环竞态**：`start()` 每次被调（反复点启动同步服务）都会新建重连循环且旧循环不取消 → 双 WS 连接（DevTools 日志「当前 2 个」）+ 旧连接泄漏，现在 `reconnect()` 先取消旧 Job、`connectOnce()` 前先关闭旧 ws。
