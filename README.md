@@ -10,7 +10,14 @@
 
 > 关键词：小米手环9 / Mi Band 9 / 小米手环10 / 小米手环11 / Mi Band 11 / 小米手环QQ / 小米手环9 Pro / Redmi Watch / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / Stapxs-QQ-Lite-X / wearable QQ / smartband chat / Mi Band QQ client
 
-## v2.8.2 + DevTools 1.2.0 更新日志（当前版本）
+## v2.8.2 + DevTools 1.2.1 更新日志（当前版本）
+
+### DevTools 1.2.1：NetworkOnMainThreadException —— 三轮联调的真正根因
+1.2.0 的「断连归因」日志终于让真凶现形：`下发失败：NetworkOnMainThreadException: null`。**DevTools 自己的 WS 服务器在 UI 主线程直接写 socket**——Android 强制禁止主线程网络 IO，每次点「发送」必然抛异常、写入失败、连接被服务端误标死亡并主动关闭。这就是「发一条断一条、不发能长连、手环永远收不到」的完整解释；此前怀疑的 APP 解析异常、心跳超时、版本问题全部排除（日志中 APP 2.8.2 连接、动作应答、好友/群列表均正常）。
+- **修复**：WsServer 新增专用 `ws-sender` 单线程，`broadcast()` 全部事件写入改为异步投递（fire-and-forget），任意线程可安全调用；写入失败经 onEvent 逐条上报并移除死连接。心跳/动作应答/握手期 lifecycle 原本就在后台线程，不受影响。
+- 仅 DevTools 需更新（vc4/1.2.1，签名同源 af8819e2 可覆盖安装），同步器 APK 与 RPK 无改动。
+
+## v2.8.2 + DevTools 1.2.0 更新日志
 
 ### 背景：用户二次实测仍「发消息→断连」
 DevTools 日志特征（每条「已发送」后紧跟「客户端断开」，1~5s 后重连）与 APP 端重连循环节奏完全吻合：v2.8.1 的断连修复（try-catch 兑底）**在同步器 APK 2.8.1 内**，旧版 2.8.0 APP 收到事件解析异常仍会断连。本轮除双向协议补全外，重点新增**版本互认机制**，让旧版 APP 在日志里无处遁形。

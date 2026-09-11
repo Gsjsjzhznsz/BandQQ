@@ -39,6 +39,11 @@ class WsServer(
     private val heartbeat = Executors.newSingleThreadScheduledExecutor { r ->
         Thread(r, "ws-heartbeat").apply { isDaemon = true }
     }
+    /** 事件下发专用线程：Android 主线程禁止网络 IO（NetworkOnMainThreadException），
+     *  v1.2.0 及以前 UI 点击同步写 socket，发送必失败且连接被误标死亡（发一条断一条的根因）。 */
+    private val sender = Executors.newSingleThreadExecutor { r ->
+        Thread(r, "ws-sender").apply { isDaemon = true }
+    }
     private val clients = CopyOnWriteArrayList<WsConn>()
     private val connSeq = AtomicLong(0)
 
@@ -86,6 +91,7 @@ class WsServer(
     fun stop() {
         running = false
         runCatching { heartbeat.shutdownNow() }
+        runCatching { sender.shutdownNow() }
         runCatching { serverSocket?.close() }
         serverSocket = null
         clients.forEach { runCatching { it.close() } }
@@ -93,19 +99,21 @@ class WsServer(
     }
 
     /**
-     * 向全部已连接客户端广播一条文本帧。
-     * @return 失败连接的描述列表（空 = 全部送达）；此前写入失败静默移除，
-     *         联调时无法区分"消息没发出去"还是"客户端秒断"，现在逐条上报。
+     * 向全部已连接客户端广播一条文本帧（异步：写入统一投递到 ws-sender 线程）。
+     * 任意线程可安全调用（UI 主线程点击发送也 OK）；写入失败逐条经 onEvent 上报
+     * 并移除死连接，不再静默。
      */
-    fun broadcast(text: String): List<String> {
-        val failures = mutableListOf<String>()
-        for (c in clients) {
-            if (!c.sendText(text)) {
-                failures.add("#${c.id}(${c.deadReason ?: "写入失败"})")
-                removeClient(c, "下发失败：${c.deadReason ?: "写入异常"}")
+    fun broadcast(text: String) {
+        val snapshot = clients.toList()
+        if (snapshot.isEmpty()) return
+        sender.execute {
+            for (c in snapshot) {
+                if (c.sendText(text)) continue
+                val reason = c.deadReason ?: "写入异常"
+                onEvent("log", "⚠ 事件下发失败（#${c.id}）：$reason")
+                removeClient(c, "下发失败：$reason")
             }
         }
-        return failures
     }
 
     private fun handleAccept(socket: Socket) {

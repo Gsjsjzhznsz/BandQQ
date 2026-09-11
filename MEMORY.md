@@ -9,7 +9,7 @@
 
 ## 版本线
 - v1.1.x：旧 lineage（stapxs 移植版，源码已失传，legacy/ 有 7z 分卷）
-- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.8.2**（versionCode 38，RPK versionCode 35 无改动）+ DevTools 1.2.0（vc3）
+- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.8.2**（versionCode 38，RPK versionCode 35 无改动）+ DevTools 1.2.1（vc4）
 - 签名一致性：rpk 与 APK 同源证书，APK SHA-256 = af8819e27a6ec8d84537ec86937cf016e780376305328abaa4eb79e8c626b004
 
 ## v2.1.0 已完成（2026-09-09）
@@ -221,3 +221,11 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 - 新增 ActionRouter：HTTP 与 WS 共用一套动作应答（get_version_info 真实数据/get_login_info/get_status/联系人/send_*/通用成功）；注意 selfId() 直取方法不能走 handle("get_login_info") 否则每 30s 心跳刷动作日志
 
 **交付**：bandqq-sync-release-2.8.2.apk（12.2MB vc38）+ bandqq-devtools-release-1.2.0.apk（4.7MB vc3 同签名）；RPK 保持 2.8.1 不变；app 单测 94 过 1 挂（GameProtocolDetectorTest 存量基线一致）；测试依赖 junit/mockwebserver 需在线解析（容器离线缓存无）
+
+## DevTools 1.2.1（2026-09-12，DevTools vc 4 / app 与 RPK 无改动）— NetworkOnMainThreadException：三轮联调的真正根因
+
+**根因（1.2.0 的断连归因日志立功）**：用户第三次实测日志出现 `下发失败：NetworkOnMainThreadException: null`——WsServer.broadcast() 在 **UI 主线程**被调用（MainActivity.sendScenario/sendCustom 点击路径），sendRaw→output.write() 主线程网络 IO 必抛异常 → catch 后 closed=true → removeClient **服务端自己关了连接**。「发一条断一条/不发长连/APP 2.8.2 动作应答全正常」三点全部由此解释；此前怀疑的 APP 解析异常、心跳超时、版本问题全部排除。
+- **修复**：WsServer 新增 `ws-sender` 单线程 executor，broadcast() 改异步投递（fire-and-forget，任意线程安全）；失败经 onEvent 逐条上报并移除死连接；stop() 时 sender.shutdownNow()。心跳/动作应答/握手 lifecycle 均在后台线程本就正常。
+- **教训**：手写 socket 服务器，接收路径天然在 accept 线程，但「外部主动发送」极易从 UI 线程直达 write()——Android 主线程网络异常只在真机现形（编译期无感知），联调日志要打全异常类名才能一眼定位。
+- **交付**：bandqq-devtools-release-1.2.1.apk（4.7MB vc4 同签名 af8819e2 覆盖安装）；同步器 2.8.2 与 RPK 2.8.1 不变；单测 49/49 过；README 更新三层断连排查史
+

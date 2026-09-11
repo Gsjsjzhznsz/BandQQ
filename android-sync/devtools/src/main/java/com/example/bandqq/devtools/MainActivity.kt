@@ -366,10 +366,9 @@ class MainActivity : AppCompatActivity() {
             selfInfo = { selfQq() to selfNickname() },
             pushEvent = { event ->
                 lastBroadcastAt.set(System.currentTimeMillis())
-                val failures = wsServer?.broadcast(event).orEmpty()
+                wsServer?.broadcast(event)
                 uiHandler.post {
                     appendLog("WS → 已下发事件: ${event.take(90)}")
-                    if (failures.isNotEmpty()) appendLog("⚠ 下发失败：${failures.joinToString()}（客户端连接已死/被冻结）")
                 }
             },
             onLog = { msg -> uiHandler.post { appendLog(msg) } },
