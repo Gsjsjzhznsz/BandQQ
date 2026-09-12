@@ -24,7 +24,9 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import com.example.bandqq.sync.FileLogger
 import com.example.bandqq.sync.LogBus
 import com.example.bandqq.sync.LogEntry
 import com.example.bandqq.sync.LogLevel
@@ -39,6 +41,7 @@ private val logTimeFmt = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
 @Composable
 fun LogPanel(modifier: Modifier = Modifier) {
+    val context = LocalContext.current
     val logs by LogBus.logs.collectAsState()
     val tags = remember(logs) {
         logs.map { it.tag }.distinct().sorted()
@@ -95,6 +98,16 @@ fun LogPanel(modifier: Modifier = Modifier) {
                         .clip(RoundedCornerShape(6.dp))
                         .background(MiuixTheme.colorScheme.surfaceContainer)
                         .clickable { filter = null }
+                        .padding(horizontal = 6.dp, vertical = 2.dp),
+                    color = MiuixTheme.colorScheme.primary,
+                )
+                Text(
+                    text = "导出",
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(6.dp))
+                        .clickable {
+                            FileLogger.shareZip(context)
+                        }
                         .padding(horizontal = 6.dp, vertical = 2.dp),
                     color = MiuixTheme.colorScheme.primary,
                 )

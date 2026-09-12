@@ -9,7 +9,7 @@
 
 ## 版本线
 - v1.1.x：旧 lineage（stapxs 移植版，源码已失传，legacy/ 有 7z 分卷）
-- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.9.1**（app vc39 + RPK vc39）+ DevTools 1.3.0（vc6）
+- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.9.1**（RPK vc39 + app vc40 文件日志）+ DevTools 1.3.0（vc6）
 - 签名一致性：rpk 与 APK 同源证书，APK SHA-256 = af8819e27a6ec8d84537ec86937cf016e780376305328abaa4eb79e8c626b004
 
 ## v2.1.0 已完成（2026-09-09）
@@ -231,6 +231,21 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 - **教训**：手写 socket 服务器，接收路径天然在 accept 线程，但「外部主动发送」极易从 UI 线程直达 write()——Android 主线程网络异常只在真机现形（编译期无感知），联调日志要打全异常类名才能一眼定位。
 - **交付**：bandqq-devtools-release-1.2.1.apk（4.7MB vc4 同签名 af8819e2 覆盖安装）；同步器 2.8.2 与 RPK 2.8.1 不变；单测 49/49 过；README 更新三层断连排查史
 
+
+## v2.9.1-app（2026-09-12）同步器文件日志系统（免 root 排查）
+
+**用户反馈**：社区有人「小米运动健康的设备授权管理里找不到 BandQQ」，无法判断机型适配还是权限问题；要求日志系统写到应用自身数据目录（免 root）而非 /data/data。
+
+**实现**（app vc40 / 2.9.1）：
+1. FileLogger（sync/FileLogger.kt）：挂 LogBus.sink（LogBus 新增 sink 字段），全量日志单线程异步落盘 `Android/data/com.example.bandqq/files/logs/bandqq-YYYY-MM-DD.log`（getExternalFilesDir，外部存储不可用回退 filesDir）；按天分文件 + 保留 7 天 + 8MB 滚动 .old.log + 会话头（版本分隔）
+2. 环境自检 logEnvironment（Application.onCreate 每次进程启动）：机型/系统/HyperOS(SystemProperties 反射 ro.mi.os.version.name)/运动健康 com.xiaomi.wearable 版本/蓝牙+通知权限/电池优化白名单/无障碍保活/授权条目生成时机提示
+3. InterconnectBridge：checkPermissions 结果逐项 granted[i]=x 落盘 + requestPermission 成功回调补日志（此前只有失败回调，用户确认授权无记录）；connect 记录 node id
+4. CrashGuard 崩溃同步进当天日志；LogPanel 加「导出」chip（FileLogger.shareZip：全部日志+crash_log.txt 打包 cacheDir → FileProvider ACTION_SEND）
+5. Manifest 加 FileProvider(com.example.bandqq.fileprovider) + res/xml/file_paths.xml（external-files-path logs/ + files-path crash + cache-path）
+
+**授权问题结论**（已写 README 排查指引）：设备授权管理条目只在 APP 发起 DEVICE_MANAGER requestPermission 后生成——常见原因排序：①手环机型不支持（8 及更早/Redmi 系）②运动健康未连手环或版本过旧 ③装了 APK 但没开服务没触发授权请求。互联链路全步日志落盘后可远程精确定位。
+
+**教训**：requestPermission 只挂 FailureListener 会漏记用户实际确认结果；LogBus.sink 模式让内存日志升级文件日志零侵入（单测 sink=null 天然 no-op）。
 
 ## v2.9.1（2026-09-12）主页面列表铺满整屏 + 演示模式五会话
 

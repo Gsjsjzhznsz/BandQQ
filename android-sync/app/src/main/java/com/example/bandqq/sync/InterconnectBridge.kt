@@ -192,9 +192,15 @@ object InterconnectBridge {
         authApi.checkPermissions(node.id, arrayOf(Permission.DEVICE_MANAGER))
             .addOnSuccessListener { results ->
                 var needRequest = false
-                for ((_, value) in results.withIndex()) {
+                for ((i, value) in results.withIndex()) {
+                    // v2.9.1：显式记录授权判定结果，远程排查「设备授权管理找不到应用」
+                    LogBus.log(TAG, LogLevel.INFO, "auth: DEVICE_MANAGER granted[$i]=$value")
                     if (!value) {
                         authApi.requestPermission(node.id, Permission.DEVICE_MANAGER)
+                            .addOnSuccessListener { r ->
+                                LogBus.log(TAG, LogLevel.INFO,
+                                    "auth: 授权请求已送达（result=$r），以手环弹窗/运动健康实际确认为准")
+                            }
                             .addOnFailureListener { e -> LogBus.log(TAG, LogLevel.ERROR, "auth request failed: $e") }
                         needRequest = true
                     }

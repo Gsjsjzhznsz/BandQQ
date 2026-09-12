@@ -4,6 +4,7 @@ import android.app.Application
 import android.content.pm.ApplicationInfo
 import android.os.Build
 import com.example.bandqq.config.ConfigManager
+import com.example.bandqq.sync.FileLogger
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.lsposed.hiddenapibypass.HiddenApiBypass
@@ -22,6 +23,10 @@ class BandQQApplication : Application() {
         super.onCreate()
         // 全局崩溃日志落盘：设置页可查看，用户反馈崩溃时有据可查（v2.4.5）
         CrashGuard.install(this)
+        // 文件日志（v2.9.1）：全量 LogBus 落盘到 Android/data/<pkg>/files/logs（免 root），
+        // 并在每次进程启动时 dump 环境自检（机型/运动健康版本/权限），供远程排查互联授权问题
+        FileLogger.install(this)
+        FileLogger.logEnvironment(this)
         applyPredictiveBackFlag()
     }
 

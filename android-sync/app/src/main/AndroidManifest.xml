@@ -24,6 +24,17 @@
         android:theme="@style/Theme.BandQQ"
         android:usesCleartextTraffic="true">
 
+        <!-- v2.9.1 日志导出：FileProvider 分享 Android/data/<pkg>/files/logs 打包文件 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.example.bandqq.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
+
         <activity
             android:name=".MainActivity"
             android:exported="true">

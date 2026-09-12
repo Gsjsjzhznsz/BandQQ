@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- 文件日志目录：/sdcard/Android/data/<pkg>/files/logs（免 root 可取） -->
+    <external-files-path name="logs" path="logs/" />
+    <!-- 崩溃日志（内部 files 目录） -->
+    <files-path name="crash" path="crash_log.txt" />
+    <!-- 导出打包临时目录 -->
+    <cache-path name="cache" path="/" />
+</paths>

@@ -1,6 +1,8 @@
 package com.example.bandqq
 
 import android.content.Context
+import com.example.bandqq.sync.LogBus
+import com.example.bandqq.sync.LogLevel
 import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -33,6 +35,8 @@ object CrashGuard {
         val previous = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             runCatching {
+                // v2.9.1：崩溃同步进 LogBus → FileLogger 当天日志，与运行日志集中一处
+                LogBus.log("CrashGuard", LogLevel.ERROR, "未捕获异常[${thread.name}]: $throwable")
                 val stamp = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.US).format(Date())
                 val entry = buildString {
                     append("\n----------\n")

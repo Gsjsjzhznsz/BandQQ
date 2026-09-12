@@ -20,8 +20,19 @@ object LogBus {
     private val _logs = MutableStateFlow<List<LogEntry>>(emptyList())
     val logs: StateFlow<List<LogEntry>> = _logs
 
+    /**
+     * 落盘 sink（v2.9.1）：FileLogger.install 时注入，每条日志同步转发到文件层
+     * （文件层内部单线程异步写）。JVM 单测不注入则为 null。
+     */
+    var sink: ((LogEntry) -> Unit)? = null
+
     fun log(tag: String, level: LogLevel, message: String) {
-        _logs.update { (it + LogEntry(System.currentTimeMillis(), tag, level, message)).takeLast(MAX_LOGS) }
+        val entry = LogEntry(System.currentTimeMillis(), tag, level, message)
+        _logs.update { (it + entry).takeLast(MAX_LOGS) }
+        try {
+            sink?.invoke(entry)
+        } catch (_: Throwable) {
+        }
         try {
             when (level) {
                 LogLevel.DEBUG -> Log.d(tag, message)
