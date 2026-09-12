@@ -10,12 +10,13 @@
         <text class="preview-text">{{draft || '在这里输入内容，点击下方键盘按键'}}</text>
       </scroll>
     </div>
+    <!-- v2.9.2 键盘换装：AetherZeng1145/Vela-Input-Method-Revise Capsule-For-Xiaomi-Band
+         （胶囊屏原生 192×490 渲染重构版；props 仅 hide/maxlength/vibratemode，
+          complete/delete 事件与旧 NEORUAA 组件一致，compose 用法无需改动） -->
     <input-method
       hide="{{false}}"
-      keyboardtype="QWERTY"
       maxlength="5"
       vibratemode="short"
-      screentype="pill-shaped"
       @complete="onComplete"
       @delete="onDelete"
     ></input-method>
