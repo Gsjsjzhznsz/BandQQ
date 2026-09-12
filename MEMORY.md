@@ -9,7 +9,7 @@
 
 ## 版本线
 - v1.1.x：旧 lineage（stapxs 移植版，源码已失传，legacy/ 有 7z 分卷）
-- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.10.0**（RPK vc40 三屏形态分档 + 官方输入法组件升级）+ app 2.9.1（vc40 文件日志）+ DevTools 1.3.0（vc6）
+- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.11.0**（RPK vc45 观感根治：内联 style 分档 + 三档密度重构）+ app 2.9.1（vc40 文件日志）+ DevTools 1.3.0（vc6）
 - 签名一致性：rpk 与 APK 同源证书，APK SHA-256 = af8819e27a6ec8d84537ec86937cf016e780376305328abaa4eb79e8c626b004
 
 ## v2.1.0 已完成（2026-09-09）
@@ -36,6 +36,7 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 - APK: `JAVA_HOME=… gradle assembleRelease`（根目录 keystore.jks, storePassword bandqq123/alias bandqq；签名 SHA-256 af8819e2 同源）
 - **Vela 语法坑**：tid 用字段名（tid="id"）；样式不支持 :active 伪类；小尺寸 text 的 onclick 可能不响应点击（gRPC 注入场景），点击区挂大容器（div）兜底
 - **Vela 引擎坑（v2.10.0 新增）**：① 流内子元素设 `position:absolute` 会把**兄弟布局整体打乱**（聊天页顶栏被下移 ~78design；需“不占位”用 `height:0px + overflow:hidden`）② `transform: scale()` 只改视觉，**触控命中坐标不随 transform 映射**（缩放键盘点按无效）——勿用 transform 缩放可交互组件 ③ px 单位=designWidth 等比缩放（rem 类似物）；RW5 实测缩放≈2.0（非理论 432/192=2.25，引擎内部有 DPR 参与勿按理论值推布局）
+- **Vela 编译/运行时坑（v2.11.0 实证，最重要）**：④ aiot 编译器把 class 属性混合 token（`item-{{dc}}`）**吞成静态前缀**（产物 `classList:["item","item"]`）——class 属性里写动态绑定=死路，**机型/状态差异样式唯一可靠通道是内联 style mustache 绑定**（`style="{{ds.item}}"`，头像 hueBg 同款机制）⑤ 运行时对 `.a .b` 后代选择器**丢失祖先约束**按单类命中、数组序后者覆盖前者 ⑥ 引擎只在节点**首建时**解析样式，之后 class/样式表变化不重解析（dcReady 门控：profile 就绪后再挂子树）⑦ 同 versionCode 的 `pm install` **静默拒绝替换**→幻影部署（渲染旧代码），迭代每轮必须升 versionCode+屏上构建标记双确认 ⑧ 长跑 VM 的 gRPC 触摸通道会失效（tap 零像素反应），fresh boot 恢复；adb logcat/shell 在 Vela VM 会挂死，调试信息注入 UI 是唯一观测手段 ⑨ 机型判定用**长宽比几何优先**（AR<0.75=band / ≥0.95=round / 间且宽≥380=wide），screenShape 有误报不可尽信
 - **VVD 虚拟机（小米官方 Vela 模拟器）**：SDK 手动装 /home/z/my-project/scripts/emulator-setup.sh（官方 CDN vela-watch-5.0 镜像）；vvd-ctl.js create（density 只能枚举值 120..640，Band11 用 320 非 326）/deploy（PATH 需含 adb）/tap/swipe/shot/multtap/longpress；startApp 应答超时但实际启动成功；连点彩蛋用 multtap（跨进程间隔会重置计数）
 - 基线固有测试失败（非回归）：api.test.js 门控用例（Node24）、GameProtocolDetectorTest localhost 探测（容器环境）
 
@@ -51,6 +52,9 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 ## 关键文件索引
 - 手环：band-qq/src/pages/index/index.ux（列表/防抖/签名diff）、pages/chat/chat.ux（翻页/快捷回复/read_chat）、common/protocol.js（协议v2+convSignature）、common/store.js（未读/装饰/快捷回复）、common/api.js（interconnect 封装，勿动）
 - 手机：android-sync/.../sync/MessageStore.kt（未读/Display预计算/翻页锚点）、sync/MessageBroker.kt（read_chat/before/quick_replies）、onebot/OneBotParser.kt（CQ剥离）、sync/InterconnectBridge.kt（onConnect 补推）、ui/SettingsScreen.kt（快捷回复编辑+WebUI）、WebUiActivity.kt
+
+## v2.11.0（2026-09-12，versionCode 45）— 全机型观感根治 + 分档机制修复
+用户反馈「每个机型观感都怪」：逐像素排查揪出三重根因——编译器吞 class 动态绑定（v2.10.0 分档从未生效）、后代选择器全局命中（四机全吃 round 主题）、screenShape 误报。修复：几何优先机型判定 + 内联 style 分档（DEVICE_STYLES 三档映射表集中 device.js）+ dcReady 门控 + 五页密度重构（宽屏一屏 5 会话/圆屏弧形安全区/手环零回归）+ skb 删键豆腐块修复 + 宽/圆屏发送状态 toast。四机 VVD 实拍验收（download/bandqq-screenshots-v211/）。键盘调研结论：NEORUAA 事实标准已集成、better-Vela-IME 已停维护、官方 rect 变体与 192 视口不兼容，skb 路线维持。
 
 ## v2.2.0（2026-09-10，versionCode 22）
 1. **手环图标深色化**：背景改 #0D1015 近黑冷灰（AMOLED 手环融合），前景（蓝圆+白气泡+企鹅）不变；母版 icon_preview.png（用户提供，白底版已废弃），生成脚本 `scripts/darken-watch-icon.py`（flood fill 只换边缘连通白底，108×108 纯 RGB 全出血）
