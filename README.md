@@ -1,20 +1,20 @@
-# BandQQ v2.9.0 — 小米手环 9/10/11 QQ 消息助手（手环快应用 + 安卓同步器）
+# BandQQ v2.9.1 — 小米手环 9/10/11 QQ 消息助手（手环快应用 + 安卓同步器）
 
 > 🧠 **AI 协作记忆库**：[`MEMORY.md`](MEMORY.md) — 本项目的跨会话持久记忆（架构 / bug 台账 / 构建配方 / 任务清单）。任何新会话恢复上下文，先读它。
 
-[![Version](https://img.shields.io/badge/version-2.9.0-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-2.9.1-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
 
 **BandQQ** 是一套开源的「小米手环 QQ 消息助手」双端方案：手环端运行 Vela 快应用（rpk），手机端运行安卓同步器（APK），通过小米互联蓝牙通道把 QQ 消息实时同步到手环，支持直接在手环上**查看 / 回复 / 翻历史消息 / 收图**。
 
 ## 界面预览（手环 11 官方 Vela 虚拟机实拍 · 212×520）
 
-| 会话列表（@我 标 + 免打扰灰点） | 群聊（@我 金色高亮） |
+| 会话列表（五会话铺满 + @我 标 + 免打扰灰点） | 群聊（@我 金色高亮） |
 |:---:|:---:|
-| ![会话列表](docs/screenshots-vvm/shot_home.png) | ![聊天页@我](docs/screenshots-vvm/shot_chat_at.png) |
+| ![会话列表](docs/screenshots-vvm/01-会话列表-免打扰灰点.png) | ![聊天页@我](docs/screenshots-vvm/02-群聊-@我金色高亮.png) |
 
 | 群聊拍一拍特效 | 私聊拍一拍特效 |
 |:---:|:---:|
-| ![群聊拍一拍](docs/screenshots-vvm/shot_chat.png) | ![私聊拍一拍](docs/screenshots-vvm/shot_menu.png) |
+| ![群聊拍一拍](docs/screenshots-vvm/03-群聊-拍一拍特效.png) | ![私聊拍一拍](docs/screenshots-vvm/04-私聊-拍一拍特效.png) |
 
 > 被群友 @ 时：会话列表金色「@我」角标 + 聊天页「@我」徽标与高亮呼吸气泡 + 长震提醒，三重感知不错过任何一条艾特；有人拍一拍你：居中紫色「XX 拍了拍你」特效胶囊 + 晃动动画 + 长震；长按会话开启免打扰：红点变灰、不自动拉起。
 
@@ -24,7 +24,15 @@
 
 > 关键词：小米手环9 / Mi Band 9 / 小米手环10 / 小米手环11 / Mi Band 11 / 小米手环QQ / 小米手环9 Pro / Redmi Watch / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / Stapxs-QQ-Lite-X / wearable QQ / smartband chat / Mi Band QQ client
 
-## v2.9.0 更新日志（当前版本）
+## v2.9.1 更新日志（当前版本）
+
+### 主页面列表铺满整屏（布局修复）
+用户指出主页面只能显示半页联系人（虚拟机实拍同样暴露此问题）：像素级排查确认 Vela 引擎 scroll 组件的 `background-color` **只绘制内容高度区域、不铺满 flex:1 拉伸后的视口** —— 列表视觉在内容结束处「断裂」，数据少时下半屏全黑，观感如同只能显示半页。
+- **修复**：列表背景移至外层普通容器（flex:1 撑满中区），scroll 改 absolute 铺满（引擎无关的确定高度）；空态同步改 absolute 覆盖不参与 flex
+- **演示模式扩充为 5 个会话**（此前仅 2 个）铺满 212×520 整页：@我 高亮 / 群聊+私聊拍一拍 / 双免打扰灰点 / 无未读纯时间戳全部形态同屏；@我 与拍一拍消息置于最新，打开会话即见特效
+- 版本：RPK 2.9.1（vc39）；同步器 / DevTools 无改动不重发；手环侧单测 56/56 过
+
+## v2.9.0 更新日志
 
 ### 拍一拍全链路支持（QQ 业务规则修正）
 用户指出关键业务规则：**QQ 私聊没有 @，只有拍一拍；群聊才有 @** —— 此前 DevTools 的「私聊·@我」场景本身就是伪命题（用户多轮实测私聊场景当然永远没有 @ 动效）。本轮：
@@ -50,7 +58,7 @@
 ### @我 从未生效的真正根因：数字/布尔类型断裂（已修复）
 用户四轮实测后动效仍不出现，本轮逐帧对比 APP 下发字节与手环判定，抓住真凶：APP 端 Gson `addProperty("at", 1)` 下发**数字 1**，手环端 store 判定 `msg.at === true`（严格布尔）——`1 === true` 永远为 false，且负责类型转换的 `protocol.decodePush()` 是**从未被调用的死代码**（app.ux 直接把原始帧塞给 store）→ 实时推送的 @我 高亮从未生效；历史拉取路径原样存数字 1（truthy）反而能亮，完美解释「有时有有时没有」的混乱。同型断裂还击中了撤回同步（`recall:1` vs `=== true` → 撤回帧被当普通消息入库）。
 - **修复**：store.js 三处判定数字/布尔双兼容（at 高亮 / 会话 cat / recall 原位替换）；app.ux @我 强震动双保险（长震区别于普通短震，即使样式被固件降级也能感知被 @）；新增 2 例单测锁定数字形态
-- **手环务必刷 2.8.3+（现最新 2.9.0）**
+- **手环务必刷 2.8.3+（现最新 2.9.1）**
 
 ## v2.8.2 + DevTools 1.2.2 更新日志
 

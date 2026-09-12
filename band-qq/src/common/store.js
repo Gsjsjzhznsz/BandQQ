@@ -446,9 +446,10 @@ export function createStore(storageImpl) {
       return visibleContacts.some((c) => c.id === id)
     },
     /**
-     * v2.9.0 演示模式：关于页版本号连点 7 次触发，注入两个演示会话（无需手机 APP）。
-     * 用于无互联环境（Vela 虚拟机/模拟器）的界面展示与截图，覆盖 @我 高亮、
-     * 拍一拍特效、免打扰灰点全部新特性。连接手机端后会被真实数据正常覆盖。
+     * v2.9.0 演示模式：关于页版本号连点 7 次触发（无需手机 APP）。
+     * v2.9.1 扩充为 5 个会话铺满 212×520 整页列表（此前仅 2 条致主页面下半空白），
+     * 覆盖 @我 高亮、拍一拍特效、免打扰灰点（双会话）、无未读纯时间戳全部形态。
+     * 连接手机端后会被真实数据正常覆盖。
      */
     async injectDemo() {
       await this.ensureInit()
@@ -456,30 +457,53 @@ export function createStore(storageImpl) {
       const min = 60 * 1000
       visibleContacts = [
         { id: '20001', type: 'group', name: 'BandQQ 体验群' },
-        { id: '10001', type: 'private', name: '马化腾' }
+        { id: '30001', type: 'group', name: '家人群' },
+        { id: '40001', type: 'group', name: '项目同步群' },
+        { id: '10001', type: 'private', name: '马化腾' },
+        { id: '10002', type: 'private', name: '张三' }
       ]
       messagesByTarget['20001'] = [
-        { message_type: 'group', sender_id: '10086', sender_name: '小明', content: '今晚八点组队开黑，来吗？', is_self: false, time: now - 52 * min },
-        { message_type: 'group', sender_id: '10087', sender_name: '测试喵', content: '刚刚的方案你觉得怎么样？这条是@我演示消息', at: true, is_self: false, time: now - 38 * min },
-        { message_type: 'group', sender_id: '10088', sender_name: '群友小王', content: '[图片]', is_self: false, time: now - 21 * min },
-        { message_type: 'group', sender_id: '10086', sender_name: '小明', content: '小明 拍了拍你', poke: true, is_self: false, time: now - 9 * min },
-        { message_type: 'group', sender_id: '10087', sender_name: '测试喵', content: '手环上看消息太方便了，回复也快', is_self: false, time: now - 3 * min }
+        { message_type: 'group', sender_id: '10086', sender_name: '小明', content: '今晚八点组队开黑，来吗？', is_self: false, time: now - 48 * min },
+        { message_type: 'group', sender_id: '10087', sender_name: '测试喵', content: '手环上看消息太方便了，回复也快', is_self: false, time: now - 35 * min },
+        { message_type: 'group', sender_id: '10086', sender_name: '小明', content: '小明 拍了拍你', poke: true, is_self: false, time: now - 18 * min },
+        { message_type: 'group', sender_id: '10087', sender_name: '测试喵', content: '刚刚的方案你觉得怎么样？这条是@我演示消息', at: true, is_self: false, time: now - 6 * min }
+      ]
+      messagesByTarget['30001'] = [
+        { message_type: 'group', sender_id: '30002', sender_name: '妈妈', content: '给你炖了汤放冰箱里', is_self: false, time: now - 40 * min },
+        { message_type: 'group', sender_id: '30003', sender_name: '老爸', content: '降温了记得加衣服', is_self: false, time: now - 25 * min },
+        { message_type: 'group', sender_id: '30002', sender_name: '妈妈', content: '这周末回家吃饭吗？', is_self: false, time: now - 12 * min },
+        { message_type: 'group', sender_id: '30003', sender_name: '老爸', content: '老爸 拍了拍你', poke: true, is_self: false, time: now - 5 * min }
+      ]
+      messagesByTarget['40001'] = [
+        { message_type: 'group', sender_id: '40002', sender_name: '李工', content: '新固件已推测试通道，大家帮忙验证', is_self: false, time: now - 60 * min },
+        { message_type: 'group', sender_id: '40003', sender_name: '王姐', content: '收到，下午给结果', is_self: false, time: now - 45 * min },
+        { message_type: 'group', sender_id: '40002', sender_name: '李工', content: '同步一份会议纪要到群里', is_self: false, time: now - 26 * min }
       ]
       messagesByTarget['10001'] = [
         { message_type: 'private', sender_id: '10001', sender_name: '马化腾', content: '在吗？帮个忙', is_self: false, time: now - 122 * min },
         { message_type: 'private', sender_id: '10001', sender_name: '马化腾', content: '手环QQ 体验群 20001 等你', is_self: false, time: now - 118 * min },
         { message_type: 'private', sender_id: '10001', sender_name: '马化腾', content: '马化腾 拍了拍你', poke: true, is_self: false, time: now - 30 * min }
       ]
-      conversations = [
-        decorate({ id: '20001', type: 'group', name: 'BandQQ 体验群', last_msg: '手环上看消息太方便了，回复也快', time: now - 3 * min, unread: 3, cat: 1, is_temporary: false }),
-        decorate({ id: '10001', type: 'private', name: '马化腾', last_msg: '马化腾 拍了拍你', time: now - 30 * min, unread: 1, cat: 0, is_temporary: false })
+      messagesByTarget['10002'] = [
+        { message_type: 'private', sender_id: '10002', sender_name: '张三', content: '明天上午十点老地方见', is_self: false, time: now - 90 * min },
+        { message_type: 'private', sender_id: '10002', sender_name: '张三', content: '收到，明天见', is_self: false, time: now - 58 * min }
       ]
-      // 马化腾会话演示免打扰（红点变灰）
-      settings.mute_list = '10001'
+      conversations = [
+        decorate({ id: '20001', type: 'group', name: 'BandQQ 体验群', last_msg: '刚刚的方案你觉得怎么样？', time: now - 6 * min, unread: 3, cat: 1, is_temporary: false }),
+        decorate({ id: '30001', type: 'group', name: '家人群', last_msg: '老爸 拍了拍你', time: now - 5 * min, unread: 2, cat: 0, is_temporary: false }),
+        decorate({ id: '40001', type: 'group', name: '项目同步群', last_msg: '同步一份会议纪要到群里', time: now - 26 * min, unread: 1, cat: 0, is_temporary: false }),
+        decorate({ id: '10001', type: 'private', name: '马化腾', last_msg: '马化腾 拍了拍你', time: now - 30 * min, unread: 1, cat: 0, is_temporary: false }),
+        decorate({ id: '10002', type: 'private', name: '张三', last_msg: '收到，明天见', time: now - 58 * min, unread: 0, cat: 0, is_temporary: false })
+      ]
+      // 双会话演示免打扰（红点变灰）：项目同步群 + 马化腾
+      settings.mute_list = '40001,10001'
       await cache.set(VISIBLE_KEY, JSON.stringify(visibleContacts))
       await cache.set(CONV_KEY, JSON.stringify(conversations.slice(0, CACHE_CONVERSATIONS)))
       await cache.set(MSG_PREFIX + '20001', JSON.stringify(messagesByTarget['20001'].slice(-CACHE_MESSAGES)))
+      await cache.set(MSG_PREFIX + '30001', JSON.stringify(messagesByTarget['30001'].slice(-CACHE_MESSAGES)))
+      await cache.set(MSG_PREFIX + '40001', JSON.stringify(messagesByTarget['40001'].slice(-CACHE_MESSAGES)))
       await cache.set(MSG_PREFIX + '10001', JSON.stringify(messagesByTarget['10001'].slice(-CACHE_MESSAGES)))
+      await cache.set(MSG_PREFIX + '10002', JSON.stringify(messagesByTarget['10002'].slice(-CACHE_MESSAGES)))
       await cache.set(SETTINGS_KEY, JSON.stringify(settings))
     },
     async clearAllMessages() {

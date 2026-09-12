@@ -339,18 +339,21 @@ describe('store v2（未读/快捷回复/翻页合并/显示字段）', () => {
     assert.equal(store.isMuted('701'), true)
   })
 
-  it('v2.9.0 演示模式：injectDemo 注入两个演示会话（含 @我/拍一拍/免打扰）', async () => {
+  it('v2.9.1 演示模式：injectDemo 注入五个演示会话铺满首页（含 @我/拍一拍/双免打扰）', async () => {
     await store.injectDemo()
     const convs = await store.getConversations()
-    assert.equal(convs.length, 2)
+    assert.equal(convs.length, 5, '五个会话铺满 212×520 列表')
     const group = convs.find((x) => x.id === '20001')
     assert.equal(group.cat, 1, '群会话有未读 @我 标')
     const groupMsgs = await store.getMessages('20001')
     assert.equal(groupMsgs.some((m) => m.at === true), true, '演示数据含 @我 消息')
     assert.equal(groupMsgs.some((m) => m.poke === true), true, '演示数据含拍一拍消息')
+    const familyMsgs = await store.getMessages('30001')
+    assert.equal(familyMsgs.some((m) => m.poke === true), true, '家人群演示含拍一拍（打开即滚底可见）')
     const pms = await store.getMessages('10001')
     assert.equal(pms.some((m) => m.poke === true), true, '私聊演示含拍一拍')
     assert.equal(store.isMuted('10001'), true, '马化腾会话演示免打扰（灰点）')
+    assert.equal(store.isMuted('40001'), true, '项目同步群演示免打扰（第二灰点）')
     assert.equal(store.isMuted('20001'), false)
   })
 })

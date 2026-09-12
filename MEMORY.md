@@ -9,7 +9,7 @@
 
 ## 版本线
 - v1.1.x：旧 lineage（stapxs 移植版，源码已失传，legacy/ 有 7z 分卷）
-- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.9.0**（app vc39 + RPK vc38）+ DevTools 1.3.0（vc6）
+- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.9.1**（app vc39 + RPK vc39）+ DevTools 1.3.0（vc6）
 - 签名一致性：rpk 与 APK 同源证书，APK SHA-256 = af8819e27a6ec8d84537ec86937cf016e780376305328abaa4eb79e8c626b004
 
 ## v2.1.0 已完成（2026-09-09）
@@ -231,6 +231,16 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 - **教训**：手写 socket 服务器，接收路径天然在 accept 线程，但「外部主动发送」极易从 UI 线程直达 write()——Android 主线程网络异常只在真机现形（编译期无感知），联调日志要打全异常类名才能一眼定位。
 - **交付**：bandqq-devtools-release-1.2.1.apk（4.7MB vc4 同签名 af8819e2 覆盖安装）；同步器 2.8.2 与 RPK 2.8.1 不变；单测 49/49 过；README 更新三层断连排查史
 
+
+## v2.9.1（2026-09-12）主页面列表铺满整屏 + 演示模式五会话
+
+**用户发现**：RPK 主页面只能显示半页联系人（v2.9.0 虚拟机实拍同屏暴露，当时未察觉）。
+
+1. **根因（像素级实证）**：Vela 引擎 scroll 组件的 `background-color` **只绘制内容高度区域、不铺满 flex:1 拉伸后的视口**——行亮度扫描证明：卡片内容带下方至状态栏之间纯黑（0,0,0），列表背景 rgba(0,122,255,0.08) 只存在于内容区；scroll 占位本身正常（状态栏仍被推到底）。数据少时下半屏全黑，观感=半页。
+2. **修复（index.ux）**：背景移至外层普通 div `.list-wrap`（flex:1 撑满中区+画背景），scroll 改 `position:absolute` 铺满 wrap（引擎无关的确定高度，不再依赖引擎对 scroll-flex 的实现差异）；空态同步改 absolute 覆盖不参与 flex。绝对定位父级需 `position:relative`（已加）。
+3. **演示模式扩充**：injectDemo 2 → 5 会话（BandQQ 体验群@我/家人群拍一拍/项目同步群免打扰灰点/马化腾私聊拍一拍+免打扰/张三无未读），铺满 212×520 整页；**@我 与拍一拍消息置于最新**——VVD 聊天页嵌套 scroll 无法 gRPC 滚动（见坑位），打开即滚底可见特效。测试更新：单测断言 5 会话+双免打扰+家人群 poke，56/56 过。
+4. **VVD 新坑位（重要）**：① **聊天页嵌套 scroll（msg-area）gRPC sendMouse 拖动完全无效**（字节级验证三连拍 identical），设置页页级 scroll 可滚——引擎仅页级 scroll 响应合成拖动；② swipe 按下点落在快捷回复区（scroll-x）会被横滑拦截，无效；③ tap 后自动滚底窗口仅 ~30ms（burst 15 张 10ms 级连拍验证），抢拍不可行——**从数据侧解决：让目标消息成为最新**；④ `adb shell input` 在 Vela 上挂死（勿用）；⑤ 重部署流程：pkill qemu → adb kill-server → deploy（install 成功 + startApp FATAL Timeout 属正常）→ storage 保留旧演示数据，需重走彩蛋覆盖。
+5. 构建：RPK 2.9.1/vc39（包内验证 list-wrap/absolute×6/五会话数据）；app/DevTools 无改动不重发。截图 5 张重拍（五会话列表/@我金泡/家人群拍一拍/私聊拍一拍/关于页 v2.9.1）。
 
 ## v2.9.0（2026-09-12）拍一拍全链路 + 会话免打扰 + 拉起收敛 + VVD 虚拟机实拍
 

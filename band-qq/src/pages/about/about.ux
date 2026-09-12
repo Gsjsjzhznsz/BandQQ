@@ -12,7 +12,7 @@
         <text class="app-name">BandQQ</text>
         <!-- v2.9.0：连点版本区 7 次开启演示模式（注入演示会话，无手机也可体验界面）；
              点击区挂在整个 hero（小 text 点击区在部分固件上不响应） -->
-        <text class="ver">v2.9.0 · 快应用端</text>
+        <text class="ver">v2.9.1 · 快应用端</text>
         <text class="demo-hint" if="{{demoHint}}">{{demoHint}}</text>
       </div>
       <div class="card col">

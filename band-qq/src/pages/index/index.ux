@@ -3,6 +3,9 @@
     <div class="top-row">
       <image class="btn" src="../../common/ui/more.png" @click="goSettings"></image>
     </div>
+    <!-- v2.9.1 布局根治：scroll 背景只绘内容区导致列表视觉半页断裂（Vela 引擎行为），
+         背景移至外层普通 div（flex:1 撑满中区），scroll 改 absolute 铺满 wrap 不再依赖引擎 flex 实现 -->
+    <div class="list-wrap">
     <scroll class="list" scroll-y="true" show="{{conversations.length}}">
       <div class="item" for="{{item in conversations}}" tid="id" @click="openChatItem(item)" @longpress="showMenu(item)">
         <div class="avatar" style="background-color: {{item.hueBg}};">
@@ -25,16 +28,18 @@
         </div>
       </div>
     </scroll>
+    <!-- 空态移入 wrap 内 absolute 覆盖，不参与 flex 布局 -->
+    <div class="empty-wrap" show="{{!conversations.length}}">
+      <image class="empty-icon" src="../../common/ui/empty_icon.png"></image>
+      <text class="empty-text">{{conversations.length === 0 ? '请在手机端添加联系人' : '暂无会话'}}</text>
+    </div>
+    </div>
     <!-- v2.9.0 长按会话菜单：消息免打扰开关 -->
     <div class="menu-mask" if="{{menuConv}}" @click="closeMenu"></div>
     <div class="menu" if="{{menuConv}}">
       <text class="menu-title">{{menuConv.n9 || menuConv.name}}</text>
       <text class="menu-row" onclick="toggleMute">{{menuMuted ? '关闭消息免打扰' : '消息免打扰'}}</text>
       <text class="menu-row menu-cancel" onclick="closeMenu">取消</text>
-    </div>
-    <div class="empty-wrap" show="{{!conversations.length}}">
-      <image class="empty-icon" src="../../common/ui/empty_icon.png"></image>
-      <text class="empty-text">{{conversations.length === 0 ? '请在手机端添加联系人' : '暂无会话'}}</text>
     </div>
     <div class="status-bar">
       <text class="status-text">{{statusText}}</text>
@@ -46,8 +51,11 @@
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
   .top-row { height: 78px; align-items: flex-start; justify-content: center; padding-top: 6px; }
   .btn { width: 102px; height: 72px; }
-  /* 列表容器高度固定；列表项定高 + 绝对定位角标，杜绝 flex 重排抖动 */
-  .list { flex: 1; padding: 6px 8px 0 8px; flex-direction: column; background-color: rgba(0, 122, 255, 0.08); }
+  /* v2.9.1 布局根治：wrap（普通 div）flex:1 撑满中区并绘制面板背景——
+     Vela scroll 的 background-color 只绘制内容区不铺视口，背景放 scroll 上必然半页断裂 */
+  .list-wrap { position: relative; flex: 1; flex-direction: column; background-color: rgba(0, 122, 255, 0.08); }
+  /* 列表 absolute 铺满 wrap（引擎无关的确定高度）；列表项定高 + 绝对定位角标，杜绝 flex 重排抖动 */
+  .list { position: absolute; left: 0; top: 0; width: 100%; height: 100%; padding: 6px 8px 0 8px; flex-direction: column; }
   .item { height: 86px; width: 100%; flex-direction: row; align-items: center; margin-bottom: 4px; border-radius: 16px; background-color: #262626; }
   .avatar { width: 44px; height: 44px; border-radius: 22px; margin-left: 10px; margin-right: 8px; justify-content: center; align-items: center; }
   .avatar-text { font-size: 20px; color: #ffffff; }
@@ -70,7 +78,7 @@
   /* v2.9.0 免打扰会话：未读徽标变灰（长按会话开启） */
   .badge-muted { background-color: #6b6b6b; }
   .badge-text { font-size: 13px; color: #ffffff; padding: 0 5px; }
-  .empty-wrap { flex: 1; flex-direction: column; justify-content: center; align-items: center; }
+  .empty-wrap { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; justify-content: center; align-items: center; }
   .empty-icon { width: 78px; height: 78px; object-fit: contain; }
   /* v2.6.0：字号 18px，10 字文案在 212×520 / 192×490 双屏均不折行 */
   .empty-text { margin-top: 12px; font-size: 18px; color: rgba(255, 255, 255, 0.5); lines: 1; }
