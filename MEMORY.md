@@ -28,12 +28,14 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 - 最终方案：App 只做 OneBot 客户端 + 内嵌 WebUI WebView + README 提供 Termux 部署指引
 
 ## 构建配方（Linux 容器实测）
-- JDK: Temurin 17 (/home/z/tools/jdk)；Gradle 8.13 (/home/z/tools/gradle/gradle-8.13)
-- SDK: /home/z/tools/android-sdk；**目录陷阱**：包名 platforms;android-37.0 装出 android-37.0 目录，AGP 找 android-37 → `cp -r android-37.0 android-37` + 改 android-37/package.xml 的 path + source.properties 的 ApiLevel=37/Platform.Version=37
-- gradle.properties: `android.suppressUnsupportedCompileSdk=37.0`
-- rpk: `cd band-qq && npm i && npx aiot release`（sign/release/{private,certificate}.pem 已在仓库）
-- APK: `JAVA_HOME=… gradle assembleRelease`（根目录 keystore.jks, storePassword bandqq123/alias bandqq）
-- **Vela 语法坑**：tid 用字段名（tid="id"）；样式不支持 :active 伪类
+- JDK: Temurin 17 (/home/z/tools/jdk-17.0.20.1+1)；Gradle 8.13 (/home/z/tools/gradle-8.13/bin)；SDK: /home/z/android-sdk（platform-tools adb 需进 PATH）
+- **android-37 目录陷阱（v2.9.0 轮终极解法）**：远端官方包名=platforms;android-37.0（zip: platform-37.0_r02.zip），但 AGP 8.13.2 + compileSdk=37 找 hash 'android-37'。正确做法：sdkmanager `--channel=3 "platforms;android-37.0"` 装出 android-37.0 目录（**自带 package.xml**，zip 直解压没有它），再 `cp -r android-37.0 android-37` 并把 android-37 副本元数据**全部去掉 .0**：package.xml 的 `path="platforms;android-37"` + `<api-level>37</api-level>`、source.properties 的 `AndroidVersion.ApiLevel=37`、build.prop 的两处 `sdk_full=37`。三处缺一 → "Observed package id inconsistent" → 目录被合并/忽略 → Failed to find target。两份目录都要保留（AGP 每次构建可能按清单校验）
+- GRADLE_USER_HOME 用默认 ~/.gradle（654M 缓存全）；/home/z/tools/gradle-home 缓存不全，--offline 会因缺 appcompat 依赖挂
+- 基线固有测试失败（非回归）：api.test.js 门控用例（Node24）、GameProtocolDetectorTest localhost 探测（容器环境，102 例中 1 失败）
+- rpk: `cd band-qq && npm i && npx aiot release`（sign/release/{private,certificate}.pem 已在仓库；产物在 band-qq/dist/ 非 .temp_band-qq/dist）
+- APK: `JAVA_HOME=… gradle assembleRelease`（根目录 keystore.jks, storePassword bandqq123/alias bandqq；签名 SHA-256 af8819e2 同源）
+- **Vela 语法坑**：tid 用字段名（tid="id"）；样式不支持 :active 伪类；小尺寸 text 的 onclick 可能不响应点击（gRPC 注入场景），点击区挂大容器（div）兜底
+- **VVD 虚拟机（小米官方 Vela 模拟器）**：SDK 手动装 /home/z/my-project/scripts/emulator-setup.sh（官方 CDN vela-watch-5.0 镜像）；vvd-ctl.js create（density 只能枚举值 120..640，Band11 用 320 非 326）/deploy（PATH 需含 adb）/tap/swipe/shot/multtap/longpress；startApp 应答超时但实际启动成功；连点彩蛋用 multtap（跨进程间隔会重置计数）
 - 基线固有测试失败（非回归）：api.test.js 门控用例（Node24）、GameProtocolDetectorTest localhost 探测（容器环境）
 
 ## 待办 / 已知事项
