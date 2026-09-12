@@ -269,3 +269,21 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 6. **演示模式彩蛋**：about.ux 连点版本区 7 次 → store.injectDemo() 注入两个演示会话（群：@我+拍一拍+普通；私聊：文本+拍一拍；马化腾会话默认免打扰展示灰点）。用途：Vela 虚拟机无互联环境实拍界面。**教训：Vela text 小点击区 onclick 可能不响应（gRPC sendMouse down→up 不触发），点击区要挂到大容器（hero div）**。
 7. **小米官方 Vela 虚拟机（VVD）实拍流程**：SDK 手动装（/home/z/my-project/scripts/emulator-setup.sh，vela-ide.cnbj3-fusion.mi-fs.com 官方 CDN，vela-watch-5.0 镜像 20250716）→ vvd-ctl.js（create Band11 212 520 320；**density 只能用枚举值 120..640，326 报 Bad LCD density**；deploy 后台跑需 PATH 含 /home/z/android-sdk/platform-tools/adb；startApp 应答超时属正常，app 实际已启动）→ gRPC tap/swipe/longpress/multtap/shot（脚本已扩展）。am start/pm install 偶发阻塞 adb shell，重启模拟器最省事。截图 = getScreenshot PNG 原生 212×520。
 8. 构建：RPK 2.9.0/vc38（包内验证 pokeShake/badge-muted/toggleMute/onVerTap/injectDemo/pokeMe 全入包）+ app vc39/2.9.0 + devtools vc6/1.3.0；手环单测 54/54（新增 poke/免打扰/演示 3 例）+ ux 语法 12 文件全过 + APP 侧 poke 单测 5 例。
+
+
+## 29. 分支制重构 + AetherZeng 键盘全量换装（2025-09-12）
+
+**分支模型**（用户指令：恢复 2.9.1 仅手环版，设备各自分支另出 RPK 不合一）：
+- `main` = 手环 9/10/11 专用线（2.9.1 基线 + fork Capsule 键盘 = 2.9.2/vc46）；`redmi-watch` = RW5/6（基于 2.11.0 观感成果拆出，2.11.0-rw/vc62）；`xiaomi-watch-s` = S3/S4/S5（2.11.0-s/vc61）；`unified-2.11.0` + tag `v2.11.0-unified` = 合一版归档。
+
+**fork 键盘换装配方**（AetherZeng1145/Vela-Input-Method-Revise）：
+- 分支对应：Capsule-For-Xiaomi-Band(192×490)→main；Cube-For-Redmi-Watch(432×514)→redmi-watch；QWERTY(466×466 圆屏)→xiaomi-watch-s；组件按「designWidth=物理宽」设计，宿主 designWidth 恒 192 → **px 常量 ×(192/物理宽) 整数化**（scripts/rescale_ux_px.py，跳过 script 段）。
+- props 仅 hide/maxlength/vibratemode（无 keyboardtype/screentype）；事件 complete{content}/delete/keyDown 与 NEORUAA 同 API；词库内置 dic.js 不需 system.file feature；根容器 absolute 贴底（宿主用 relative kb-wrap 占位键盘高度：Capsule 305 / Cube 123 / QWERTY 133 design px）。
+
+**VVD 宽/圆屏 VM 三连大坑（本轮最大教训）**：
+1. **vela_data.bin 快照持久化**：触摸失效 / 页面状态陈旧 / onInit 被跳过 /「新代码不生效」，根因全是 VM 数据分区快照复活旧实例——删 `~/.vela/vvd/<name>.vvd/vela_data.bin` 冷启即彻底重置（重建 vvd、卸载、closeApp 都不够）。
+2. **setTimeout 不触发**：宽/圆屏 VM 上页面 setTimeout 永不回调（Band11 正常）——诊断 hook / 异步逻辑在 VM 上必须同步执行。
+3. **router.push 带 params 静默失败**（含中文 name）：弹回不改页；用 `router.replace({uri})` 裸参可跳。验收自动导航配方 = 删 vela_data.bin + onInit 同步 router.replace。
+- 附：tap 点击原语（hover/微移/长按/sendTouch/零位移滑动全变体）在快照污染态全灭而滑动正常，勿再误判「触摸通道死亡」；多 VM 并行 gRPC 端口派发不可靠，单机串行默认 18777 是唯一稳态。
+
+**四机验收结论**：Band11(Capsule)/S4·S5(QWERTY 弧形三行)/RW5(Cube 大键帽横滚) 渲染+键位触控+拼音组合+候选上屏全链路通过；实拍 download/bandqq-screenshots-vbranch/（11 张）。
