@@ -4,6 +4,8 @@
 
 [![Version](https://img.shields.io/badge/version-2.9.1-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
 
+![BandQQ 宣传图](docs/promo/banner-3x2.jpg)
+
 **BandQQ** 是一套开源的「小米手环 QQ 消息助手」双端方案：手环端运行 Vela 快应用（rpk），手机端运行安卓同步器（APK），通过小米互联蓝牙通道把 QQ 消息实时同步到手环，支持直接在手环上**查看 / 回复 / 翻历史消息 / 收图**。
 
 ## 界面预览（手环 11 官方 Vela 虚拟机实拍 · 212×520）
