@@ -1,8 +1,20 @@
-# BandQQ v2.9.1 — 小米手环 9/10/11 QQ 消息助手（手环快应用 + 安卓同步器）
+# BandQQ — 小米手环/手表 QQ 消息助手（多分支：手环 / 红米手表 / 小米手表）
+
+> **📱 分支模型（每类设备独立 RPK，不再合一包）**：
+> | 分支 | 适配设备 | 键盘 | 当前版本 |
+> |---|---|---|---|
+> | [`main`](https://github.com/Gsjsjzhznsz/BandQQ) | 小米手环 9/10/11（胶囊/长条屏） | [AetherZeng1145/Vela-Input-Method-Revise](https://github.com/AetherZeng1145/Vela-Input-Method-Revise) `Capsule-For-Xiaomi-Band`（192×490 原生） | v2.9.2 (vc46) |
+> | [`redmi-watch`](https://github.com/Gsjsjzhznsz/BandQQ/tree/redmi-watch) | Redmi Watch 5/6（432×514 宽屏） | 同仓 `Cube-For-Redmi-Watch`（432×514 原生，常量整数化映射 designWidth 192） | v2.11.0-rw (vc62) |
+> | [`xiaomi-watch-s`](https://github.com/Gsjsjzhznsz/BandQQ/tree/xiaomi-watch-s) | 小米 Watch S3/S4/S5（466/480 圆屏） | 同仓 `QWERTY` 圆屏版（466×466 原生，同上映射） | v2.11.0-s (vc61) |
+> | `unified-2.11.0`（归档） | 三形态合一运行时自适应 | 自建 skb 紧凑键盘 | v2.11.0 (vc45)，已被设备分支取代 |
+>
+> 宽/圆屏分支基于 v2.11.0 观感根治成果（内联 style 分档 + 几何机型判定）拆出，安装对应分支 RPK 即自动适配对应形态；键盘全部换装 AetherZeng1145 重构版（拼音候选回归宽/圆屏）。VVD 虚拟机四机验收：渲染 / 键位触控 / 拼音组合 / 候选上屏全链路通过（实拍见各分支提交）。
 
 > 🧠 **AI 协作记忆库**：[`MEMORY.md`](MEMORY.md) — 本项目的跨会话持久记忆（架构 / bug 台账 / 构建配方 / 任务清单）。任何新会话恢复上下文，先读它。
+>
+> ⬇️ **本页以下为 main 分支（手环专用线）文档**：手环 9/10/11 用户直接刷 main 分支 RPK；红米 Watch 5/6 与小米 Watch S 系用户请切对应分支。
 
-[![Version](https://img.shields.io/badge/version-2.9.1-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-2.9.2--band-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
 
 ![BandQQ 宣传图](docs/promo/banner-3x2.jpg)
 
