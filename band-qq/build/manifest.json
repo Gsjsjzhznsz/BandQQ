@@ -3,7 +3,7 @@
   "name": "QQ助手",
   "icon": "/common/icon.png",
   "versionName": "2.11.0-rw",
-  "versionCode": 47,
+  "versionCode": 62,
   "minAPILevel": 1,
   "deviceTypeList": [
     "watch"
@@ -71,7 +71,7 @@
   },
   "packageInfo": {
     "toolkit": "2.0.5",
-    "timeStamp": "2026-09-12T19:07:20.341Z",
+    "timeStamp": "2026-09-12T20:12:22.789Z",
     "node": "v24.19.0",
     "platform": "linux",
     "arch": "x64",

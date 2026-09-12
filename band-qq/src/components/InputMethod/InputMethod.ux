@@ -4,63 +4,63 @@
     <div style="background-color:black">
       
       <!-- 【创世】这是方屏版本的唯一根容器 -->
-      <!-- 【原生适配】容器宽度设为 100%，高度设为 122.67px (这是原代码中为方屏设定的键盘区域高度) -->
-      <div style="width: 100%; height: 122.67px; flex-direction: column;">
+      <!-- 【原生适配】容器宽度设为 100%，高度设为 123px (这是原代码中为方屏设定的键盘区域高度) -->
+      <div style="width: 100%; height: 123px; flex-direction: column;">
 
         <!-- 顶部功能/候选栏 -->
-        <div style="width: 100%; flex-direction: row; justify-content: center; top:2.67px; padding:0 2.67px;">
-          <img src="./assets/horizontal/cn.png" style="padding: 2.67px;width: 26.67px;height: 26.67px;" @click="onBtnClick('lang')" if="{{!numFlag && lang==='cn'}}" />
+        <div style="width: 100%; flex-direction: row; justify-content: center; top:3px; padding:0 3px;">
+          <img src="./assets/horizontal/cn.png" style="padding: 3px;width: 27px;height: 27px;" @click="onBtnClick('lang')" if="{{!numFlag && lang==='cn'}}" />
           
           <!-- 候选词区域 -->
-          <div if="{{lang === 'cn' && !numFlag}}" style="margin-left: 2.67px;flex: 1;height: 26.67px;background-color:#262626;border-color: #333333; border-width: 1.33px; border-radius: 44.44px;flex-direction: row;align-items:center">
-            <scroll id="cvalWaiting" scroll-x="{{true}}" style="position:absolute;width: 85%;height: 18.67px;">
-              <div static style="position: absolute;left: 0px;height: 18.67px;padding-left:8.89px;padding-right:8.89px">
-                <text class="calbtn02" style="padding-right:4.44px" @click="pushCval">{{cval}}</text>
-                <text for="{{cvalList}}" show="{{resultList.length > $idx}}" class="calbtn02" style="padding-right:4.44px" @click="onRsSelect(resultList[$idx])">{{resultList[$idx]}}</text>
+          <div if="{{lang === 'cn' && !numFlag}}" style="margin-left: 3px;flex: 1;height: 27px;background-color:#262626;border-color: #333333; border-width: 1px; border-radius: 44px;flex-direction: row;align-items:center">
+            <scroll id="cvalWaiting" scroll-x="{{true}}" style="position:absolute;width: 85%;height: 19px;">
+              <div static style="position: absolute;left: 0px;height: 19px;padding-left:9px;padding-right:9px">
+                <text class="calbtn02" style="padding-right:4px" @click="pushCval">{{cval}}</text>
+                <text for="{{cvalList}}" show="{{resultList.length > $idx}}" class="calbtn02" style="padding-right:4px" @click="onRsSelect(resultList[$idx])">{{resultList[$idx]}}</text>
               </div>
             </scroll>
-            <img if="{{resultList.length > 0}}" style="position:absolute;right: 3.56px; width: 26.67px;height: 17.78px;" src="./assets/horizontal/down2.png" @click="onBtnClick('down')" />
+            <img if="{{resultList.length > 0}}" style="position:absolute;right: 4px; width: 27px;height: 18px;" src="./assets/horizontal/down2.png" @click="onBtnClick('down')" />
           </div>
         
-          <img src="./assets/horizontal/en.png" style="padding: 2.67px;width: 26.67px;height: 26.67px;" @click="onBtnClick('lang')" if="{{!numFlag && lang==='en'}}" />
-          <img src="./assets/horizontal/bigA.png" style="padding: 2.67px;margin-left: 2.67px;width:41.78px;height:26.67px;" @click="onBtnClick('switchLow')" if="{{upperFlag && lang==='en'&& !numFlag}}" />
-          <img src="./assets/horizontal/a.png" style="padding: 2.67px;margin-left: 2.67px;width:41.78px;height:26.67px;" @click="onBtnClick('switchUpper')" if="{{!upperFlag && lang==='en'&& !numFlag}}" />
-          <img src="./assets/horizontal/123.png" style="margin-left: 2.67px;padding: 2.67px;margin-left: 2.67px;width: 41.78px;height: 26.67px;" @click="onBtnClick('switchNum')" if="{{!numFlag && lang==='en'}}" />
-          <img src="./assets/horizontal/back2.png" style="margin-left: 2.67px;padding: 2.67px;width: 70.67px;height: 26.67px;" @click="onBtnClick('switchCn')" if="{{numFlag}}" />
+          <img src="./assets/horizontal/en.png" style="padding: 3px;width: 27px;height: 27px;" @click="onBtnClick('lang')" if="{{!numFlag && lang==='en'}}" />
+          <img src="./assets/horizontal/bigA.png" style="padding: 3px;margin-left: 3px;width:42px;height:27px;" @click="onBtnClick('switchLow')" if="{{upperFlag && lang==='en'&& !numFlag}}" />
+          <img src="./assets/horizontal/a.png" style="padding: 3px;margin-left: 3px;width:42px;height:27px;" @click="onBtnClick('switchUpper')" if="{{!upperFlag && lang==='en'&& !numFlag}}" />
+          <img src="./assets/horizontal/123.png" style="margin-left: 3px;padding: 3px;margin-left: 3px;width: 42px;height: 27px;" @click="onBtnClick('switchNum')" if="{{!numFlag && lang==='en'}}" />
+          <img src="./assets/horizontal/back2.png" style="margin-left: 3px;padding: 3px;width: 71px;height: 27px;" @click="onBtnClick('switchCn')" if="{{numFlag}}" />
           
-          <img if="{{!numFlag}}" src="./assets/horizontal/del.png" style="margin-left: 2.67px;padding: 2.67px;width: 26.67px;height: 26.67px;" @click="onBtnClick('D')" />
-          <img else src="./assets/horizontal/del2.png" style="margin-left: 2.67px;padding: 2.67px;" @click="onBtnClick('D')" />
+          <img if="{{!numFlag}}" src="./assets/horizontal/del.png" style="margin-left: 3px;padding: 3px;width: 27px;height: 27px;" @click="onBtnClick('D')" />
+          <img else src="./assets/horizontal/del2.png" style="margin-left: 3px;padding: 3px;" @click="onBtnClick('D')" />
         </div>
 
         <!-- 键盘主体区域 -->
-        <div style="position:absolute; top: 31.11px; width:100%; height:91.56px; justify-content: center;">
+        <div style="position:absolute; top: 31px; width:100%; height:92px; justify-content: center;">
           <!-- 进度条 (可考虑是否保留) -->
-          <progress percent="{{percent}}" style="position:absolute;bottom: 5.33px;width:35.56px;color:#ffffff;stroke-width:2.67px;layer-color:#262626;"></progress>
+          <progress percent="{{percent}}" style="position:absolute;bottom: 5px;width:36px;color:#ffffff;stroke-width:3px;layer-color:#262626;"></progress>
           
           <!-- 键盘滚动区域 -->
           <scroll id="keyboardRect" scroll-x="{{true}}" onscroll="handelScroll">
             <!-- 字母键盘 -->
-            <div if="{{!numFlag}}" style="left: 2.67px; flex-direction: column;">
-              <div static style="margin-left: 0px;margin-top: 0px;height: 26.67px;">
+            <div if="{{!numFlag}}" style="left: 3px; flex-direction: column;">
+              <div static style="margin-left: 0px;margin-top: 0px;height: 27px;">
                 <text class="calbtnRect" for="{{item in keys['full'][0]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 14.22px;margin-top: -2.22px;height: 26.67px;">
+              <div static style="margin-left: 14px;margin-top: 0px;height: 27px;">
                 <text class="calbtnRect" for="{{item in keys['full'][1]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 28.44px;margin-top: -2.22px;height: 26.67px;">
+              <div static style="margin-left: 28px;margin-top: 0px;height: 27px;">
                 <text class="calbtnRect" for="{{item in keys['full'][2]}}" @click="onSelect(item)">{{item}}</text>
-                <img static src="./assets/horizontal/space.png" style="width: 26.67px;height: 26.67px;" @click="onBtnClick('space')" />
+                <img static src="./assets/horizontal/space.png" style="width: 27px;height: 27px;" @click="onBtnClick('space')" />
               </div>
             </div>
             <!-- 数字/符号键盘 -->
-            <div else style="left: 2.67px; flex-direction: column;">
-              <div static style="margin-left: 0px;margin-top: 0px;height: 26.67px;">
+            <div else style="left: 3px; flex-direction: column;">
+              <div static style="margin-left: 0px;margin-top: 0px;height: 27px;">
                 <text class="calbtnRect" for="{{item in keys['sign'][0]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 14.22px;margin-top: -2.22px;height: 26.67px;">
+              <div static style="margin-left: 14px;margin-top: 0px;height: 27px;">
                 <text class="calbtnRect" for="{{item in keys['sign'][1]}}" @click="onSelect(item)">{{item}}</text>
               </div>
-              <div static style="margin-left: 28.44px;margin-top: -2.22px;height: 26.67px;">
+              <div static style="margin-left: 28px;margin-top: 0px;height: 27px;">
                 <text class="calbtnRect" for="{{item in keys['sign'][2]}}" @click="onSelect(item)">{{item}}</text>
               </div>
             </div>
@@ -68,7 +68,7 @@
         </div>
 
         <!-- 展开的候选词列表 (全屏覆盖) -->
-        <div style="position: absolute;left: 0px;top: 0px;width: 100%;height: 122.67px;background-color: black; justify-content:center; flex-direction:column; align-items:center" if="{{downFlag==='down'}}">
+        <div style="position: absolute;left: 0px;top: 0px;width: 100%;height: 123px;background-color: black; justify-content:center; flex-direction:column; align-items:center" if="{{downFlag==='down'}}">
           <div static class="listRect">
             <list static style="width:100%;height:100%;">
               <list-item type="waitingRowsRect" class="itemRect" for="{{itemArray in resultList2}}">
@@ -78,7 +78,7 @@
               </list-item>
             </list>
           </div>
-          <img static style="margin-top:2.22px" src="./assets/horizontal/up2.png" @click="onBtnClick('down')" />
+          <img static style="margin-top:2px" src="./assets/horizontal/up2.png" @click="onBtnClick('down')" />
         </div>
 
       </div>
@@ -342,47 +342,47 @@ export default {
 	bottom:0
 }
 .item {
-	height:23.11px;
+	height:23px;
 	flex:1
 }
 .calbtn02 { 
 	color:rgb(255,255,255);
 	background-color:rgba(38,38,38,0);
 	border-radius:0px;
-	font-size:14.22px;
+	font-size:14px;
 	text-align:center;
-	height:18.67px;
+	height:19px;
 }
 .caltext { 
 	text-align:left;
-	line-height:16.89px;
+	line-height:17px;
 	lines:1;
 	text-overflow:ellipsis;
 	color:#0d84ff;
 	height:20px;
-	font-size:12.44px;
+	font-size:12px;
 	text-align:left;
 	font-weight:bold;
-	padding-left:3.56px
+	padding-left:4px
 }
 .waiting-keys { 
 	width:16px;
-	height:17.78px;
+	height:18px;
 	text-align: center;
 }
 
 
 .calbtnRect {
 	color:rgb(255,255,255);
-	font-size:14.22px;
+	font-size:14px;
 	font-weight:bold;
 	background-color:rgb(38,38,38);
-	margin-right:1.78px;
-	width:27.56px; 
-	height:27.56px;
-	border-radius:6.67px;
+	margin-right:2px;
+	width:28px; 
+	height:28px;
+	border-radius:7px;
 	text-align:center;
-	border:1.33px solid rgba(255,255,255,0.06);
+	border:1px solid rgba(255,255,255,0.06);
 }
 
 #keyboardRect {
@@ -397,14 +397,14 @@ export default {
 	top:0px;
 	width:95%; 
 	height:80px; 
-	border-radius:8.89px;
+	border-radius:9px;
 	background-color:#262626;
-	border:1.33px solid rgba(255,255,255,0.06);
-	padding:4.44px;
+	border:1px solid rgba(255,255,255,0.06);
+	padding:4px;
 }
 
 .itemRect {
-	height:24.44px;
+	height:24px;
 }
 
 </style>
