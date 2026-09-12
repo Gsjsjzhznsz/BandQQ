@@ -1,8 +1,8 @@
-# BandQQ v2.10.0 — 小米手环 9/10/11 + 小米手表 S4/S5 + Redmi Watch 5/6 QQ 消息助手（手环快应用 + 安卓同步器）
+# BandQQ v2.11.0 — 小米手环 9/10/11 + 小米手表 S4/S5 + Redmi Watch 5/6 QQ 消息助手（手环快应用 + 安卓同步器）
 
 > 🧠 **AI 协作记忆库**：[`MEMORY.md`](MEMORY.md) — 本项目的跨会话持久记忆（架构 / bug 台账 / 构建配方 / 任务清单）。任何新会话恢复上下文，先读它。
 
-[![Version](https://img.shields.io/badge/version-2.10.0-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-2.11.0-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
 
 ![BandQQ 宣传图](docs/promo/banner-3x2.jpg)
 
@@ -16,7 +16,7 @@
 | 矩形大屏手表 | **Redmi Watch 5 / Watch 6** | 432×514 | 宽屏紧凑档（自动识别） |
 | 圆形手表 | **Xiaomi Watch S3 / S4 / S4 sport / H1**（466×466）、**Watch S5 / S1 Pro**（480×480） | 466/480×同 | 圆屏安全区档（自动识别） |
 
-> 运行时通过 `device.getInfo()` 自动分档（band / wide / round），无需手动选择；宽屏与圆屏自带专属紧凑键盘（QWERTY/123/大小写），手环端保留官方输入法组件拼音引擎。
+> 运行时通过 `device.getInfo()` 自动分档（band / wide / round，v2.11.0 起按屏幕长宽比几何优先判定，免疫固件误报 screenShape），无需手动选择；宽屏与圆屏自带专属紧凑键盘（QWERTY/123/大小写），手环端保留官方输入法组件拼音引擎。分档差异经内联样式动态下发（Vela 编译器会把 class 属性里的动态绑定吞成静态前缀，内联 style 是唯一可靠通道，已四机实拍验证）。
 
 ## 界面预览（小米官方 Vela 虚拟机实拍 · 三种屏幕形态）
 
@@ -24,13 +24,13 @@
 |:---:|:---:|
 | ![手环11列表](docs/screenshots-vvm/01-会话列表-免打扰灰点.png) | ![手环11群聊](docs/screenshots-vvm/02-群聊-@我金色高亮.png) |
 
-| Redmi Watch 5（432×514）会话列表 | Redmi Watch 5 聊天页 |
+| Redmi Watch 5（432×514）会话列表 | Watch S4（466×466）会话列表 |
 |:---:|:---:|
-| ![RW5列表](docs/screenshots-v210/rw5-01-会话列表.png) | ![RW5聊天](docs/screenshots-v210/rw5-02-群聊@我.png) |
+| ![RW5列表](docs/screenshots-v211/RW5-01-会话列表.png) | ![S4列表](docs/screenshots-v211/S4-01-会话列表.png) |
 
-| Watch S4（466×466 圆屏）会话列表 | Watch S4 紧凑键盘 |
+| Watch S5（480×480）会话列表 | 手环 11（212×520）会话列表 |
 |:---:|:---:|
-| ![S4列表](docs/screenshots-v210/s4-01-会话列表.png) | ![S4键盘](docs/screenshots-v210/s4-03-紧凑键盘.png) |
+| ![S5列表](docs/screenshots-v211/S5-01-会话列表.png) | ![Band11列表](docs/screenshots-v211/Band11-01-会话列表.png) |
 
 > 被群友 @ 时：会话列表金色「@我」角标 + 聊天页「@我」徽标与高亮呼吸气泡 + 长震提醒，三重感知不错过任何一条艾特；有人拍一拍你：居中紫色「XX 拍了拍你」特效胶囊 + 晃动动画 + 长震；长按会话开启免打扰：红点变灰、不自动拉起。
 
@@ -40,7 +40,19 @@
 
 > 关键词：小米手环9 / Mi Band 9 / 小米手环10 / 小米手环11 / Mi Band 11 / 小米手环QQ / 小米手环9 Pro / Redmi Watch 5 / Redmi Watch 6 / 小米手表S4 / 小米手表S5 / Xiaomi Watch S4 / Xiaomi Watch S5 / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / Stapxs-QQ-Lite-X / wearable QQ / smartband chat / Mi Band QQ client
 
-## v2.10.0 更新日志（当前版本）
+## v2.11.0 更新日志（当前版本）
+
+### 全机型观感根治：三档密度重构 + 分档机制修复
+v2.10.0 上手实测「每个机型观感都怪」，逐像素排查揪出双重根因并彻底重构：
+- **根因一（分档从未生效）**：aiot 编译器会把 class 属性里的动态绑定（如 `item-{{dc}}`）**吞成静态前缀**（编译产物 `classList:["item","item"]`），v2.10.0 的分档覆盖从未真正生效，且后代选择器 `.page-round .item` 在运行时丢失祖先约束按单类全局命中——四台设备实际全部渲染 round 主题（band 行高被压扁、wide 档不存在）
+- **根因二（几何误判）**：部分固件/镜像误报 `screenShape`，改按**屏幕长宽比几何优先**判定：AR<0.75=band、AR≥0.95=round（小米圆表全系方屏）、其间大宽屏=wide
+- **修复方案**：机型差异全部改走**内联 style 动态绑定**（`ds` 映射表集中于 device.js，头像动态背景色同款机制，编译期免疫）+ `dcReady` 门控（引擎只在节点首建时解析样式，profile 就绪后再挂载子树，杜绝首帧缓存 band 基线）
+- **三档密度重构**：按「物理目标尺寸 ÷ 缩放系数」重定全套尺寸——宽屏/圆屏行高 35/33 设计px（≈79/80 物理px）、一屏可见 5 行左右、气泡字号 10~11 设计px（≈24~27 物理px）、圆屏列表两侧弧形安全区内收 + 快捷回复行加边距避弧、长按菜单/弹窗/空态/关于页同步紧凑化；手环 9/10/11 走 class 基线**零回归**
+- **杂项修复**：自建键盘删除键 ⌫ 在 Vela 字体缺字形渲染豆腐块 → 改汉字「删」；宽/圆屏发送状态从「直接隐藏」改为悬浮 toast（末尾挂载避开流内 absolute 引擎坑）
+- **键盘开源项目调研**（社区呼声）：[NEORUAA/Vela_input_method](https://github.com/NEORUAA/Vela_input_method)（★82，事实标准，本项目已集成其胶囊变体）、[fywmjj/better-Vela-IME](https://github.com/fywmjj/better-Vela-IME)（上者重构版，**已停止维护**，作者自评原版够用但性能一般且不支持连拼）、AetherZeng1145/Vela-Input-Method-Revise（bug 修复 fork）；官方 rect 变体按 designWidth≥336 设计，在 192 视口下必须 transform 缩放而触控命中不映射，故宽/圆屏继续用自建 skb
+- 版本：RPK 2.11.0（vc45）；同步器 / DevTools 无改动不重发；单测 56/56 过；Band11 / RW5 / S4 / S5 四台 VVD 实拍验收（band 零回归、宽屏一屏 5 会话、圆屏弧形安全区完整）
+
+## v2.10.0 更新日志
 
 ### 新机型适配：小米手表 S4/S5 + Redmi Watch 5/6（三屏形态自动分档）
 运行时通过 `device.getInfo()`（screenShape + 分辨率 + 长宽比兑底）自动把设备分为三档，各页面按档位套用专属布局覆盖，**手环 9/10/11 原有布局零改动**：
