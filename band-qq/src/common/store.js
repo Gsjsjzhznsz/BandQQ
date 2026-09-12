@@ -16,7 +16,7 @@ const SETTINGS_KEY = 'band_settings'
  * - msg_vibrate：新消息手环震动
  * - emoji_native：表情原生渲染（手环端 degradeContent 兑底时用）
  */
-const DEFAULT_SETTINGS = { msg_vibrate: true, emoji_native: true }
+const DEFAULT_SETTINGS = { msg_vibrate: true, emoji_native: true, mute_list: '' }
 
 /** 内置默认快捷回复（手机端 v2 协议会下发覆盖） */
 const DEFAULT_QUICK_REPLIES = [
@@ -60,6 +60,13 @@ function decorate(c) {
   }
   if (typeof c.unread !== 'number' || c.unread < 0) c.unread = c.unread === 0 ? 0 : (c.unread || 0)
   return c
+}
+
+/** v2.9.0：免打扰会话 ID 集合（逗号分隔字符串存储，手环长按会话开关，双端同步） */
+function mutedIds(st) {
+  return typeof st.mute_list === 'string' && st.mute_list
+    ? st.mute_list.split(',').map((s) => s.trim()).filter((s) => s !== '')
+    : []
 }
 
 function createStorageAdapter(storageImpl) {
@@ -184,6 +191,9 @@ export function createStore(storageImpl) {
         : conversations.slice()
       // 按最新消息时间降序排序，最新会话置顶
       result.sort((a, b) => (b.time || 0) - (a.time || 0))
+      // v2.9.0：免打扰会话打标（列表红点变灰）；缓存层存原始数据，打标只影响渲染出口
+      const muted = new Set(mutedIds(settings))
+      result.forEach((c) => { c.muted = muted.has(c.id) ? 1 : 0 })
       return result
     },
     async getMessages(targetId) {
@@ -305,6 +315,8 @@ export function createStore(storageImpl) {
         // v2.8.3 修复：APP 端发 at:1（数字），decodePush 从未被调用（死代码），
         // 严格 === true 永不命中 → 实时推送的 @我 高亮从未生效（历史路径原样存 1 反而 truthy）
         if (msg.at === true || msg.at === 1) item.at = true
+        // v2.9.0 拍一拍消息：手环聊天页渲染居中特效气泡，会话预览直接显示「XX 拍了拍你」
+        if (msg.poke === true || msg.poke === 1) item.poke = true
         messages.push(item)
         // 按时间升序排列，保证消息顺序不乱（秒/毫秒混用也统一比较）
         messages.sort((a, b) => (a.time || 0) - (b.time || 0))
@@ -396,21 +408,79 @@ export function createStore(storageImpl) {
     getConnectState() {
       return connectState
     },
-    /** v2.8.0：settings_state 快照落地（手机端下发） */
+    /** v2.8.0：settings_state 快照落地（手机端下发；v2.9.0 扩展免打扰集合） */
     async setSettings(st) {
       await this.ensureInit()
       if (!st || typeof st !== 'object') return
       const next = Object.assign({}, settings)
       if (typeof st.msg_vibrate === 'boolean') next.msg_vibrate = st.msg_vibrate
       if (typeof st.emoji_native === 'boolean') next.emoji_native = st.emoji_native
+      if (typeof st.mute_list === 'string') next.mute_list = st.mute_list
       settings = next
       await cache.set(SETTINGS_KEY, JSON.stringify(settings))
     },
     getSettings() {
       return settings
     },
+    /** v2.9.0：会话是否免打扰（红点变灰、不参与拉起） */
+    isMuted(id) {
+      return mutedIds(settings).indexOf(id) >= 0
+    },
+    /**
+     * v2.9.0：切换会话免打扰（手环长按菜单入口）。
+     * 本地立即生效（红点变灰/不再拉起震动），并经 settings_update 上报手机端
+     * （手机端用于拦截快应用自动拉起），手机端回推 settings_state 确认双向一致。
+     * @returns {number} 1=已开启免打扰 0=已关闭
+     */
+    async toggleMute(id) {
+      await this.ensureInit()
+      const list = mutedIds(settings)
+      const idx = list.indexOf(id)
+      if (idx >= 0) list.splice(idx, 1)
+      else list.push(id)
+      settings.mute_list = list.join(',')
+      await cache.set(SETTINGS_KEY, JSON.stringify(settings))
+      return idx >= 0 ? 0 : 1
+    },
     isVisible(id) {
       return visibleContacts.some((c) => c.id === id)
+    },
+    /**
+     * v2.9.0 演示模式：关于页版本号连点 7 次触发，注入两个演示会话（无需手机 APP）。
+     * 用于无互联环境（Vela 虚拟机/模拟器）的界面展示与截图，覆盖 @我 高亮、
+     * 拍一拍特效、免打扰灰点全部新特性。连接手机端后会被真实数据正常覆盖。
+     */
+    async injectDemo() {
+      await this.ensureInit()
+      const now = Date.now()
+      const min = 60 * 1000
+      visibleContacts = [
+        { id: '20001', type: 'group', name: 'BandQQ 体验群' },
+        { id: '10001', type: 'private', name: '马化腾' }
+      ]
+      messagesByTarget['20001'] = [
+        { message_type: 'group', sender_id: '10086', sender_name: '小明', content: '今晚八点组队开黑，来吗？', is_self: false, time: now - 52 * min },
+        { message_type: 'group', sender_id: '10087', sender_name: '测试喵', content: '刚刚的方案你觉得怎么样？这条是@我演示消息', at: true, is_self: false, time: now - 38 * min },
+        { message_type: 'group', sender_id: '10088', sender_name: '群友小王', content: '[图片]', is_self: false, time: now - 21 * min },
+        { message_type: 'group', sender_id: '10086', sender_name: '小明', content: '小明 拍了拍你', poke: true, is_self: false, time: now - 9 * min },
+        { message_type: 'group', sender_id: '10087', sender_name: '测试喵', content: '手环上看消息太方便了，回复也快', is_self: false, time: now - 3 * min }
+      ]
+      messagesByTarget['10001'] = [
+        { message_type: 'private', sender_id: '10001', sender_name: '马化腾', content: '在吗？帮个忙', is_self: false, time: now - 122 * min },
+        { message_type: 'private', sender_id: '10001', sender_name: '马化腾', content: '手环QQ 体验群 20001 等你', is_self: false, time: now - 118 * min },
+        { message_type: 'private', sender_id: '10001', sender_name: '马化腾', content: '马化腾 拍了拍你', poke: true, is_self: false, time: now - 30 * min }
+      ]
+      conversations = [
+        decorate({ id: '20001', type: 'group', name: 'BandQQ 体验群', last_msg: '手环上看消息太方便了，回复也快', time: now - 3 * min, unread: 3, cat: 1, is_temporary: false }),
+        decorate({ id: '10001', type: 'private', name: '马化腾', last_msg: '马化腾 拍了拍你', time: now - 30 * min, unread: 1, cat: 0, is_temporary: false })
+      ]
+      // 马化腾会话演示免打扰（红点变灰）
+      settings.mute_list = '10001'
+      await cache.set(VISIBLE_KEY, JSON.stringify(visibleContacts))
+      await cache.set(CONV_KEY, JSON.stringify(conversations.slice(0, CACHE_CONVERSATIONS)))
+      await cache.set(MSG_PREFIX + '20001', JSON.stringify(messagesByTarget['20001'].slice(-CACHE_MESSAGES)))
+      await cache.set(MSG_PREFIX + '10001', JSON.stringify(messagesByTarget['10001'].slice(-CACHE_MESSAGES)))
+      await cache.set(SETTINGS_KEY, JSON.stringify(settings))
     },
     async clearAllMessages() {
       const keys = Object.keys(messagesByTarget)

@@ -4,7 +4,7 @@
       <image class="btn" src="../../common/ui/more.png" @click="goSettings"></image>
     </div>
     <scroll class="list" scroll-y="true" show="{{conversations.length}}">
-      <div class="item" for="{{item in conversations}}" tid="id" @click="openChatItem(item)">
+      <div class="item" for="{{item in conversations}}" tid="id" @click="openChatItem(item)" @longpress="showMenu(item)">
         <div class="avatar" style="background-color: {{item.hueBg}};">
           <text class="avatar-text">{{item.achar}}</text>
         </div>
@@ -18,12 +18,20 @@
         </div>
         <div class="right">
           <text class="item-time" show="{{item.tstr}}">{{item.tstr}}</text>
-          <div class="badge" show="{{item.unread > 0}}">
+          <!-- v2.9.0：免打扰会话未读徽标变灰（长按会话开关，双端同步，不拉起快应用） -->
+          <div class="{{item.muted ? 'badge badge-muted' : 'badge'}}" show="{{item.unread > 0}}">
             <text class="badge-text">{{item.unread > 99 ? '99+' : item.unread}}</text>
           </div>
         </div>
       </div>
     </scroll>
+    <!-- v2.9.0 长按会话菜单：消息免打扰开关 -->
+    <div class="menu-mask" if="{{menuConv}}" @click="closeMenu"></div>
+    <div class="menu" if="{{menuConv}}">
+      <text class="menu-title">{{menuConv.n9 || menuConv.name}}</text>
+      <text class="menu-row" onclick="toggleMute">{{menuMuted ? '关闭消息免打扰' : '消息免打扰'}}</text>
+      <text class="menu-row menu-cancel" onclick="closeMenu">取消</text>
+    </div>
     <div class="empty-wrap" show="{{!conversations.length}}">
       <image class="empty-icon" src="../../common/ui/empty_icon.png"></image>
       <text class="empty-text">{{conversations.length === 0 ? '请在手机端添加联系人' : '暂无会话'}}</text>
@@ -59,6 +67,8 @@
   .item-time { font-size: 13px; color: rgba(255, 255, 255, 0.4); }
   /* 未读角标绝对定位于右上，不参与布局流（旧版负偏移方案已废弃） */
   .badge { position: absolute; right: 6px; bottom: 12px; min-width: 24px; height: 22px; border-radius: 11px; background-color: #ff5a5a; justify-content: center; align-items: center; }
+  /* v2.9.0 免打扰会话：未读徽标变灰（长按会话开启） */
+  .badge-muted { background-color: #6b6b6b; }
   .badge-text { font-size: 13px; color: #ffffff; padding: 0 5px; }
   .empty-wrap { flex: 1; flex-direction: column; justify-content: center; align-items: center; }
   .empty-icon { width: 78px; height: 78px; object-fit: contain; }
@@ -66,6 +76,12 @@
   .empty-text { margin-top: 12px; font-size: 18px; color: rgba(255, 255, 255, 0.5); lines: 1; }
   .status-bar { height: 60px; justify-content: center; align-items: center; }
   .status-text { font-size: 20px; color: rgba(255, 255, 255, 0.6); }
+  /* v2.9.0 长按菜单：底部弹层（免打扰开关） */
+  .menu-mask { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.55); }
+  .menu { position: absolute; left: 0; bottom: 0; width: 100%; flex-direction: column; background-color: #1f1f1f; border-top-left-radius: 20px; border-top-right-radius: 20px; padding: 14px 12px 20px 12px; }
+  .menu-title { font-size: 18px; color: rgba(255, 255, 255, 0.55); text-align: center; margin-bottom: 8px; lines: 1; text-overflow: ellipsis; }
+  .menu-row { font-size: 20px; color: #e8e8e8; text-align: center; padding: 12px 0; }
+  .menu-cancel { color: rgba(255, 255, 255, 0.5); border-top: 1px solid #333333; }
 </style>
 
 <script>
@@ -77,7 +93,9 @@
   export default {
     private: {
       statusText: '未连接',
-      conversations: []
+      conversations: [],
+      menuConv: null,
+      menuMuted: false
     },
     onShow() {
       console.log('[BANDQQ] v21 index onShow')
@@ -170,6 +188,34 @@
         uri: '/chat?targetId=' + encodeURIComponent(item.id) + '&name=' + encodeURIComponent(item.name || ''),
         params: { targetId: item.id, name: item.name }
       })
+    },
+    /** v2.9.0 长按会话：弹出免打扰开关菜单 */
+    showMenu(item) {
+      if (!item || !item.id) return
+      const store = this.$app.$def.store
+      this.menuConv = item
+      this.menuMuted = store.isMuted(item.id)
+    },
+    closeMenu() {
+      this.menuConv = null
+    },
+    /** 切换免打扰：本地立即生效 + settings_update 上报手机端（拦截快应用拉起） */
+    async toggleMute() {
+      const item = this.menuConv
+      if (!item || !item.id) return
+      const def = this.$app.$def
+      const store = def.store
+      try {
+        const state = await store.toggleMute(item.id)
+        this.menuMuted = state === 1
+        def.sendUpstream({ type: 'settings_update', seq: Date.now() % 100000, mute_list: store.getSettings().mute_list || '' })
+        this.closeMenu()
+        this._lastSig = '' // 强制刷新列表（灰点立即生效）
+        this.refreshConversations()
+      } catch (e) {
+        console.error('toggleMute failed', e)
+        this.closeMenu()
+      }
     },
     async loadVisibleContacts() {
       const api = this.$app.$def.api

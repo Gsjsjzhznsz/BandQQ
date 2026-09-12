@@ -28,6 +28,8 @@ interface OneBotListener {
     fun onState(connected: Boolean)
     /** 消息撤回通知（friend_recall/group_recall，借鉴 Stapxs）；默认空实现保持旧监听器兼容 */
     fun onRecall(recall: OneBotRecall) {}
+    /** 拍一拍通知（v2.9.0 notice.notify.poke）；默认空实现保持旧监听器兼容 */
+    fun onPoke(poke: OneBotPoke) {}
 }
 
 class OneBotClient(private val parser: OneBotParser) : MessageSender {
@@ -138,6 +140,12 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
                     val recall = parser.parseRecallEvent(text)
                     if (recall != null) {
                         listener?.onRecall(recall)
+                        return
+                    }
+                    // 拍一拍通知（v2.9.0：notice.notify.poke，私聊/群聊）
+                    val poke = parser.parsePokeEvent(text)
+                    if (poke != null) {
+                        listener?.onPoke(poke)
                         return
                     }
                     val msg = parser.parseMessageEvent(text)

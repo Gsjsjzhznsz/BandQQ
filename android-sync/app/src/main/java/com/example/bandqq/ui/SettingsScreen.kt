@@ -79,6 +79,7 @@ fun SettingsScreen(
     var autoLaunchEnabled by remember { mutableStateOf(false) }
     var autoLaunchDelay by remember { mutableIntStateOf(10) }
     var autoLaunchVibrate by remember { mutableIntStateOf(1) }
+    var autoLaunchScope by remember { mutableIntStateOf(1) }
     var bandMsgVibrate by remember { mutableStateOf(true) }
     var testChatType by remember { mutableStateOf("private") }   // 模拟器：private | group
     var testScenario by remember { mutableStateOf("text") }      // 模拟器：text/at/image/face/reply/recall/voice/file/long
@@ -103,6 +104,7 @@ fun SettingsScreen(
         autoLaunchEnabled = cfg.autoLaunchEnabled
         autoLaunchDelay = cfg.autoLaunchDelaySec
         autoLaunchVibrate = cfg.autoLaunchVibrate
+        autoLaunchScope = cfg.autoLaunchScope
         bandMsgVibrate = cfg.bandMsgVibrate
         // 默认 WebUI 地址：由 HTTP 地址推导同主机 :5099（SnowLuma WebUI 默认端口）
         webuiUrl = cfg.webuiUrl.ifBlank {
@@ -515,6 +517,33 @@ fun SettingsScreen(
                             ) { Text(label, fontSize = 13.sp) }
                         }
                     }
+                    Text(
+                        text = "拉起范围",
+                        modifier = Modifier.padding(top = 14.dp),
+                        fontSize = 14.sp,
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        listOf("所有消息" to 0, "仅@我和拍一拍" to 1).forEach { (label, mode) ->
+                            Button(
+                                onClick = {
+                                    autoLaunchScope = mode
+                                    scope.launch { configManager.setAutoLaunchScope(mode) }
+                                },
+                                colors = if (autoLaunchScope == mode) ButtonDefaults.buttonColorsPrimary() else ButtonDefaults.buttonColors(),
+                                modifier = Modifier.weight(1f),
+                            ) { Text(label, fontSize = 13.sp) }
+                        }
+                    }
+                    Text(
+                        text = "v2.9.0 新增：默认仅 @我 / 拍一拍我 时拉起（重要消息不被普通聊天淹没）；" +
+                            "手环端长按会话开启免打扰的会话永不拉起。",
+                        modifier = Modifier.padding(top = 8.dp),
+                        fontSize = 12.sp,
+                        color = colorScheme.onSurfaceSecondary,
+                    )
                     Text(
                         text = "快应用被后台自动打开时手环震动一下提醒，避免没注意到；" +
                             "手动打开快应用不会震动。",

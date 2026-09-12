@@ -7,13 +7,16 @@
       <text class="page-title">关于</text>
     </div>
     <scroll class="body" scroll-y="true">
-      <div class="hero">
+      <div class="hero" onclick="onVerTap">
         <image class="icon" src="../../common/icon.png"></image>
         <text class="app-name">BandQQ</text>
-        <text class="ver">v2.8.1 · 快应用端</text>
+        <!-- v2.9.0：连点版本区 7 次开启演示模式（注入演示会话，无手机也可体验界面）；
+             点击区挂在整个 hero（小 text 点击区在部分固件上不响应） -->
+        <text class="ver">v2.9.0 · 快应用端</text>
+        <text class="demo-hint" if="{{demoHint}}">{{demoHint}}</text>
       </div>
       <div class="card col">
-        <text class="line">小米手环 QQ 客户端 + Android 同步器，通过小米互联双向同步 QQ 消息，支持回复、@提醒、表情、快捷回复、记录同步与自动拉起。</text>
+        <text class="line">小米手环 QQ 客户端 + Android 同步器，通过小米互联双向同步 QQ 消息，支持回复、@提醒、拍一拍特效、会话免打扰、表情、快捷回复、记录同步与自动拉起。</text>
       </div>
       <div class="card col">
         <text class="k">作者</text>
@@ -42,6 +45,7 @@
   .icon { width: 64px; height: 64px; border-radius: 16px; }
   .app-name { font-size: 22px; color: #ffffff; margin-top: 6px; font-weight: bold; }
   .ver { font-size: 13px; color: rgba(255, 255, 255, 0.55); margin-top: 2px; }
+  .demo-hint { font-size: 12px; color: #ffd54f; margin-top: 4px; }
   .card { border-width: 1px; border-color: rgba(255, 255, 255, 0.06); border-radius: 16px; background-color: #262626; margin: 4px 8px; padding: 10px 12px; flex-direction: column; }
   .col { flex-direction: column; }
   .line { font-size: 14px; color: #dddddd; line-height: 20px; }
@@ -57,8 +61,35 @@
   const REPO_URL = 'https://github.com/Gsjsjzhznsz/BandQQ'
 
   export default {
+    private: {
+      demoHint: ''
+    },
+    _tapCount: 0,
+    _tapTimer: null,
     goBack() {
       router.back()
+    },
+    /** v2.9.0 演示模式彩蛋：连点版本区 7 次注入演示会话（虚拟机/无互联环境体验界面用） */
+    onVerTap() {
+      const that = this
+      this._tapCount = (this._tapCount || 0) + 1
+      if (this._tapTimer) clearTimeout(this._tapTimer)
+      this._tapTimer = setTimeout(() => { that._tapCount = 0; that.demoHint = '' }, 2500)
+      if (this._tapCount >= 7) {
+        this._tapCount = 0
+        this.demoHint = '正在注入演示会话…'
+        const store = this.$app.$def.store
+        store.injectDemo().then(() => {
+          that.demoHint = '演示会话已注入'
+          setTimeout(() => { that.demoHint = '' }, 2000)
+          setTimeout(() => { router.back() }, 800)
+        }).catch((e) => {
+          that.demoHint = '注入失败'
+          console.error('injectDemo failed', e)
+        })
+      } else if (this._tapCount >= 3) {
+        this.demoHint = '再点 ' + (7 - this._tapCount) + ' 次开启演示模式'
+      }
     },
     /** v2.8.1：GitHub 行点击复制仓库链接（快应用无法打开系统浏览器，复制后到手机粘贴访问） */
     copyRepo() {

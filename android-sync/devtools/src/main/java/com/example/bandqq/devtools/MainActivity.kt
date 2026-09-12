@@ -21,7 +21,7 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * BandQQ DevTools（v1.2.0）—— 模拟 OneBot 协议端的开发者测试工具。
+ * BandQQ DevTools（v1.3.0）—— 模拟 OneBot 协议端的开发者测试工具。
  *
  * 使用方法：
  * 1. 打开本工具，点「启动服务器」（默认 WS :3001 / HTTP :3000）；
@@ -36,6 +36,8 @@ import java.util.Locale
  *
  * v1.2.0 协议补全：WS 动作 echo 应答 / lifecycle connect / 30s 心跳元事件 /
  * 断连归因日志（close code、写入失败、读空闲收割）/ HTTP 中文 body 字节读修复。
+ * v1.3.0 业务修正：拍一拍场景（notice.notify.poke，私聊/群聊）；移除「私聊·@我」误导
+ * —— QQ 私聊没有 @只有拍一拍，群聊才有 @；误选时自动改发拍一拍并提示。
  */
 class MainActivity : AppCompatActivity() {
 
@@ -188,9 +190,9 @@ class MainActivity : AppCompatActivity() {
         column.addView(chatTypeGroup)
 
         val rows = listOf(
-            listOf("文本" to "text", "@我" to "at", "图片" to "image"),
-            listOf("表情" to "face", "引用回复" to "reply", "语音" to "voice"),
-            listOf("文件" to "file", "长文本" to "long", "撤回" to "recall"),
+            listOf("文本" to "text", "拍一拍" to "poke", "图片" to "image", "表情" to "face"),
+            listOf("引用回复" to "reply", "语音" to "voice", "@我·仅群聊" to "at", "文件" to "file"),
+            listOf("长文本" to "long", "撤回" to "recall"),
         )
         scenarioRowButtons = rows.map { row ->
             val btns = row.map { (label, id) ->
@@ -323,9 +325,9 @@ class MainActivity : AppCompatActivity() {
         scenarioRowButtons.flatten().forEach { b ->
             val label = b.text.toString()
             val id = when (label) {
-                "文本" -> "text"; "@我" -> "at"; "图片" -> "image"
-                "表情" -> "face"; "引用回复" -> "reply"; "语音" -> "voice"
-                "文件" -> "file"; "长文本" -> "long"; "撤回" -> "recall"
+                "文本" -> "text"; "拍一拍" -> "poke"; "图片" -> "image"; "表情" -> "face"
+                "引用回复" -> "reply"; "语音" -> "voice"; "@我·仅群聊" -> "at"; "文件" -> "file"
+                "长文本" -> "long"; "撤回" -> "recall"
                 else -> ""
             }
             val active = id == scenario
@@ -428,7 +430,20 @@ class MainActivity : AppCompatActivity() {
                 ws.broadcast(second)
                 appendLog("已发送：${if (chatType == "group") "群聊" else "私聊"} · 撤回（先文本后撤回帧）")
             }
+            "poke" -> {
+                // v1.3.0 拍一拍：QQ 业务规则里私聊/群聊都只有拍一拍，没有 @
+                ws.broadcast(MsgBuilder.pokeEvent(chatType, selfId = selfQq()))
+                appendLog("已发送：${if (chatType == "group") "群聊" else "私聊"} · 拍一拍（$nickname）")
+                appendLog("  ↳ 拍一拍自检：target_id=${selfQq()} 与事件 self_id=${selfQq()} 一致 → APP 判定拍一拍我 → 手环「${nickname} 拍了拍你」特效+长震${if (chatType == "group") "（群会话）" else "（私聊会话）"}")
+            }
             else -> {
+                // v1.3.0 业务修正：QQ 私聊没有 @（只有拍一拍），误选「@我+私聊」时自动改发拍一拍
+                if (scenario == "at" && chatType == "private") {
+                    appendLog("⚠ QQ 私聊没有 @（只有拍一拍）：已自动改发「私聊 · 拍一拍」；要测 @我 请切到「群聊」")
+                    ws.broadcast(MsgBuilder.pokeEvent("private", selfId = selfQq()))
+                    appendLog("已发送：私聊 · 拍一拍（自动转换自 @我）")
+                    return
+                }
                 val event = MsgBuilder.messageEvent(
                     type = chatType,
                     nickname = nickname,

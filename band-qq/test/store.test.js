@@ -307,4 +307,50 @@ describe('store v2（未读/快捷回复/翻页合并/显示字段）', () => {
     assert.equal(msgs[0].content, '对方撤回了一条消息')
     assert.equal(msgs[0].rc, 1, '原位灰显标志')
   })
+
+  it('v2.9.0 拍一拍：poke=1/true 双形态入库，普通消息不带标志', async () => {
+    // APP 端 buildPokeFrame 发数字 1
+    await store.upsertMessage({ type: 'push_message', message_type: 'private', target_id: '600', sender_id: '7', sender_name: '马化腾', content: '马化腾 拍了拍你', time: 1700000030, poke: 1 })
+    const msgs = await store.getMessages('600')
+    assert.equal(msgs[0].poke, true)
+    const convs = await store.getConversations()
+    assert.equal(convs.find((x) => x.id === '600').last_msg, '马化腾 拍了拍你', '会话预览直接显示拍一拍文案')
+    // 布尔形态（decodePush 兼容路径）
+    await store.upsertMessage({ type: 'push_message', message_type: 'group', target_id: '601', sender_id: '8', sender_name: '小明', content: '小明 拍了拍你', time: 1700000031, poke: true })
+    assert.equal((await store.getMessages('601'))[0].poke, true)
+    // 普通消息不带 poke
+    await store.upsertMessage({ type: 'push_message', message_type: 'private', target_id: '602', sender_id: '9', sender_name: '赵', content: '普通', time: 1700000032 })
+    assert.equal((await store.getMessages('602'))[0].poke, undefined)
+  })
+
+  it('v2.9.0 免打扰：toggleMute/isMuted/会话 muted 标志双端同步', async () => {
+    await store.upsertMessage({ type: 'push_message', message_type: 'private', target_id: '700', sender_id: '3', sender_name: '李', content: '在吗', time: 1700000040 })
+    assert.equal(store.isMuted('700'), false, '默认不免打扰')
+    assert.equal(await store.toggleMute('700'), 1, '开启返回 1')
+    assert.equal(store.isMuted('700'), true)
+    assert.equal(store.getSettings().mute_list, '700', 'mute_list 全量字符串')
+    const convs = await store.getConversations()
+    assert.equal(convs.find((x) => x.id === '700').muted, 1, '会话出口打 muted 标（红点变灰）')
+    assert.equal(await store.toggleMute('700'), 0, '关闭返回 0')
+    assert.equal(store.isMuted('700'), false)
+    // settings_state 下发（手机端为权威源）覆盖本地
+    await store.setSettings({ msg_vibrate: true, emoji_native: true, mute_list: '700,701' })
+    assert.equal(store.isMuted('700'), true)
+    assert.equal(store.isMuted('701'), true)
+  })
+
+  it('v2.9.0 演示模式：injectDemo 注入两个演示会话（含 @我/拍一拍/免打扰）', async () => {
+    await store.injectDemo()
+    const convs = await store.getConversations()
+    assert.equal(convs.length, 2)
+    const group = convs.find((x) => x.id === '20001')
+    assert.equal(group.cat, 1, '群会话有未读 @我 标')
+    const groupMsgs = await store.getMessages('20001')
+    assert.equal(groupMsgs.some((m) => m.at === true), true, '演示数据含 @我 消息')
+    assert.equal(groupMsgs.some((m) => m.poke === true), true, '演示数据含拍一拍消息')
+    const pms = await store.getMessages('10001')
+    assert.equal(pms.some((m) => m.poke === true), true, '私聊演示含拍一拍')
+    assert.equal(store.isMuted('10001'), true, '马化腾会话演示免打扰（灰点）')
+    assert.equal(store.isMuted('20001'), false)
+  })
 })

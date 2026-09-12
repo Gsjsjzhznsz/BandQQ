@@ -60,6 +60,8 @@ function updateSettings(patch) {
   const frame = { type: 'settings_update', seq: nextSeq() }
   if (typeof patch.msg_vibrate === 'boolean') frame.msg_vibrate = patch.msg_vibrate
   if (typeof patch.emoji_native === 'boolean') frame.emoji_native = patch.emoji_native
+  // v2.9.0：免打扰会话集合全量上报（逗号分隔 ID，手环长按菜单开关后上报）
+  if (typeof patch.mute_list === 'string') frame.mute_list = patch.mute_list
   return frame
 }
 
@@ -150,8 +152,10 @@ function decodePush(raw) {
     // 手机端计算的该会话未读数（v2 协议），旧端缺省 undefined 由 store 兜底
     unread: typeof raw.unread === 'number' ? raw.unread : -1,
     // at=该消息 @我/全体（聊天页高亮）；recall=撤回同步帧（按 time 原位替换，不新增）
+    // poke=拍一拍消息（v2.9.0：聊天页居中特效气泡 + 长震）
     at: raw.at === 1 || raw.at === true,
-    recall: raw.recall === 1 || raw.recall === true
+    recall: raw.recall === 1 || raw.recall === true,
+    poke: raw.poke === 1 || raw.poke === true
   }
 }
 
@@ -166,7 +170,7 @@ function convSignature(list) {
     const c = list[i]
     sig += (c.id || '') + '|' + (c.name || '') + '|' + (c.prev || c.last_msg || '') + '|' +
       (c.unread || 0) + '|' + (c.tstr || '') + '|' + (c.is_temporary ? 'T' : 'f') +
-      (c.cat ? 'A' : '')
+      (c.cat ? 'A' : '') + (c.muted ? 'M' : '')
     if (i < list.length - 1) sig += ';'
   }
   return sig

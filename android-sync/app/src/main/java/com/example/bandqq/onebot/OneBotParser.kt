@@ -25,6 +25,21 @@ data class OneBotRecall(
     val messageId: String,
 )
 
+/**
+ * 拍一拍（戳一戳）事件（v2.9.0）：OneBot v11 notice.notify.poke。
+ * 群聊拍一拍：{notice_type:"notify", sub_type:"poke", group_id, user_id, target_id}
+ * 私聊拍一拍：{notice_type:"notify", sub_type:"poke", user_id, target_id}（无 group_id）
+ * 兼容旧协议端：notice_type="group_poke"/"friend_poke" 直接携带。
+ * QQ 业务规则：私聊没有 @只有拍一拍，群聊才有 @ —— 两者是互补的强提醒通道。
+ */
+data class OneBotPoke(
+    val chatType: String,   // "private" | "group"
+    val targetId: String,   // 会话 ID：私聊=拍人者 QQ，群聊=群号
+    val senderId: String,   // 拍人者 QQ
+    val senderName: String, // 拍人者名称（notice 事件无 sender 对象时为 QQ 号，broker 层用联系人缓存解析）
+    val pokeMe: Boolean     // target_id == self_id：拍的是我（拍别人不提醒）
+)
+
 /** 快捷回复：label 为手环按钮上的纯文本（已剥离 CQ 码），content 为实际发送内容（保留 CQ 码） */
 data class QuickReply(val label: String, val content: String)
 
@@ -254,6 +269,49 @@ class OneBotParser {
         }
     }
 
+    /**
+     * 解析拍一拍通知（v2.9.0）：notice_type=notify & sub_type=poke（兼容 group_poke/friend_poke）。
+     * pokeMe 判定：target_id == self_id；无 target_id 的旧端形态默认拍的是我。
+     * 会话归属：群聊=group_id，私聊=拍人者 QQ（拍一拍落在与拍人者的私聊会话里，与 QQ 行为一致）。
+     */
+    fun parsePokeEvent(json: String): OneBotPoke? {
+        val obj = try {
+            JsonParser.parseString(json).asJsonObject
+        } catch (e: Exception) {
+            return null
+        }
+        if (obj.get("post_type")?.asString != "notice") return null
+        val noticeType = obj.get("notice_type")?.asString
+        val subType = obj.get("sub_type")?.asString
+        val isPoke = (noticeType == "notify" && subType == "poke") ||
+            noticeType == "group_poke" || noticeType == "friend_poke"
+        if (!isPoke) return null
+        val selfId = obj.get("self_id")?.let { if (it.isJsonPrimitive) it.asString else it.toString() } ?: return null
+        val senderId = obj.get("user_id")?.asLong?.toString() ?: return null
+        val groupId = obj.get("group_id")?.let {
+            if (it.isJsonPrimitive) (if (it.asJsonPrimitive.isString) it.asString else it.asLong.toString()) else null
+        }
+        val chatType = if (groupId != null) "group" else "private"
+        val targetRaw = obj.get("target_id")?.let {
+            if (it.isJsonPrimitive) (if (it.asJsonPrimitive.isString) it.asString else it.asLong.toString()) else null
+        }
+        // 无 target_id（部分协议端只报 user_id）：私聊形态默认拍的是我；群聊无法判定则不提醒
+        val pokeMe = when {
+            targetRaw != null -> targetRaw == selfId
+            chatType == "private" -> true
+            else -> false
+        }
+        val senderName = obj.getAsJsonObject("sender")?.get("nickname")?.asString ?: senderId
+        val convId = if (chatType == "group") groupId!! else senderId
+        return OneBotPoke(
+            chatType = chatType,
+            targetId = convId,
+            senderId = senderId,
+            senderName = stripEmoji(senderName),
+            pokeMe = pokeMe
+        )
+    }
+
     /** @我/全体 检测：数组段格式与 CQ 字符串格式双兼容（手机端一次计算，手环零开销） */
     fun isAtMe(elem: com.google.gson.JsonElement?, selfId: String): Boolean {
         if (elem == null) return false
@@ -342,6 +400,36 @@ class OneBotParser {
             }
         }
         return sb.toString()
+    }
+
+    /**
+     * 拍一拍手环帧（v2.9.0）：复用 push_message 通道，poke=1（Gson 数字，手环端按
+     * 1/true 双兼容判定）标记拍一拍消息。手环端渲染居中特效气泡 + 长震提醒，
+     * 会话列表预览直接显示「XX 拍了拍你」。
+     */
+    fun buildPokeFrame(
+        chatType: String,
+        targetId: String,
+        senderId: String,
+        senderName: String,
+        targetName: String,
+        content: String,
+        visible: Boolean
+    ): String {
+        val obj = JsonObject()
+        obj.addProperty("type", "push_message")
+        obj.addProperty("seq", 0)
+        obj.addProperty("message_type", chatType)
+        obj.addProperty("target_id", targetId)
+        obj.addProperty("sender_id", senderId)
+        obj.addProperty("sender_name", senderName)
+        obj.addProperty("target_name", targetName)
+        obj.addProperty("content", content)
+        obj.addProperty("time", System.currentTimeMillis())
+        obj.addProperty("is_self", false)
+        obj.addProperty("visible", visible)
+        obj.addProperty("poke", 1)
+        return obj.toString()
     }
 
     fun toHandBandFrame(msg: OneBotMessage, visible: Boolean = true, targetName: String = msg.senderName): String {

@@ -194,8 +194,8 @@ class SyncService : Service() {
         pushQuickRepliesNow = { broker.pushQuickReplies() }
         // v2.8.0 双端互通：手机端为设置权威源，改动后立即下发快照
         pushSettingsNow = { broker.pushSettingsState() }
-        broker.settingsWriter = { emoji, vibrate ->
-            ConfigManager(this).applyBandSettings(emoji, vibrate)
+        broker.settingsWriter = { emoji, vibrate, muteList ->
+            ConfigManager(this).applyBandSettings(emoji, vibrate, muteList)
         }
         // v2.8.0 拉起提示震动：档位经 ConfigHolder 读取（0不震/1短震×2/2长震）
         AutoLauncher.initAlertHook { bandAlert(broker) }

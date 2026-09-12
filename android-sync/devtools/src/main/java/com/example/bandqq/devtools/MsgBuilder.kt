@@ -73,7 +73,7 @@ object MsgBuilder {
 
     fun scenarioLabel(scenario: String): String = when (scenario) {
         "at" -> "@我"; "image" -> "图片"; "face" -> "表情"; "reply" -> "引用回复"
-        "voice" -> "语音"; "file" -> "文件"; "long" -> "长文本"
+        "voice" -> "语音"; "file" -> "文件"; "long" -> "长文本"; "poke" -> "拍一拍"
         "custom" -> "自定义"; else -> "文本"
     }
 
@@ -104,6 +104,31 @@ object MsgBuilder {
         val sender = JSONObject().put("nickname", nickname).put("user_id", userId)
         event.put("sender", sender)
         event.put("message", message)
+        return event.toString()
+    }
+
+    /**
+     * 构造拍一拍事件 JSON（v1.3.0）：OneBot v11 notice.notify.poke。
+     * QQ 业务规则：私聊没有 @只有拍一拍，群聊才有 @ —— 两者是互补的强提醒通道。
+     * 群聊拍一拍：{notice_type:notify, sub_type:poke, group_id, user_id, target_id}
+     * 私聊拍一拍：{notice_type:notify, sub_type:poke, user_id, target_id}（无 group_id）
+     * target_id=self_id → BandQQ 判定「拍一拍我」→ 手环「XX 拍了拍你」特效+长震+可拉起。
+     */
+    fun pokeEvent(
+        type: String,
+        userId: Long = DEFAULT_USER_ID,
+        groupId: Long? = null,
+        selfId: Long = DEFAULT_SELF_ID,
+    ): String {
+        val event = JSONObject()
+        event.put("post_type", "notice")
+        event.put("notice_type", "notify")
+        event.put("sub_type", "poke")
+        event.put("time", System.currentTimeMillis() / 1000)
+        event.put("self_id", selfId)
+        event.put("user_id", userId)
+        if (type == "group") event.put("group_id", groupId ?: DEFAULT_GROUP_ID)
+        event.put("target_id", selfId)
         return event.toString()
     }
 

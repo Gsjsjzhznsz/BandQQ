@@ -14,7 +14,11 @@
         <text class="older-btn" onclick="loadOlder">{{loadingOlder ? '加载中…' : '加载更早的消息'}}</text>
       </div>
       <div class="msg-item {{item.is_self ? 'self' : 'other'}}" for="{{item in messages}}" tid="tid">
-        <div class="msg-col {{item.is_self ? 'col-self' : 'col-other'}}">
+        <!-- v2.9.0 拍一拍消息：居中特效胶囊（紫金边框 + 晃动动画，无 emoji 依赖防 tofu） -->
+        <div class="poke-wrap" if="{{item.poke && !item.is_self && !item.rc}}">
+          <text class="poke-bubble">{{item.content}}</text>
+        </div>
+        <div class="msg-col {{item.is_self ? 'col-self' : 'col-other'}}" if="{{!(item.poke && !item.is_self && !item.rc)}}">
           <text class="msg-name" if="{{item.message_type === 'group' && !item.is_self}}">{{item.sender_name}}</text>
           <text class="at-badge" if="{{item.at && !item.is_self && !item.rc}}">@我</text>
           <text class="bubble {{item.is_self ? 'bubble-self' : (item.rc ? 'bubble-rc' : (item.at ? 'bubble-other bubble-at' : 'bubble-other'))}}">{{item.content}}</text>
@@ -71,6 +75,17 @@
     100% { border-color: rgba(255, 213, 79, 0.2); background-color: #1f1f1f; }
   }
   .bubble-other { background-color: #1f1f1f; color: #ffffff; }
+  /* v2.9.0 拍一拍特效：居中紫色胶囊 + 有限次数晃动动画（transform 不触发布局重排）
+     QQ 业务规则：私聊没有 @只有拍一拍，拍一拍是私聊唯一的强提醒通道 */
+  .poke-wrap { width: 192px; flex-direction: row; justify-content: center; margin: 4px 0; }
+  .poke-bubble { font-size: 16px; line-height: 22px; color: #e3b8ff; background-color: rgba(146, 79, 202, 0.22); border: 1px solid rgba(227, 184, 255, 0.65); border-radius: 14px; padding: 5px 12px; animation-name: pokeShake; animation-duration: 0.8s; animation-iteration-count: 3; animation-timing-function: ease-in-out; }
+  @keyframes pokeShake {
+    0% { transform: translateX(0px) rotate(0deg); background-color: rgba(146, 79, 202, 0.10); }
+    25% { transform: translateX(-6px) rotate(-2deg); background-color: rgba(146, 79, 202, 0.35); }
+    50% { transform: translateX(6px) rotate(2deg); background-color: rgba(146, 79, 202, 0.35); }
+    75% { transform: translateX(-3px) rotate(-1deg); }
+    100% { transform: translateX(0px) rotate(0deg); background-color: rgba(146, 79, 202, 0.22); }
+  }
   /* 快捷回复：横向滚动按钮行，标签为手机端剥离 CQ 码后的纯文本 */
   .quick-area { height: 56px; flex-direction: row; align-items: center; }
   .quick-row { flex-direction: row; align-items: center; padding: 0 6px; height: 56px; }

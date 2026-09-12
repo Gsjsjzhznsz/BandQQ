@@ -9,7 +9,7 @@
 
 ## 版本线
 - v1.1.x：旧 lineage（stapxs 移植版，源码已失传，legacy/ 有 7z 分卷）
-- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.8.2**（versionCode 38，RPK versionCode 35 无改动）+ DevTools 1.2.1（vc4）
+- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.9.0**（app vc39 + RPK vc38）+ DevTools 1.3.0（vc6）
 - 签名一致性：rpk 与 APK 同源证书，APK SHA-256 = af8819e27a6ec8d84537ec86937cf016e780376305328abaa4eb79e8c626b004
 
 ## v2.1.0 已完成（2026-09-09）
@@ -229,3 +229,16 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 - **教训**：手写 socket 服务器，接收路径天然在 accept 线程，但「外部主动发送」极易从 UI 线程直达 write()——Android 主线程网络异常只在真机现形（编译期无感知），联调日志要打全异常类名才能一眼定位。
 - **交付**：bandqq-devtools-release-1.2.1.apk（4.7MB vc4 同签名 af8819e2 覆盖安装）；同步器 2.8.2 与 RPK 2.8.1 不变；单测 49/49 过；README 更新三层断连排查史
 
+
+## v2.9.0（2026-09-12）拍一拍全链路 + 会话免打扰 + 拉起收敛 + VVD 虚拟机实拍
+
+**用户业务规则澄清（关键认知修正）**：QQ **私聊没有 @，只有拍一拍；群聊才有 @** —— DevTools 1.2.x 的「私聊·@我」按钮本身就是伪命题，用户多轮实测私聊场景永远不可能出 @ 动效（部分解释了四轮「还是没动效」）。@ 段协议层只有 QQ 号，显示名称需手机端解析（联系人缓存映射），判定也在手机端完成（架构铁律不变）。
+
+1. **拍一拍（poke）全链路**：OneBotParser.parsePokeEvent（notice_type=notify & sub_type=poke，兼容 group_poke/friend_poke；pokeMe=target_id==self_id，无 target 的私聊形态默认拍我）；MessageBroker.onPoke 只处理拍我（拍别人不提醒），联系人缓存解析昵称 → content「XX 拍了拍你」入库（StoredMessage.poke 新字段，持久化/历史帧 poke:1）→ buildPokeFrame（push_message+poke:1）→ AutoLauncher.scheduleIfEnabled(important=true)。手环端 store upsert poke=1/true 双形态，chat.ux 居中紫色特效胶囊（pokeShake 晃动×3，transform 动画不重排），app.ux poke 与 at 同级长震。
+2. **会话免打扰**：手环 index.ux 长按会话 → 底部弹层菜单「消息免打扰」开关（store.toggleMute，settings.mute_list 逗号分隔全量字符串）→ settings_update 帧上报（ConfigManager.applyBandSettings 第三参 muteList 落盘 mutedChats）→ 手机端回推 settings_state（含 mute_list）双端一致。效果：未读徽标红点变灰（.badge-muted #6b6b6b）、该会话消息手环不震（app.ux push_message 查 isMuted）、AutoLauncher 拦截不拉起。convSignature 加入 muted 位防签名误跳过。
+3. **自动拉起范围收敛**：autoLaunchScope 默认 1=仅 @我/拍一拍我（important），0=所有消息；免打扰会话永不拉起。SettingsScreen 拉起专区新增「拉起范围」两档。
+4. **@名称解析**：MessageBroker.handleOneBotEvent 用 store.contactName 把「@10086」替换为「@昵称」（AT_QQ_REF 正则 5 位以上数字才尝试，命中才替换），入库+下发同源。
+5. **DevTools 1.3.0**：pokeEvent 构造器；场景重排（拍一拍前置、@我·仅群聊）；私聊误选 @我 自动改发拍一拍并提示；拍一拍自检日志。版本 vc6/1.3.0。
+6. **演示模式彩蛋**：about.ux 连点版本区 7 次 → store.injectDemo() 注入两个演示会话（群：@我+拍一拍+普通；私聊：文本+拍一拍；马化腾会话默认免打扰展示灰点）。用途：Vela 虚拟机无互联环境实拍界面。**教训：Vela text 小点击区 onclick 可能不响应（gRPC sendMouse down→up 不触发），点击区要挂到大容器（hero div）**。
+7. **小米官方 Vela 虚拟机（VVD）实拍流程**：SDK 手动装（/home/z/my-project/scripts/emulator-setup.sh，vela-ide.cnbj3-fusion.mi-fs.com 官方 CDN，vela-watch-5.0 镜像 20250716）→ vvd-ctl.js（create Band11 212 520 320；**density 只能用枚举值 120..640，326 报 Bad LCD density**；deploy 后台跑需 PATH 含 /home/z/android-sdk/platform-tools/adb；startApp 应答超时属正常，app 实际已启动）→ gRPC tap/swipe/longpress/multtap/shot（脚本已扩展）。am start/pm install 偶发阻塞 adb shell，重启模拟器最省事。截图 = getScreenshot PNG 原生 212×520。
+8. 构建：RPK 2.9.0/vc38（包内验证 pokeShake/badge-muted/toggleMute/onVerTap/injectDemo/pokeMe 全入包）+ app vc39/2.9.0 + devtools vc6/1.3.0；手环单测 54/54（新增 poke/免打扰/演示 3 例）+ ux 语法 12 文件全过 + APP 侧 poke 单测 5 例。

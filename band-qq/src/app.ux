@@ -38,19 +38,24 @@ case 'push_message':
       // v2.8.0：受「新消息手环震动」互通开关控制（手机端/手环端均可改，双向同步）。
       // v2.8.3 @我 双保险：at=1（数字，APP Gson 直发）/true（decodePush 形态）均强提醒
       //   —— 长震一次，与普通短震区分，即使高亮样式被固件降级也能感知被 @。
+      // v2.9.0：拍一拍我（poke=1/true）与 @我 同级强提醒（长震）；
+      //   免打扰会话（长按会话开启）只亮红点灰标不震动不拉起。
       {
         const atMe = (msg.at === 1 || msg.at === true) && msg.is_self !== true
-        if (msg.is_self !== true && msg.recall !== 1 && msg.recall !== true && msg.recall !== 0 && msg.visible !== false) {
+        const pokeMe = (msg.poke === 1 || msg.poke === true) && msg.is_self !== true
+        const important = atMe || pokeMe
+        const muted = typeof store.isMuted === 'function' && msg.target_id ? store.isMuted(msg.target_id) : false
+        if (msg.is_self !== true && msg.recall !== 1 && msg.recall !== true && msg.recall !== 0 && msg.visible !== false && !muted) {
           try {
             const vib = require('@system.vibrator')
-            if (atMe && store.getSettings().msg_vibrate !== false) {
+            if (important && store.getSettings().msg_vibrate !== false) {
               vib.vibrate({ mode: 'long' })
             } else if (store.getSettings().msg_vibrate !== false) {
               vib.vibrate({ mode: 'short' })
             }
           } catch (e) {}
         }
-        if (atMe) { try { console.log('[BANDQQ] v18 at-me frame target=' + msg.target_id) } catch (e) {} }
+        if (important) { try { console.log('[BANDQQ] v19 important frame target=' + msg.target_id + ' at=' + atMe + ' poke=' + pokeMe + ' muted=' + muted) } catch (e) {} }
       }
       store.upsertMessage(msg).then(() => { try { console.log('[BANDQQ] v17 upsert target=' + msg.target_id + ' len=' + (typeof msg.content === 'string' ? msg.content.length : '?') + ' isSelf=' + (msg.is_self === true)) } catch (e) {}; emit('message', msg) }).catch((e) => console.error('upsert fail', e))
       break

@@ -80,12 +80,27 @@ object AutoLauncher {
     }
 
     /**
-     * 新消息推送后的判定入口（MessageBroker.onEvent 调用）。
+     * 新消息推送后的判定入口（MessageBroker.onEvent / onPoke 调用）。
      * 全部为内存标志位判断，O(1)，未启用/已连接时直接返回，零开销。
+     *
+     * v2.9.0 三项新判定（全部手机端内存计算，手环零感知）：
+     * 1. 会话免打扰拦截：目标会话在手环端上报的免打扰集合内 → 不拉起（消息照常推送/红点变灰）；
+     * 2. 拉起范围：autoLaunchScope=1（默认）时仅重要消息拉起 —— @我 / 拍一拍我（二者合并判定）；
+     * 3. 拍一拍我经 onPoke 以 important=true 进入，与 @我 同级触发拉起。
      */
-    fun scheduleIfEnabled() {
+    fun scheduleIfEnabled(targetId: String? = null, important: Boolean = false) {
         val cfg = ConfigHolder.config
         if (!cfg.autoLaunchEnabled) return
+        // 会话免打扰：该会话消息永不拉起（红点灰但消息照常显示）
+        if (targetId != null && cfg.mutedChats.contains(targetId)) {
+            LogBus.log(TAG, LogLevel.DEBUG, "target $targetId muted, skip auto launch")
+            return
+        }
+        // 拉起范围：1 = 仅 @我/拍一拍我
+        if (cfg.autoLaunchScope == 1 && !important) {
+            LogBus.log(TAG, LogLevel.DEBUG, "scope=important-only, plain message skip")
+            return
+        }
         if (pendingJob?.isActive == true) return // 已有待执行任务：消息风暴去重，不叠加
         if (SyncState.bandConnected) return      // 快应用已打开，无需拉起
         val ctx = appContext ?: return

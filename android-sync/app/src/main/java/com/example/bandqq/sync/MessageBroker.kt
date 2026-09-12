@@ -48,8 +48,9 @@ class MessageBroker(
      * v2.8.0 双端设置互通：手环 settings_update 回写。
      * SyncService onCreate 注入 ConfigManager::applyBandSettings；
      * 返回 true 表示有变化（需要回推确认帧对齐两端）。
+     * v2.9.0：增加 muteList（逗号分隔免打扰会话 ID 集合，手环端长按菜单上报）。
      */
-    var settingsWriter: (suspend (emojiNative: Boolean?, msgVibrate: Boolean?) -> Boolean)? = null
+    var settingsWriter: (suspend (emojiNative: Boolean?, msgVibrate: Boolean?, muteList: String?) -> Boolean)? = null
 
     private val settingsScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
@@ -166,12 +167,14 @@ class MessageBroker(
             "settings_update" -> {
                 // v2.8.0 双端互通：手环设置页改动回传（仅变化字段非空）。
                 // 回写手机端配置后回推 settings_state 确认帧；值未变化不回推，防同步风暴。
+                // v2.9.0：mute_list = 逗号分隔的免打扰会话 ID 集合（手环长按菜单开关）
                 val emoji = obj.get("emoji_native")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean
                 val vibrate = obj.get("msg_vibrate")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isBoolean }?.asBoolean
-                if (emoji == null && vibrate == null) return true
+                val muteList = obj.get("mute_list")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isString }?.asString
+                if (emoji == null && vibrate == null && muteList == null) return true
                 val writer = settingsWriter
                 settingsScope.launch {
-                    val changed = try { writer?.invoke(emoji, vibrate) ?: false } catch (t: Throwable) { false }
+                    val changed = try { writer?.invoke(emoji, vibrate, muteList) ?: false } catch (t: Throwable) { false }
                     if (changed) bandSender(buildSettingsStateFrame())
                 }
                 return true
@@ -181,22 +184,26 @@ class MessageBroker(
     }
 
     fun handleOneBotEvent(msg: OneBotMessage): String? {
+        // v2.9.0：@段协议层只有 QQ 号，手环上显示一串数字不友好 ——
+        // 在手机端用联系人缓存把「@10086」解析为「@昵称」（解析不到保持原样）。
+        // 用户规则：@判定靠协议 QQ 号在手机端完成，显示名称也统一在手机端解析。
+        val display = msg.copy(content = decorateAtNames(msg.content))
         store.addMessage(
-            msg.targetId,
+            display.targetId,
             StoredMessage(
-                messageType = msg.messageType,
-                senderId = msg.senderId,
-                senderName = msg.senderName,
-                content = msg.content,
-                time = msg.time,
-                isSelf = msg.isSelf,
-                atMe = msg.atMe
+                messageType = display.messageType,
+                senderId = display.senderId,
+                senderName = display.senderName,
+                content = display.content,
+                time = display.time,
+                isSelf = display.isSelf,
+                atMe = display.atMe
             )
         )
-        MessageBus.notify(msg.targetId)
-        val visible = store.isVisibleContact(msg.targetId)
-        val targetName = store.conversationName(msg.targetId, msg.messageType, msg.senderName)
-        return parser.toHandBandFrame(msg, visible, targetName)
+        MessageBus.notify(display.targetId)
+        val visible = store.isVisibleContact(display.targetId)
+        val targetName = store.conversationName(display.targetId, display.messageType, display.senderName)
+        return parser.toHandBandFrame(display, visible, targetName)
     }
 
     override fun onEvent(message: OneBotMessage) {
@@ -217,7 +224,8 @@ class MessageBroker(
             bandSender(frame)
             // v2.7.0 快应用自动拉起：仅在消息实际推送且快应用未打开时触发；
             // 去重/延迟/通知/拉起细节由 AutoLauncher 管理（设置页「快应用自动拉起」专区开关）
-            try { AutoLauncher.scheduleIfEnabled() } catch (t: Throwable) {
+            // v2.9.0：传入会话与重要级（@我）—— 拉起范围默认仅 @我/拍一拍我；免打扰会话不拉起
+            try { AutoLauncher.scheduleIfEnabled(message.targetId, important = message.atMe) } catch (t: Throwable) {
                 log("auto launch schedule exception: $t")
             }
         } catch (t: Throwable) {
@@ -386,6 +394,64 @@ class MessageBroker(
         }
     }
 
+    /**
+     * 拍一拍通知（v2.9.0）：只处理「拍一拍我」，拍别人不提醒。
+     * 链路与普通消息一致：入库（拍一拍标记）→ 互联下发 poke 帧（手环特效+长震）→
+     * 自动拉起（important=true，与 @我 合并为「重要消息拉起」；免打扰会话不拉起）。
+     * 名称解析：notice 事件无 sender 对象，发送者名在手机端用联系人缓存把 QQ 号解析为昵称
+     * （用户规则：@/拍一拍的协议解析与名称映射全部在手机端完成，手环零计算）。
+     */
+    override fun onPoke(poke: com.example.bandqq.onebot.OneBotPoke) {
+        try {
+            if (!poke.pokeMe) return
+            val senderName = store.contactName(poke.senderId).ifBlank { poke.senderId }
+            val content = "${OneBotParser.stripEmoji(senderName)} 拍了拍你"
+            store.addMessage(
+                poke.targetId,
+                StoredMessage(
+                    messageType = poke.chatType,
+                    senderId = poke.senderId,
+                    senderName = senderName,
+                    content = content,
+                    time = System.currentTimeMillis(),
+                    isSelf = false,
+                    poke = true
+                )
+            )
+            MessageBus.notify(poke.targetId)
+            val visible = store.isVisibleContact(poke.targetId)
+            val targetName = store.conversationName(poke.targetId, poke.chatType, senderName)
+            bandSender(
+                parser.buildPokeFrame(
+                    chatType = poke.chatType,
+                    targetId = poke.targetId,
+                    senderId = poke.senderId,
+                    senderName = senderName,
+                    targetName = targetName,
+                    content = content,
+                    visible = visible
+                )
+            )
+            try { AutoLauncher.scheduleIfEnabled(poke.targetId, important = true) } catch (t: Throwable) {
+                log("auto launch schedule exception (poke): $t")
+            }
+        } catch (t: Throwable) {
+            log("onPoke exception: $t")
+        }
+    }
+
+    /** @QQ号 → 联系人昵称（联系人缓存命中才替换；5 位以上数字才尝试，避免误伤普通文本） */
+    private fun decorateAtNames(content: String): String {
+        if (!content.contains("@")) return content
+        return AT_QQ_REF.replace(content) { m ->
+            val qq = m.groupValues[1]
+            val name = store.contactName(qq)
+            if (name.isNotBlank() && name != qq) "@$name" else m.value
+        }
+    }
+
+    private val AT_QQ_REF = Regex("@(\\d{5,})")
+
     /** 撤回同步帧（type=push_message + recall=1）：手环按 time 原位替换为撤回文案 */
     private fun buildRecallFrame(targetId: String, time: Long): String {
         val obj = com.google.gson.JsonObject()
@@ -453,6 +519,8 @@ class MessageBroker(
         obj.addProperty("seq", 0)
         obj.addProperty("emoji_native", cfg.emojiNative)
         obj.addProperty("msg_vibrate", cfg.bandMsgVibrate)
+        // v2.9.0：免打扰会话集合（逗号分隔 ID），手环据此渲染灰色红点
+        obj.addProperty("mute_list", cfg.mutedChats.joinToString(","))
         return obj.toString()
     }
 

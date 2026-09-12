@@ -49,7 +49,12 @@ data class AppConfig(
     val autoLaunchDelaySec: Int = 10,       // 收到消息到拉起的延迟（3~120s，设置页档位可选）
     val autoLaunchVibrate: Int = 1,         // v2.8.0 拉起后手环震动提示：0=不震 1=短震×2 2=长震
     // ===== 双端互通设置（v2.8.0）：RPK 设置页可改并回传，手机端可改并下发 =====
-    val bandMsgVibrate: Boolean = true      // 新消息手环振动（经 settings_state 帧同步到手环）
+    val bandMsgVibrate: Boolean = true,     // 新消息手环振动（经 settings_state 帧同步到手环）
+    // ===== v2.9.0 会话免打扰（手环长按会话开关，经 settings_update 帧上报；
+    //       红点变灰 + 免打扰会话不拉起快应用；逗号分隔 targetId 集合）=====
+    val mutedChats: Set<String> = emptySet(),
+    // v2.9.0 拉起范围：0=所有消息 1=仅 @我/拍一拍我（与拍一拍拉起合并为「重要消息拉起」）
+    val autoLaunchScope: Int = 1
 )
 
 object ConfigHolder {
@@ -84,6 +89,8 @@ class ConfigManager(private val context: Context) {
         val AUTO_LAUNCH_DELAY = intPreferencesKey("auto_launch_delay_sec")
         val AUTO_LAUNCH_VIBRATE = intPreferencesKey("auto_launch_vibrate")
         val BAND_MSG_VIBRATE = booleanPreferencesKey("band_msg_vibrate")
+        val MUTED_CHATS = stringPreferencesKey("muted_chats")
+        val AUTO_LAUNCH_SCOPE = intPreferencesKey("auto_launch_scope")
     }
 
     suspend fun load(): AppConfig {
@@ -118,7 +125,9 @@ class ConfigManager(private val context: Context) {
             autoLaunchEnabled = prefs[Keys.AUTO_LAUNCH_ENABLED] ?: default.autoLaunchEnabled,
             autoLaunchDelaySec = prefs[Keys.AUTO_LAUNCH_DELAY] ?: default.autoLaunchDelaySec,
             autoLaunchVibrate = prefs[Keys.AUTO_LAUNCH_VIBRATE] ?: default.autoLaunchVibrate,
-            bandMsgVibrate = prefs[Keys.BAND_MSG_VIBRATE] ?: default.bandMsgVibrate
+            bandMsgVibrate = prefs[Keys.BAND_MSG_VIBRATE] ?: default.bandMsgVibrate,
+            mutedChats = (prefs[Keys.MUTED_CHATS] ?: "").split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet(),
+            autoLaunchScope = prefs[Keys.AUTO_LAUNCH_SCOPE] ?: default.autoLaunchScope
         )
         ConfigHolder.config = cfg
         return cfg
@@ -151,6 +160,8 @@ class ConfigManager(private val context: Context) {
             prefs[Keys.AUTO_LAUNCH_DELAY] = config.autoLaunchDelaySec
             prefs[Keys.AUTO_LAUNCH_VIBRATE] = config.autoLaunchVibrate
             prefs[Keys.BAND_MSG_VIBRATE] = config.bandMsgVibrate
+            prefs[Keys.MUTED_CHATS] = config.mutedChats.joinToString(",")
+            prefs[Keys.AUTO_LAUNCH_SCOPE] = config.autoLaunchScope
         }
         ConfigHolder.config = config
     }
@@ -311,6 +322,15 @@ class ConfigManager(private val context: Context) {
         ConfigHolder.config = ConfigHolder.config.copy(autoLaunchVibrate = mode)
     }
 
+    /** v2.9.0 拉起范围：0=所有消息 1=仅 @我/拍一拍我 */
+    fun observeAutoLaunchScope(): Flow<Int> =
+        context.dataStore.data.map { it[Keys.AUTO_LAUNCH_SCOPE] ?: 1 }
+
+    suspend fun setAutoLaunchScope(scope: Int) {
+        context.dataStore.edit { it[Keys.AUTO_LAUNCH_SCOPE] = scope }
+        ConfigHolder.config = ConfigHolder.config.copy(autoLaunchScope = scope)
+    }
+
     // ===== 双端互通设置（v2.8.0）：手环端 settings_update 可回写，手机端改动即下发 =====
 
     fun observeBandMsgVibrate(): Flow<Boolean> =
@@ -322,11 +342,12 @@ class ConfigManager(private val context: Context) {
     }
 
     /**
-     * 手环端 settings_update 帧回写（v2.8.0 双端互通）。
+     * 手环端 settings_update 帧回写（v2.8.0 双端互通；v2.9.0 扩展免打扰集合）。
      * 在互联 IO 线程调用，直接落盘并同步 ConfigHolder；仅在值真正变化时返回 true，
      * 供调用方决定是否回推确认帧（避免手环↔手机设置同步风暴）。
+     * @param muteList 逗号分隔的免打扰会话 ID 集合（手环端长按菜单改动后全量上报）
      */
-    suspend fun applyBandSettings(emojiNative: Boolean?, msgVibrate: Boolean?): Boolean {
+    suspend fun applyBandSettings(emojiNative: Boolean?, msgVibrate: Boolean?, muteList: String? = null): Boolean {
         val cur = ConfigHolder.config
         var changed = false
         if (emojiNative != null && emojiNative != cur.emojiNative) {
@@ -337,10 +358,20 @@ class ConfigManager(private val context: Context) {
             context.dataStore.edit { it[Keys.BAND_MSG_VIBRATE] = msgVibrate }
             changed = true
         }
+        var newMuted = cur.mutedChats
+        if (muteList != null) {
+            val set = muteList.split(",").map { it.trim() }.filter { it.isNotEmpty() }.toSet()
+            if (set != cur.mutedChats) {
+                context.dataStore.edit { it[Keys.MUTED_CHATS] = set.joinToString(",") }
+                newMuted = set
+                changed = true
+            }
+        }
         if (changed) {
             ConfigHolder.config = ConfigHolder.config.copy(
                 emojiNative = emojiNative ?: cur.emojiNative,
-                bandMsgVibrate = msgVibrate ?: cur.bandMsgVibrate
+                bandMsgVibrate = msgVibrate ?: cur.bandMsgVibrate,
+                mutedChats = newMuted
             )
         }
         return changed

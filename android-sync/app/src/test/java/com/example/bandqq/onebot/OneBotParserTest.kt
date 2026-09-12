@@ -193,4 +193,65 @@ class OneBotParserTest {
         val msg = parser.parseMessageEvent(json)
         assertEquals(false, msg?.atMe)
     }
+
+    // ===== v2.9.0 拍一拍（notice.notify.poke）=====
+
+    @Test
+    fun `群聊拍一拍 target_id 指向我时判定 pokeMe`() {
+        val json = """
+            {"post_type":"notice","notice_type":"notify","sub_type":"poke",
+             "time":1757635200,"self_id":10000,"user_id":10086,"group_id":20001,"target_id":10000}
+        """.trimIndent()
+        val poke = parser.parsePokeEvent(json)
+        assertEquals(true, poke?.pokeMe)
+        assertEquals("group", poke?.chatType)
+        assertEquals("20001", poke?.targetId)
+        assertEquals("10086", poke?.senderId)
+    }
+
+    @Test
+    fun `私聊拍一拍无 group_id 落在拍人者会话且判定 pokeMe`() {
+        val json = """
+            {"post_type":"notice","notice_type":"notify","sub_type":"poke",
+             "time":1757635200,"self_id":10000,"user_id":10001,"target_id":10000}
+        """.trimIndent()
+        val poke = parser.parsePokeEvent(json)
+        assertEquals(true, poke?.pokeMe)
+        assertEquals("private", poke?.chatType)
+        assertEquals("10001", poke?.targetId)
+    }
+
+    @Test
+    fun `拍别人不判定 pokeMe 且兼容 group_poke 形态`() {
+        // NapCat 旧形态 notice_type=group_poke + 拍别人（target_id != self_id）
+        val json = """
+            {"post_type":"notice","notice_type":"group_poke",
+             "time":1757635200,"self_id":10000,"user_id":10086,"group_id":20001,"target_id":88888}
+        """.trimIndent()
+        val poke = parser.parsePokeEvent(json)
+        assertEquals(false, poke?.pokeMe)
+    }
+
+    @Test
+    fun `无 target_id 的私聊拍一拍默认拍的是我`() {
+        val json = """
+            {"post_type":"notice","notice_type":"notify","sub_type":"poke",
+             "time":1757635200,"self_id":10000,"user_id":10001}
+        """.trimIndent()
+        val poke = parser.parsePokeEvent(json)
+        assertEquals(true, poke?.pokeMe)
+        assertEquals("private", poke?.chatType)
+    }
+
+    @Test
+    fun `拍一拍手环帧带 poke 标志且普通帧不带`() {
+        val frame = parser.buildPokeFrame(
+            chatType = "private", targetId = "10001", senderId = "10001",
+            senderName = "马化腾", targetName = "马化腾", content = "马化腾 拍了拍你", visible = true
+        )
+        val obj = com.google.gson.JsonParser.parseString(frame).asJsonObject
+        assertEquals(1, obj.get("poke")?.asInt)
+        assertEquals("push_message", obj.get("type")?.asString)
+        assertEquals(true, obj.get("content")?.asString?.contains("拍了拍你"))
+    }
 }

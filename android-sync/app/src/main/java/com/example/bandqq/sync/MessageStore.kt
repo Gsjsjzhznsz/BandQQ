@@ -15,7 +15,8 @@ data class StoredMessage(
     val time: Long,
     val isSelf: Boolean = false,
     val messageId: String = "",  // OneBot message_id（旧持久化数据无此字段，默认空，撤回定位用）
-    val atMe: Boolean = false    // CQ:at 指向我/全体（手环端高亮；旧数据默认 false）
+    val atMe: Boolean = false,   // CQ:at 指向我/全体（手环端高亮；旧数据默认 false）
+    val poke: Boolean = false    // v2.9.0 拍一拍消息（content 形如「XX 拍了拍你」，手环端特效渲染）
 )
 
 data class ConversationInfo(
@@ -138,7 +139,8 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
                             time = normalizeTime(o.get("time")?.asLong ?: 0L),
                             isSelf = o.get("is_self")?.asBoolean ?: false,
                             messageId = o.get("message_id")?.asString ?: "",
-                            atMe = o.get("at_me")?.asBoolean ?: false
+                            atMe = o.get("at_me")?.asBoolean ?: false,
+                            poke = o.get("poke")?.asBoolean ?: false
                         )
                     )
                 }
@@ -164,6 +166,7 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
                 o.addProperty("is_self", m.isSelf)
                 if (m.messageId.isNotEmpty()) o.addProperty("message_id", m.messageId)
                 if (m.atMe) o.addProperty("at_me", true)
+                if (m.poke) o.addProperty("poke", true)
                 arr.add(o)
             }
             root.add(targetId, arr)
@@ -182,7 +185,8 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
             time = normalizeTime(msg.time),
             isSelf = msg.isSelf,
             messageId = msg.messageId,
-            atMe = msg.atMe
+            atMe = msg.atMe,
+            poke = msg.poke
         )
         val dedup = "$targetId|${normalized.senderId}|${normalized.time}|${normalized.content}"
         val existing = list.any { it.time == normalized.time && it.content == normalized.content }
@@ -455,9 +459,10 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
             o.addProperty("content", m.content)
             o.addProperty("time", m.time)
             o.addProperty("is_self", m.isSelf)
-            // 样式标志只在为真时下发（省字节）：rc=已撤回（手环灰显），at=@我（手环高亮）
+            // 样式标志只在为真时下发（省字节）：rc=已撤回（手环灰显），at=@我（手环高亮），poke=拍一拍（手环特效）
             if (m.content == RECALL_MARK) o.addProperty("rc", 1)
             if (m.atMe) o.addProperty("at", 1)
+            if (m.poke) o.addProperty("poke", 1)
             val itemBytes = o.toString().length
             if (bytes + itemBytes > maxBytes && arr.size() > 0) {
                 obj.addProperty("has_more", true)
