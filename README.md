@@ -10,7 +10,18 @@
 
 > 关键词：小米手环9 / Mi Band 9 / 小米手环10 / 小米手环11 / Mi Band 11 / 小米手环QQ / 小米手环9 Pro / Redmi Watch / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / Stapxs-QQ-Lite-X / wearable QQ / smartband chat / Mi Band QQ client
 
-## v2.8.2 + DevTools 1.2.1 更新日志（当前版本）
+## v2.8.2 + DevTools 1.2.2 更新日志（当前版本）
+
+### 发送链路已通（1.2.1 实测确认）
+用户日志：连接存活 31s+、连发 8 条零断开——NetworkOnMainThreadException 修复彻底生效，DevTools → APP → 手环消息链路打通。
+
+### @我 动效排查与增强（RPK 2.8.2）
+链路逐环验证（DevTools at段/self_id → APP isAtMe → at:1 下发 → 手环渲染）代码无断点，新增 3 例单测锁定 DevTools 同构事件形态。判定用户侧无动效的原因为：手环 RPK 版本旧（@样式 v2.7.0 才引入）或旧动效在小屏过于隐蔽（底色 #1f1f1f↔#33290e 呼吸幅度太小）。本轮：
+1. **手环聊天页**：@我 消息气泡上方新增静态金色「@我」徽标（不依赖动画支持，任何固件都可见）+ 呼吸底色对比加大（#4a3808）+ 边框亮度拉满。
+2. **DevTools 1.2.2**：@我 场景发送后追加身份自检日志——「at段 qq=… 与 self_id=… 一致」+ 默认身份（10000）提醒，@我 判定链自检不再靠猜。
+3. 手环 RPK 请务必更新到 **2.8.2（versionCode 36）**：手环 设置 → 关于 可核对版本；旧版 RPK 无 @ 样式。
+
+## v2.8.2 + DevTools 1.2.1 更新日志
 
 ### DevTools 1.2.1：NetworkOnMainThreadException —— 三轮联调的真正根因
 1.2.0 的「断连归因」日志终于让真凶现形：`下发失败：NetworkOnMainThreadException: null`。**DevTools 自己的 WS 服务器在 UI 主线程直接写 socket**——Android 强制禁止主线程网络 IO，每次点「发送」必然抛异常、写入失败、连接被服务端误标死亡并主动关闭。这就是「发一条断一条、不发能长连、手环永远收不到」的完整解释；此前怀疑的 APP 解析异常、心跳超时、版本问题全部排除（日志中 APP 2.8.2 连接、动作应答、好友/群列表均正常）。

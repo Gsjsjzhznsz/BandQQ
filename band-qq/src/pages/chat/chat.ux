@@ -16,6 +16,7 @@
       <div class="msg-item {{item.is_self ? 'self' : 'other'}}" for="{{item in messages}}" tid="tid">
         <div class="msg-col {{item.is_self ? 'col-self' : 'col-other'}}">
           <text class="msg-name" if="{{item.message_type === 'group' && !item.is_self}}">{{item.sender_name}}</text>
+          <text class="at-badge" if="{{item.at && !item.is_self && !item.rc}}">@我</text>
           <text class="bubble {{item.is_self ? 'bubble-self' : (item.rc ? 'bubble-rc' : (item.at ? 'bubble-other bubble-at' : 'bubble-other'))}}">{{item.content}}</text>
         </div>
       </div>
@@ -57,14 +58,17 @@
   .bubble-self { background-color: #07c160; color: #ffffff; }
   /* 撤回消息：灰底灰字小一号（手机端已把内容替换为撤回文案，rc 标志随历史帧/撤回同步帧下发） */
   .bubble-rc { background-color: #1f1f1f; color: #8a8a8a; font-size: 15px; border: 1px solid #333333; }
-  /* @我/全体 消息：金色正文 + 金色描边 + 呼吸光晕动画，一眼识别（手机端检测 CQ:at，手环零计算）
+  /* @我/全体 消息：金色正文 + 金色描边 + 呼吸动画 + 「@我」徽标，一眼识别（手机端检测 CQ:at，手环零计算）
      v2.7.0 动效：仅动 border-color 与描边亮度，不触发布局重排，低端手环无掉帧风险；
-     运行时不支持 keyframes 时优雅降级为静态金边高亮 */
+     v2.8.2 增强：v2.7.0 呼吸幅度（#1f1f1f↔#33290e）在小屏过于隐蔽，改大对比底色闪烁 +
+     静态金色「@我」徽标（动画不支持时仍有双重视觉标识，不再依赖 keyframes 生效与否） */
   .bubble-at { color: #ffd54f; border: 1px solid rgba(255, 213, 79, 0.85); animation-name: atPulse; animation-duration: 2s; animation-iteration-count: infinite; animation-timing-function: ease-in-out; }
+  /* 「@我」金色徽标：静态渲染不参与动画，呼吸弱化时仍是醒目标识 */
+  .at-badge { font-size: 13px; line-height: 18px; color: #ffd54f; background-color: rgba(255, 213, 79, 0.16); border: 1px solid rgba(255, 213, 79, 0.55); border-radius: 6px; padding: 1px 6px; margin-bottom: 3px; }
   @keyframes atPulse {
-    0% { border-color: rgba(255, 213, 79, 0.25); background-color: #1f1f1f; }
-    50% { border-color: rgba(255, 213, 79, 0.95); background-color: #33290e; }
-    100% { border-color: rgba(255, 213, 79, 0.25); background-color: #1f1f1f; }
+    0% { border-color: rgba(255, 213, 79, 0.2); background-color: #1f1f1f; }
+    50% { border-color: rgba(255, 213, 79, 1); background-color: #4a3808; }
+    100% { border-color: rgba(255, 213, 79, 0.2); background-color: #1f1f1f; }
   }
   .bubble-other { background-color: #1f1f1f; color: #ffffff; }
   /* 快捷回复：横向滚动按钮行，标签为手机端剥离 CQ 码后的纯文本 */

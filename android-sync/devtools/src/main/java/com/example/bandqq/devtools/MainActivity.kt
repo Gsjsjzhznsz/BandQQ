@@ -438,6 +438,10 @@ class MainActivity : AppCompatActivity() {
                 )
                 ws.broadcast(event)
                 appendLog("已发送：${if (chatType == "group") "群聊" else "私聊"} · ${MsgBuilder.scenarioLabel(scenario)}（$nickname）")
+                if (scenario == "at") {
+                    val defaultHint = if (selfQq() == MsgBuilder.DEFAULT_SELF_ID) "（默认身份，如需真实QQ号请在「我的身份」填写）" else ""
+                    appendLog("  ↳ @我自检：at段 qq=${selfQq()} 与事件 self_id=${selfQq()} 一致 → APP 判定@我 → 手环金色「@我」徽标+呼吸高亮$defaultHint")
+                }
             }
         }
     }

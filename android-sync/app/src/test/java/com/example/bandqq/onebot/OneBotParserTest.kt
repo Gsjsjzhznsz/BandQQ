@@ -151,4 +151,46 @@ class OneBotParserTest {
         val msg = parser.parseMessageEvent(json)
         assertEquals("阿杰", msg?.senderName)
     }
+
+    @Test
+    fun `DevTools 同构 at 段事件判定 atMe（self_id 数字 + at qq 字符串）`() {
+        // DevTools MsgBuilder.messageEvent 实际输出形态：self_id 为 JSON 数字，
+        // at 段 data.qq 为字符串（selfId.toString()）；二者数值一致必须判为 @我
+        val json = """
+            {"post_type":"message","message_type":"private","time":1757635200,
+             "self_id":10000,"user_id":10086,"message_id":"dev_1757635200_1",
+             "sender":{"nickname":"999","user_id":10086},
+             "message":[{"type":"at","data":{"qq":"10000"}},
+                        {"type":"text","data":{"text":"刚刚的方案你觉得怎么样？"}}]}
+        """.trimIndent()
+        val msg = parser.parseMessageEvent(json)
+        assertEquals(true, msg?.atMe)
+    }
+
+    @Test
+    fun `DevTools 同构 at 段事件判定 atMe（at qq 为 JSON 数字形态）`() {
+        // 防御：某些协议端把 at 段 qq 上报为数字，字符串比较必须不漏判
+        val json = """
+            {"post_type":"message","message_type":"group","group_id":20001,"time":1757635200,
+             "self_id":10000,"user_id":10086,"message_id":"dev_1757635200_2",
+             "sender":{"nickname":"群友小王","user_id":10086},
+             "message":[{"type":"at","data":{"qq":10000}},
+                        {"type":"text","data":{"text":"看这里"}}]}
+        """.trimIndent()
+        val msg = parser.parseMessageEvent(json)
+        assertEquals(true, msg?.atMe)
+    }
+
+    @Test
+    fun `at 段 qq 与 self_id 不一致时不算 atMe`() {
+        val json = """
+            {"post_type":"message","message_type":"private","time":1757635200,
+             "self_id":10000,"user_id":10086,"message_id":"dev_1757635200_3",
+             "sender":{"nickname":"999","user_id":10086},
+             "message":[{"type":"at","data":{"qq":"88888"}},
+                        {"type":"text","data":{"text":"@别人"}}]}
+        """.trimIndent()
+        val msg = parser.parseMessageEvent(json)
+        assertEquals(false, msg?.atMe)
+    }
 }
