@@ -1,5 +1,5 @@
 <template>
-  <div class="page">
+  <div class="page {{dc === 'round' ? 'page-round' : ''}} {{dc === 'wide' ? 'page-wide' : ''}}">
     <div class="top-row">
       <image class="btn" src="../../common/ui/back.png" onclick="goBack"></image>
     </div>
@@ -76,6 +76,29 @@
   .confirm-btns { flex-direction: row; justify-content: space-between; }
   .confirm-cancel { flex: 1; text-align: center; padding: 9px 0; font-size: 16px; color: #999999; background-color: #3a3a3a; border-radius: 12px; margin-right: 8px; }
   .confirm-ok { flex: 1; text-align: center; padding: 9px 0; font-size: 16px; color: #ffffff; background-color: #ff5a5a; border-radius: 12px; }
+
+  /* ============ v2.10.0 机型分档覆盖 ============ */
+  .page-wide { }
+  .page-wide .top-row { height: 44px; }
+  .page-wide .btn { width: 56px; height: 40px; }
+  .page-wide .title-bar { height: 30px; }
+  .page-wide .page-title { font-size: 20px; }
+  .page-wide .row { height: 48px; margin: 5px 10px; }
+  .page-round { }
+  .page-round .top-row { height: 40px; }
+  .page-round .btn { width: 50px; height: 36px; }
+  .page-round .title-bar { height: 24px; }
+  .page-round .page-title { font-size: 19px; }
+  .page-round .body { width: 100%; padding: 0 14px; }
+  .page-round .row { height: 42px; margin: 4px 0; padding: 0 10px; border-radius: 12px; }
+  .page-round .row-label { font-size: 16px; }
+  .page-round .row-value { font-size: 16px; }
+  .page-round .section { font-size: 12px; padding: 10px 10px 0 10px; }
+  /* 圆屏弹窗：宽度与总高压缩到圆弧安全区内 */
+  .page-round .confirm-box { width: 150px; padding: 10px; }
+  .page-round .confirm-desc { font-size: 12px; lines: 3; text-overflow: ellipsis; margin-bottom: 10px; }
+  .page-round .confirm-cancel { padding: 6px 0; font-size: 14px; }
+  .page-round .confirm-ok { padding: 6px 0; font-size: 14px; }
 </style>
 
 <script>
@@ -89,7 +112,8 @@
       protocolText: '未知',
       vibrateText: '开',
       emojiText: '原生',
-      confirmShow: false
+      confirmShow: false,
+      dc: 'band'
     },
     onShow() {
       this.refreshStatus()
@@ -97,6 +121,9 @@
       this.pullConnectState()
     },
     onInit() {
+      const def = this.$app.$def
+      this.dc = def.deviceProfile.cls()
+      def.on('device_profile', () => { this.dc = def.deviceProfile.cls() })
       this.$app.$def.on('state', () => this.refreshStatus())
       // v2.8.0 双端互通：手机端改了设置 → 快照到达 → 刷新行文案
       this.$app.$def.on('settings', () => this.refreshSettings())

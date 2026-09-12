@@ -9,7 +9,7 @@
 
 ## 版本线
 - v1.1.x：旧 lineage（stapxs 移植版，源码已失传，legacy/ 有 7z 分卷）
-- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.9.1**（RPK vc39 + app vc40 文件日志）+ DevTools 1.3.0（vc6）
+- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.10.0**（RPK vc40 三屏形态分档 + 官方输入法组件升级）+ app 2.9.1（vc40 文件日志）+ DevTools 1.3.0（vc6）
 - 签名一致性：rpk 与 APK 同源证书，APK SHA-256 = af8819e27a6ec8d84537ec86937cf016e780376305328abaa4eb79e8c626b004
 
 ## v2.1.0 已完成（2026-09-09）
@@ -35,6 +35,7 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 - rpk: `cd band-qq && npm i && npx aiot release`（sign/release/{private,certificate}.pem 已在仓库；产物在 band-qq/dist/ 非 .temp_band-qq/dist）
 - APK: `JAVA_HOME=… gradle assembleRelease`（根目录 keystore.jks, storePassword bandqq123/alias bandqq；签名 SHA-256 af8819e2 同源）
 - **Vela 语法坑**：tid 用字段名（tid="id"）；样式不支持 :active 伪类；小尺寸 text 的 onclick 可能不响应点击（gRPC 注入场景），点击区挂大容器（div）兜底
+- **Vela 引擎坑（v2.10.0 新增）**：① 流内子元素设 `position:absolute` 会把**兄弟布局整体打乱**（聊天页顶栏被下移 ~78design；需“不占位”用 `height:0px + overflow:hidden`）② `transform: scale()` 只改视觉，**触控命中坐标不随 transform 映射**（缩放键盘点按无效）——勿用 transform 缩放可交互组件 ③ px 单位=designWidth 等比缩放（rem 类似物）；RW5 实测缩放≈2.0（非理论 432/192=2.25，引擎内部有 DPR 参与勿按理论值推布局）
 - **VVD 虚拟机（小米官方 Vela 模拟器）**：SDK 手动装 /home/z/my-project/scripts/emulator-setup.sh（官方 CDN vela-watch-5.0 镜像）；vvd-ctl.js create（density 只能枚举值 120..640，Band11 用 320 非 326）/deploy（PATH 需含 adb）/tap/swipe/shot/multtap/longpress；startApp 应答超时但实际启动成功；连点彩蛋用 multtap（跨进程间隔会重置计数）
 - 基线固有测试失败（非回归）：api.test.js 门控用例（Node24）、GameProtocolDetectorTest localhost 探测（容器环境）
 
@@ -269,3 +270,14 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 6. **演示模式彩蛋**：about.ux 连点版本区 7 次 → store.injectDemo() 注入两个演示会话（群：@我+拍一拍+普通；私聊：文本+拍一拍；马化腾会话默认免打扰展示灰点）。用途：Vela 虚拟机无互联环境实拍界面。**教训：Vela text 小点击区 onclick 可能不响应（gRPC sendMouse down→up 不触发），点击区要挂到大容器（hero div）**。
 7. **小米官方 Vela 虚拟机（VVD）实拍流程**：SDK 手动装（/home/z/my-project/scripts/emulator-setup.sh，vela-ide.cnbj3-fusion.mi-fs.com 官方 CDN，vela-watch-5.0 镜像 20250716）→ vvd-ctl.js（create Band11 212 520 320；**density 只能用枚举值 120..640，326 报 Bad LCD density**；deploy 后台跑需 PATH 含 /home/z/android-sdk/platform-tools/adb；startApp 应答超时属正常，app 实际已启动）→ gRPC tap/swipe/longpress/multtap/shot（脚本已扩展）。am start/pm install 偶发阻塞 adb shell，重启模拟器最省事。截图 = getScreenshot PNG 原生 212×520。
 8. 构建：RPK 2.9.0/vc38（包内验证 pokeShake/badge-muted/toggleMute/onVerTap/injectDemo/pokeMe 全入包）+ app vc39/2.9.0 + devtools vc6/1.3.0；手环单测 54/54（新增 poke/免打扰/演示 3 例）+ ux 语法 12 文件全过 + APP 侧 poke 单测 5 例。
+
+## v2.10.0（2026-09-12，RPK vc40）— 新机型适配：小米手表 S4/S5 + Redmi Watch 5/6（三屏形态自动分档）
+
+**用户指令**：3 台设备适配正常后继续适配小米 S4/S5 系列、红米 Watch5/6 系列，搭配 Vela 虚拟机适配。
+
+1. **机型档位（common/device.js 新模块）**：`device.getInfo()`（screenShape + screenWidth/screenHeight + 长宽比兜底）→ 三档：band（含 336×480 手环 8Pro/9Pro，零改动）/ wide（w≥380 且 w/h≥0.75，即 Redmi Watch 5/6 432×514）/ round（screenShape=circle 或 w/h>0.88，即 S3/S4 466×466、S5/S1 Pro 480×480）。app.onCreate init，`device_profile` 事件广播；页面根节点绑 `page-round`/`page-wide` 类，CSS 后代选择器覆盖结构尺寸（行高/顶栏/快捷区/输入栏/弹窗），字体保持等比（designWidth 192 全机型排版比例一致）。
+2. **官方输入法组件升级**：整体替换为上游 NEORUAA/Vela_input_method 新版（dictionaryLoader + dictionary/*.json 拼音词库 + 多拼整词候选；complete 事件 `{content}` 与旧双兼容）；manifest 新增 `system.file` feature。**Band11 拼音键盘在 kb-wrap 包装内实测 qw→「请问/千万」候选正常，零回归**。
+3. **宽/圆屏自建紧凑键盘（compose.ux skb）**：官方 rect/circle 变体按 designWidth≈物理宽写死内尺寸，scale 包装后**触控命中坐标不随 transform 映射（虚拟机实测点按无效）**→ 纯 flex 四行 QWERTY（abc/大小写/123 三态，自动退位，空格/逗号/句号/完成），命中零风险（RW5 点 u、S4 点 t 回显验证）。band 分支仍走官方组件（kb-wrap + scale(1) 与原直挂等价）。
+4. **Vela 引擎坑（本轮实证，已入构建配方）**：① 流内子元素 position:absolute 打乱兄弟布局（chat 页 send-status absolute → 顶栏下移 78design，改 height:0+overflow:hidden 解决）② transform scale 命中不映射 ③ RW5 实测 px 缩放≈2.0（非理论 2.25），勿按理论值推布局，以 VVD 实拍为准。
+5. **VVD 四机验收**：Band11 212×520（band 零回归逐页对照）/ RW5 432×514（wide 全页 + 键盘命中）/ S4 466×466（round 全页 + 键盘命中）/ S5 480×480（列表/设置/关于/演示注入）。截图 13 张交付 docs/screenshots-v210/ + download/bandqq-screenshots-v210/。
+6. 构建：RPK 2.10.0/vc40（app/DevTools 无改动不重发）；单测 58/59（api.test.js 门控 1 例为 v2.7.0 起基线失败）；ux 语法 ALL OK。**坑：build-rpk.sh 的 OUT_DIR 相对路径在 cd 后落到 band-qq/dist/**，产物规范名 bandqq-watch-release-2.10.0.rpk 需手动 cp。

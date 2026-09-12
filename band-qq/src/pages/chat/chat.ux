@@ -1,5 +1,5 @@
 <template>
-  <div class="page">
+  <div class="page {{dc === 'round' ? 'page-round' : ''}} {{dc === 'wide' ? 'page-wide' : ''}}">
     <div class="top-row">
       <image class="btn-back" src="../../common/ui/back.png" onclick="goBack"></image>
     </div>
@@ -92,6 +92,38 @@
   .quick-btn { height: 40px; border-radius: 20px; background-color: #262626; border-width: 1px; border-color: #3a3a3a; justify-content: center; align-items: center; margin: 0 4px; padding: 0 12px; flex-shrink: 0; }
   .quick-text { font-size: 16px; color: #e8e8e8; }
   .input-bar { height: 74px; flex-direction: row; align-items: center; justify-content: center; border-top: 1px solid #222222; }
+
+  /* ============ v2.10.0 机型分档覆盖 ============
+     宽屏/圆屏视口纵向紧张：顶栏/快捷区/输入栏紧凑化，
+     发送状态改绝对定位悬浮，不占布局高度 */
+  .page-wide { }
+  .page-wide .top-row { height: 44px; }
+  .page-wide .btn-back { width: 56px; height: 40px; }
+  .page-wide .title-bar { height: 26px; }
+  .page-wide .page-title { font-size: 19px; }
+  .page-wide .send-status { height: 0px; overflow: hidden; }
+  .page-wide .send-status-text { font-size: 12px; }
+  .page-wide .msg-col { max-width: 150px; }
+  .page-wide .quick-area { height: 36px; }
+  .page-wide .quick-row { height: 36px; }
+  .page-wide .quick-btn { height: 28px; border-radius: 14px; }
+  .page-wide .quick-text { font-size: 13px; }
+  .page-wide .input-bar { height: 42px; }
+  .page-wide .btn { width: 56px; height: 40px; }
+  .page-round { }
+  .page-round .top-row { height: 38px; }
+  .page-round .btn-back { width: 50px; height: 34px; }
+  .page-round .title-bar { height: 22px; }
+  .page-round .page-title { font-size: 17px; max-width: 150px; }
+  .page-round .send-status { height: 0px; overflow: hidden; }
+  .page-round .send-status-text { font-size: 12px; }
+  .page-round .msg-col { max-width: 150px; }
+  .page-round .quick-area { height: 28px; }
+  .page-round .quick-row { height: 28px; }
+  .page-round .quick-btn { height: 22px; border-radius: 11px; padding: 0 8px; }
+  .page-round .quick-text { font-size: 11px; }
+  .page-round .input-bar { height: 34px; border-top: none; }
+  .page-round .btn { width: 50px; height: 34px; }
 </style>
 
 <script>
@@ -111,10 +143,14 @@
       scrollTop: 0,
       quickReplies: [],
       hasMore: false,
-      loadingOlder: false
+      loadingOlder: false,
+      dc: 'band'
     },
     onInit(params) {
       console.log('[BANDQQ] v21 chat onInit')
+      const def0 = this.$app.$def
+      this.dc = def0.deviceProfile.cls()
+      def0.on('device_profile', () => { this.dc = def0.deviceProfile.cls() })
       let targetId = (params && params.targetId) || ''
       let convName = (params && params.name) || ''
       if (!targetId && params && params.uri) {

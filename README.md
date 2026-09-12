@@ -1,22 +1,36 @@
-# BandQQ v2.9.1 — 小米手环 9/10/11 QQ 消息助手（手环快应用 + 安卓同步器）
+# BandQQ v2.10.0 — 小米手环 9/10/11 + 小米手表 S4/S5 + Redmi Watch 5/6 QQ 消息助手（手环快应用 + 安卓同步器）
 
 > 🧠 **AI 协作记忆库**：[`MEMORY.md`](MEMORY.md) — 本项目的跨会话持久记忆（架构 / bug 台账 / 构建配方 / 任务清单）。任何新会话恢复上下文，先读它。
 
-[![Version](https://img.shields.io/badge/version-2.9.1-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-2.10.0-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
 
 ![BandQQ 宣传图](docs/promo/banner-3x2.jpg)
 
 **BandQQ** 是一套开源的「小米手环 QQ 消息助手」双端方案：手环端运行 Vela 快应用（rpk），手机端运行安卓同步器（APK），通过小米互联蓝牙通道把 QQ 消息实时同步到手环，支持直接在手环上**查看 / 回复 / 翻历史消息 / 收图**。
 
-## 界面预览（手环 11 官方 Vela 虚拟机实拍 · 212×520）
+## 支持机型（v2.10.0 起三屏形态通吃）
 
-| 会话列表（五会话铺满 + @我 标 + 免打扰灰点） | 群聊（@我 金色高亮） |
-|:---:|:---:|
-| ![会话列表](docs/screenshots-vvm/01-会话列表-免打扰灰点.png) | ![聊天页@我](docs/screenshots-vvm/02-群聊-@我金色高亮.png) |
+| 形态 | 机型 | 分辨率 | 适配方式 |
+|---|---|---|---|
+| 胶囊/窄屏手环 | 小米手环 9 / 10 / 11 | 192×490 / 212×520 | 原生布局（designWidth 192） |
+| 矩形大屏手表 | **Redmi Watch 5 / Watch 6** | 432×514 | 宽屏紧凑档（自动识别） |
+| 圆形手表 | **Xiaomi Watch S3 / S4 / S4 sport / H1**（466×466）、**Watch S5 / S1 Pro**（480×480） | 466/480×同 | 圆屏安全区档（自动识别） |
 
-| 群聊拍一拍特效 | 私聊拍一拍特效 |
+> 运行时通过 `device.getInfo()` 自动分档（band / wide / round），无需手动选择；宽屏与圆屏自带专属紧凑键盘（QWERTY/123/大小写），手环端保留官方输入法组件拼音引擎。
+
+## 界面预览（小米官方 Vela 虚拟机实拍 · 三种屏幕形态）
+
+| 手环 11（212×520）会话列表 | 手环 11 群聊拍一拍 + @我 |
 |:---:|:---:|
-| ![群聊拍一拍](docs/screenshots-vvm/03-群聊-拍一拍特效.png) | ![私聊拍一拍](docs/screenshots-vvm/04-私聊-拍一拍特效.png) |
+| ![手环11列表](docs/screenshots-vvm/01-会话列表-免打扰灰点.png) | ![手环11群聊](docs/screenshots-vvm/02-群聊-@我金色高亮.png) |
+
+| Redmi Watch 5（432×514）会话列表 | Redmi Watch 5 聊天页 |
+|:---:|:---:|
+| ![RW5列表](docs/screenshots-v210/rw5-01-会话列表.png) | ![RW5聊天](docs/screenshots-v210/rw5-02-群聊@我.png) |
+
+| Watch S4（466×466 圆屏）会话列表 | Watch S4 紧凑键盘 |
+|:---:|:---:|
+| ![S4列表](docs/screenshots-v210/s4-01-会话列表.png) | ![S4键盘](docs/screenshots-v210/s4-03-紧凑键盘.png) |
 
 > 被群友 @ 时：会话列表金色「@我」角标 + 聊天页「@我」徽标与高亮呼吸气泡 + 长震提醒，三重感知不错过任何一条艾特；有人拍一拍你：居中紫色「XX 拍了拍你」特效胶囊 + 晃动动画 + 长震；长按会话开启免打扰：红点变灰、不自动拉起。
 
@@ -24,9 +38,21 @@
 
 > **上游仓库说明**：本项目上游为 [Astroptis/band-qq-assistant](https://github.com/Astroptis/band-qq-assistant)。v2.x 系列以上游 main（opencode 基线）为底重写：性能架构升级为「手机端预处理 + 手环零计算直渲染」，并带回未读角标 / 快捷回复 / 历史翻页 / 彩色头像等特性。感谢上游作者的奠基工作。
 
-> 关键词：小米手环9 / Mi Band 9 / 小米手环10 / 小米手环11 / Mi Band 11 / 小米手环QQ / 小米手环9 Pro / Redmi Watch / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / Stapxs-QQ-Lite-X / wearable QQ / smartband chat / Mi Band QQ client
+> 关键词：小米手环9 / Mi Band 9 / 小米手环10 / 小米手环11 / Mi Band 11 / 小米手环QQ / 小米手环9 Pro / Redmi Watch 5 / Redmi Watch 6 / 小米手表S4 / 小米手表S5 / Xiaomi Watch S4 / Xiaomi Watch S5 / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / Stapxs-QQ-Lite-X / wearable QQ / smartband chat / Mi Band QQ client
 
-## v2.9.1 更新日志（当前版本）
+## v2.10.0 更新日志（当前版本）
+
+### 新机型适配：小米手表 S4/S5 + Redmi Watch 5/6（三屏形态自动分档）
+运行时通过 `device.getInfo()`（screenShape + 分辨率 + 长宽比兑底）自动把设备分为三档，各页面按档位套用专属布局覆盖，**手环 9/10/11 原有布局零改动**：
+- **band（胶囊/窄屏手环）**：192×490 / 212×520 / 336×480 —— 原生布局原样保留，零回归（Band 11 虚拟机逐页对照验证）
+- **wide（矩形大屏）**：Redmi Watch 5 / 6（432×514，宽高比 0.84）—— 视口 192×228，顶栏/列表行/快捷回复/输入栏全部紧凑化，发送状态改零高流内元素
+- **round（圆屏手表）**：Xiaomi Watch S3/S4/S4 sport/H1（466×466）、Watch S5/S1 Pro（480×480）—— 视口 192×192，圆弧安全区内缩（列表两侧收边、弹窗压缩、状态栏减高），对话/列表/设置/关于逐页虚拟机实拍验收
+- **官方输入法组件升级**：同步上游 [NEORUAA/Vela_input_method](https://github.com/NEORUAA/Vela_input_method)（新增拼音词库系统 dictionaryLoader + 多拼音整词候选），manifest 新增 `system.file` feature；手环端继续用胶囊变体拼音引擎（实测 qw→「请问/千万」候选正常）
+- **宽/圆屏自建紧凑键盘**：官方 rect/circle 键盘变体按「designWidth≈物理宽」写死内尺寸，缩放包装后触控命中坐标不随 transform 映射（虚拟机实测点击无效）——改为纯 flex 原生布局的 QWERTY/123/大小写紧凑键盘，四行结构，命中零风险（RW5/S4 实拍点按回显验证）；手环端不受影响
+- **两个 Vela 引擎坑入库**：① 流内子元素设 `position:absolute` 会把兄弟布局整体打乱（聊天页顶栏被下移 78design，改零高流内元素解决）② transform scale 只影响视觉不影响触控命中坐标
+- 版本：RPK 2.10.0（vc40）；同步器 / DevTools 无改动不重发；手环侧单测 58/59 过（1 例为 v2.7.0 起存量基线失败，与本次无关）；Band11 / RW5 / S4 / S5 四台 VVD 虚拟机逐页实拍验收
+
+## v2.9.1 更新日志
 
 ### 主页面列表铺满整屏（布局修复）
 用户指出主页面只能显示半页联系人（虚拟机实拍同样暴露此问题）：像素级排查确认 Vela 引擎 scroll 组件的 `background-color` **只绘制内容高度区域、不铺满 flex:1 拉伸后的视口** —— 列表视觉在内容结束处「断裂」，数据少时下半屏全黑，观感如同只能显示半页。

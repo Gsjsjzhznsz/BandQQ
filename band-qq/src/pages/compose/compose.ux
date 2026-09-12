@@ -1,6 +1,6 @@
 <import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
 <template>
-  <div class="page">
+  <div class="page {{dc === 'round' ? 'page-round' : ''}} {{dc === 'wide' ? 'page-wide' : ''}}">
     <div class="top-bar">
       <image class="btn" src="../../common/ui/back.png" onclick="goBack"></image>
       <text class="done-btn" onclick="confirmDraft">完成</text>
@@ -10,15 +10,43 @@
         <text class="preview-text">{{draft || '在这里输入内容，点击下方键盘按键'}}</text>
       </scroll>
     </div>
-    <input-method
-      hide="{{false}}"
-      keyboardtype="QWERTY"
-      maxlength="5"
-      vibratemode="short"
-      screentype="pill-shaped"
-      @complete="onComplete"
-      @delete="onDelete"
-    ></input-method>
+    <!-- v2.10.0 机型分档：band 机直挂官方胶囊键盘（拼音引擎零回归）；
+         宽/圆屏自建紧凑键盘（官方 rect/circle 变体按 designWidth≈物理宽写死内尺寸，
+         缩放包装后触控命中坐标不随 transform 映射，实测点击无效 → 原生布局自建） -->
+    <div class="kb-wrap" if="{{dc === 'band'}}" style="height: {{kb.kbSlotH}}px;">
+      <div class="kb-inner" style="width: {{kb.kbW}}px; height: {{kb.kbH}}px; transform: scale({{kb.kbScale}}); transform-origin: {{kb.kbOrigin}}; left: {{kb.kbLeft}}px;">
+        <input-method
+          hide="{{false}}"
+          keyboardtype="QWERTY"
+          maxlength="5"
+          vibratemode="short"
+          screentype="{{kb.kbType}}"
+          @complete="onComplete"
+          @delete="onDelete"
+        ></input-method>
+      </div>
+    </div>
+    <!-- 自建紧凑键盘（wide/round）：五行 QWERTY，纯 flex 原生命中 -->
+    <div class="skb" if="{{dc !== 'band'}}">
+      <div class="skb-row">
+        <text class="skb-key" for="{{k in skbRows[skbMode][0]}}" @click="skbTap(k)">{{skbMode === 'abc' && skbAlpha ? k.toUpperCase() : k}}</text>
+      </div>
+      <div class="skb-row">
+        <text class="skb-key" for="{{k in skbRows[skbMode][1]}}" @click="skbTap(k)">{{skbMode === 'abc' && skbAlpha ? k.toUpperCase() : k}}</text>
+      </div>
+      <div class="skb-row">
+        <text class="skb-fn" @click="skbCase">{{skbCaseTxt}}</text>
+        <text class="skb-key" for="{{k in skbRows[skbMode][2]}}" @click="skbTap(k)">{{skbMode === 'abc' && skbAlpha ? k.toUpperCase() : k}}</text>
+        <text class="skb-fn" @click="skbDel">⌫</text>
+      </div>
+      <div class="skb-row">
+        <text class="skb-fn skb-wide-fn" @click="skbModeToggle">{{skbModeTxt}}</text>
+        <text class="skb-key" @click="skbTap('，')">，</text>
+        <text class="skb-space" @click="skbTap(' ')">空格</text>
+        <text class="skb-key" @click="skbTap('。')">。</text>
+        <text class="skb-fn skb-ok" @click="confirmDraft">完成</text>
+      </div>
+    </div>
 
     <div class="mask" if="{{confirmShow}}">
       <div class="confirm-box">
@@ -44,6 +72,9 @@
   .preview-box { flex: 1; padding: 8px 10px; align-items: flex-start; justify-content: flex-start; }
   .preview-scroll { width: 176px; flex: 1; }
   .preview-text { font-size: 24px; color: #0d84ff; line-height: 34px; text-align: left; word-break: break-all; }
+  /* v2.10.0 键盘缩放包装：kb-wrap 占位视觉高度（kbSlotH），kb-inner 绝对定位锚底 + transform 等比缩放 */
+  .kb-wrap { position: relative; width: 100%; flex-shrink: 0; }
+  .kb-inner { position: absolute; bottom: 0; }
   .mask { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.65); align-items: center; justify-content: center; }
   .confirm-box { width: 176px; background-color: #2b2b2b; border-radius: 14px; padding: 14px; flex-direction: column; }
   .confirm-title { font-size: 18px; color: #ffffff; font-weight: bold; text-align: center; margin-bottom: 8px; }
@@ -52,6 +83,34 @@
   .confirm-btns { flex-direction: row; justify-content: space-between; margin-top: 16px; }
   .confirm-cancel { flex: 1; text-align: center; padding: 12px 0; font-size: 20px; color: #999999; background-color: #3a3a3a; border-radius: 16px; margin-right: 12px; }
   .confirm-ok { flex: 1; text-align: center; padding: 12px 0; font-size: 20px; color: #ffffff; background-color: #07c160; border-radius: 16px; }
+
+  /* ============ v2.10.0 机型分档覆盖 ============ */
+  .page-wide { }
+  .page-wide .top-bar { height: 44px; }
+  .page-wide .btn { width: 56px; height: 40px; }
+  .page-wide .done-btn { width: 92px; height: 40px; line-height: 40px; font-size: 18px; }
+  .page-wide .preview-scroll { width: 100%; }
+  .page-wide .preview-text { font-size: 19px; line-height: 27px; }
+  .page-round { }
+  .page-round .top-bar { height: 36px; padding: 0 4px; }
+  .page-round .btn { width: 48px; height: 34px; }
+  .page-round .done-btn { width: 78px; height: 32px; line-height: 32px; font-size: 15px; border-radius: 16px; }
+  .page-round .preview-box { padding: 4px 14px; }
+  .page-round .preview-scroll { width: 100%; }
+  .page-round .preview-text { font-size: 17px; line-height: 24px; }
+
+  /* ============ v2.10.0 自建紧凑键盘（wide/round）============
+     纯 flex 原生布局，无 transform，触控命中零风险；band 机不走此分支 */
+  .skb { flex-shrink: 0; flex-direction: column; padding: 2px 3px 5px 3px; background-color: #111111; }
+  .skb-row { flex-direction: row; justify-content: center; margin-top: 3px; }
+  .skb-key { width: 16px; height: 20px; margin: 0 1px; border-radius: 4px; background-color: #262626; color: #ffffff; font-size: 10px; text-align: center; line-height: 20px; }
+  .skb-fn { width: 22px; height: 20px; margin: 0 1px; border-radius: 4px; background-color: #3a3a3a; color: #e8e8e8; font-size: 10px; text-align: center; line-height: 20px; }
+  .skb-wide-fn { width: 26px; }
+  .skb-space { flex: 1; height: 20px; margin: 0 2px; border-radius: 4px; background-color: #262626; color: #bbbbbb; font-size: 10px; text-align: center; line-height: 20px; }
+  .skb-ok { background-color: #07c160; color: #ffffff; width: 30px; }
+  /* 圆屏再压一行高度，给预览区让空间 */
+  .page-round .skb-key, .page-round .skb-fn, .page-round .skb-space { height: 16px; line-height: 16px; }
+  .page-round .skb-row { margin-top: 2px; }
 </style>
 
 <script>
@@ -65,9 +124,42 @@
       draft: ''
     },
     private: {
-      confirmShow: false
+      confirmShow: false,
+      dc: 'band',
+      kb: { kbType: 'pill-shaped', kbScale: 1, kbW: 192, kbH: 305, kbLeft: 0, kbOrigin: 'bottom left', kbSlotH: 305 },
+      skbMode: 'abc',
+      skbAlpha: false,
+      skbRows: {
+        abc: [
+          ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
+          ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
+          ['z', 'x', 'c', 'v', 'b', 'n', 'm']
+        ],
+        '123': [
+          ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
+          ['-', '/', ':', ';', '(', ')', '@', '“', '”'],
+          ['？', '！', '…', '~', '*']
+        ]
+      }
+    },
+    computed: {
+      skbCaseTxt() {
+        return this.skbMode === '123' ? 'abc' : (this.skbAlpha ? 'ABC' : 'abc')
+      },
+      skbModeTxt() {
+        return this.skbMode === 'abc' ? '123' : 'abc'
+      }
     },
     onInit(params) {
+      const def = this.$app.$def
+      // v2.10.0 机型分档：键盘参数随 device_profile 事件刷新（shallow copy 保证响应式）
+      const applyProfile = () => {
+        const p = def.deviceProfile.get()
+        this.dc = p.cls
+        this.kb = { kbType: p.kbType, kbScale: p.kbScale, kbW: p.kbW, kbH: p.kbH, kbLeft: p.kbLeft, kbOrigin: p.kbOrigin, kbSlotH: p.kbSlotH }
+      }
+      applyProfile()
+      def.on('device_profile', applyProfile)
       this.targetId = (params && params.targetId) || ''
       this.name = (params && params.name) || '聊天'
       if (!this.targetId) {
@@ -89,6 +181,37 @@
     },
     onDelete() {
       this.draft = this.draft.slice(0, -1)
+    },
+    /* ===== v2.10.0 自建紧凑键盘（wide/round）==== */
+    skbVibrate() {
+      try { require('@system.vibrator').vibrate({ mode: 'short' }) } catch (e) {}
+    },
+    skbTap(k) {
+      if (!k) return
+      this.skbVibrate()
+      let ch = k
+      if (this.skbMode === 'abc' && this.skbAlpha) {
+        ch = k.toUpperCase()
+        this.skbAlpha = false // 自动退回小写（标准键盘行为）
+      }
+      this.draft += ch
+    },
+    skbDel() {
+      this.skbVibrate()
+      this.draft = this.draft.slice(0, -1)
+    },
+    skbCase() {
+      this.skbVibrate()
+      if (this.skbMode === '123') {
+        this.skbMode = 'abc'
+      } else {
+        this.skbAlpha = !this.skbAlpha
+      }
+    },
+    skbModeToggle() {
+      this.skbVibrate()
+      this.skbMode = this.skbMode === 'abc' ? '123' : 'abc'
+      this.skbAlpha = false
     },
     confirmDraft() {
       if (!this.draft.trim()) return

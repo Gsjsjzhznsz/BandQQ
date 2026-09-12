@@ -1,5 +1,5 @@
 <template>
-  <div class="page">
+  <div class="page {{dc === 'round' ? 'page-round' : ''}} {{dc === 'wide' ? 'page-wide' : ''}}">
     <div class="top-row">
       <image class="btn" src="../../common/ui/more.png" @click="goSettings"></image>
     </div>
@@ -90,6 +90,29 @@
   .menu-title { font-size: 18px; color: rgba(255, 255, 255, 0.55); text-align: center; margin-bottom: 8px; lines: 1; text-overflow: ellipsis; }
   .menu-row { font-size: 20px; color: #e8e8e8; text-align: center; padding: 12px 0; }
   .menu-cancel { color: rgba(255, 255, 255, 0.5); border-top: 1px solid #333333; }
+
+  /* ============ v2.10.0 机型分档覆盖 ============
+     wide：Redmi Watch 5/6（432×514，designWidth 192 下视口 192×228）
+     round：Watch S3/S4（466×466）/ S5（480×480），视口 192×192，需避圆弧安全区 */
+  .page-wide { }
+  .page-wide .top-row { height: 44px; }
+  .page-wide .btn { width: 56px; height: 40px; }
+  .page-wide .status-bar { height: 30px; }
+  .page-wide .item { height: 64px; }
+  .page-wide .right { height: 64px; }
+  .page-wide .avatar { width: 38px; height: 38px; border-radius: 19px; }
+  .page-wide .badge { bottom: 8px; }
+  .page-round .top-row { height: 40px; }
+  .page-round .btn { width: 50px; height: 36px; }
+  .page-round .status-bar { height: 24px; }
+  .page-round .status-text { font-size: 15px; }
+  /* 圆弧安全区：列表两侧内收，首尾行避开弧线裁切 */
+  .page-round .list { padding: 2px 14px 0 14px; }
+  .page-round .item { height: 58px; border-radius: 14px; }
+  .page-round .right { height: 58px; }
+  .page-round .avatar { width: 36px; height: 36px; border-radius: 18px; margin-left: 6px; }
+  .page-round .badge { right: 4px; bottom: 8px; }
+  .page-round .menu { padding-bottom: 44px; }
 </style>
 
 <script>
@@ -103,7 +126,8 @@
       statusText: '未连接',
       conversations: [],
       menuConv: null,
-      menuMuted: false
+      menuMuted: false,
+      dc: 'band'
     },
     onShow() {
       console.log('[BANDQQ] v21 index onShow')
@@ -114,6 +138,9 @@
     },
     onInit() {
       const def = this.$app.$def
+      // v2.10.0 机型分档：读取全局 profile，异步到达后随事件刷新
+      this.dc = def.deviceProfile.cls()
+      def.on('device_profile', () => { this.dc = def.deviceProfile.cls() })
       // 抖动根治：所有数据事件统一走 120ms 尾沿防抖 + 签名比对，
       // 消息风暴时每 120ms 至多渲染一次，内容未变不触发任何渲染
       this._scheduleRefresh = () => {

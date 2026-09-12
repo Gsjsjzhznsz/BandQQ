@@ -145,3 +145,19 @@ Work Log:
 Stage Summary:
 - 产物：bandqq-sync-release-2.8.0.apk + bandqq-devtools-release-1.0.0.apk + bandqq-watch-release-2.8.0.rpk
 - 回归建议：①装 DevTools→启动服务器→APP 默认地址直连→点模拟按钮消息到手环 ②手环回复→DevTools 日志+自动回推对方消息 ③手环设置页改「消息震动」→APP 设置页状态同步 ④开启自动拉起→拉起后手环短震×2 ⑤双端关于页信息完整
+
+## v2.10.0 — 新机型适配：小米手表 S4/S5 + Redmi Watch 5/6（三屏形态自动分档）
+
+### Work Log:
+- 官方设备表定档（iot.mi.com 多屏设计页）：Watch S3/S4=466×466 圆 / S5/S1 Pro=480×480 圆 / Redmi Watch 5/6=432×514 矩；designWidth 192 全机型排版等比
+- 新增 common/device.js：device.getInfo 分档 band/wide/round（screenShape + 分辨率 + 长宽比兜底），app.onCreate init + device_profile 事件广播，页面根节点绑 page-round/page-wide
+- 五页面 CSS 分档覆盖：wide（432×514 视口 192×228）紧凑化顶栏/列表行/快捷区/输入栏；round（视口 192×192）圆弧安全区内缩 + 弹窗压缩 + 状态栏减高；band 零改动
+- 官方输入法组件整体升级上游 NEORUAA/Vela_input_method（dictionaryLoader + 词库 json + 整词候选）；manifest 加 system.file；Band11 kb-wrap 包装内拼音候选实测零回归
+- 宽/圆屏自建紧凑键盘 skb（纯 flex 四行 QWERTY/123/大小写，自动退位）：官方 rect/circle 变体 scale 包装后触控命中不映射（实测点按无效），自建布局命中零风险（RW5 点 u / S4 点 t 回显验证）
+- Vela 引擎坑实证入库：①流内 position:absolute 打乱兄弟布局（chat 顶栏下移 78design → 改 height:0+overflow:hidden）②transform scale 命中不映射 ③RW5 实测 px 缩放≈2.0 非理论 2.25
+- VVD 四机逐页实拍验收：Band11（零回归）/ RW5 / S4 / S5；13 张截图入库 docs/screenshots-v210/；build-rpk.sh OUT_DIR 相对路径坑记录（产物落 band-qq/dist/）
+- 版本 RPK 2.10.0/vc40（app/DevTools 不重发）；单测 58/59（1 例 v2.7.0 起基线）；ux 语法 ALL OK；README（机型表/三形态预览/日志）/MEMORY（版本线/引擎坑/章节）更新
+
+### Stage Summary:
+- 产物：dist/bandqq-watch-release-2.10.0.rpk（314KB，包内验证 device 分档/skb 键盘/词库 json/manifest system.file）
+- 回归：①手环 9/10/11 刷 2.10.0 界面与 2.9.1 完全一致（Band11 四页对照）②Redmi Watch 5/6 自动宽屏紧凑档 ③Watch S3/S4/S5 自动圆屏档 ④宽/圆屏 compose 用新紧凑键盘（无拼音），手环端拼音不受影响

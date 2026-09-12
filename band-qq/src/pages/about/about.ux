@@ -1,5 +1,5 @@
 <template>
-  <div class="page">
+  <div class="page {{dc === 'round' ? 'page-round' : ''}} {{dc === 'wide' ? 'page-wide' : ''}}">
     <div class="top-row">
       <image class="btn" src="../../common/ui/back.png" onclick="goBack"></image>
     </div>
@@ -12,7 +12,7 @@
         <text class="app-name">BandQQ</text>
         <!-- v2.9.0：连点版本区 7 次开启演示模式（注入演示会话，无手机也可体验界面）；
              点击区挂在整个 hero（小 text 点击区在部分固件上不响应） -->
-        <text class="ver">v2.9.1 · 快应用端</text>
+        <text class="ver">v2.10.0 · 快应用端</text>
         <text class="demo-hint" if="{{demoHint}}">{{demoHint}}</text>
       </div>
       <div class="card col">
@@ -51,6 +51,24 @@
   .line { font-size: 14px; color: #dddddd; line-height: 20px; }
   .k { font-size: 12px; color: rgba(255, 255, 255, 0.45); }
   .v { font-size: 17px; color: #5b9bff; margin-top: 2px; }
+
+  /* ============ v2.10.0 机型分档覆盖 ============ */
+  .page-wide { }
+  .page-wide .top-row { height: 44px; }
+  .page-wide .btn { width: 56px; height: 40px; }
+  .page-wide .title-bar { height: 30px; }
+  .page-round { }
+  .page-round .top-row { height: 40px; }
+  .page-round .btn { width: 50px; height: 36px; }
+  .page-round .title-bar { height: 22px; }
+  .page-round .page-title { font-size: 19px; }
+  .page-round .body { width: 100%; padding: 0 14px; }
+  .page-round .hero { margin: 4px 8px 0 8px; }
+  .page-round .icon { width: 44px; height: 44px; border-radius: 12px; }
+  .page-round .app-name { font-size: 18px; margin-top: 4px; }
+  .page-round .card { margin: 3px 2px; padding: 7px 10px; border-radius: 12px; }
+  .page-round .line { font-size: 12px; line-height: 17px; }
+  .page-round .v { font-size: 14px; }
 </style>
 
 <script>
@@ -62,10 +80,16 @@
 
   export default {
     private: {
-      demoHint: ''
+      demoHint: '',
+      dc: 'band'
     },
     _tapCount: 0,
     _tapTimer: null,
+    onInit() {
+      const def = this.$app.$def
+      this.dc = def.deviceProfile.cls()
+      def.on('device_profile', () => { this.dc = def.deviceProfile.cls() })
+    },
     goBack() {
       router.back()
     },

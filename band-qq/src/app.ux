@@ -15,6 +15,7 @@
 import api from './common/api'
 import protocol from './common/protocol'
 import store from './common/store'
+import deviceProfile from './common/device'
 
 const listeners = {}
 
@@ -113,6 +114,7 @@ export default {
   api,
   protocol,
   store,
+  deviceProfile,
   handleMessage,
   emit,
   /**
@@ -141,6 +143,8 @@ sendUpstream(payload) {
   onCreate() {
     console.log('[BANDQQ] v9 app onCreate, protocol=', typeof protocol, 'store=', typeof store, 'api=', typeof api)
     store.init()
+    // v2.10.0 机型分档：band/wide/round，pages 订阅 device_profile 事件刷新根类名
+    deviceProfile.init((p) => emit('device_profile', p))
     const pullAll = () => {
       api.send(protocol.getConnectState())
       api.send(protocol.getVisibleContacts())
