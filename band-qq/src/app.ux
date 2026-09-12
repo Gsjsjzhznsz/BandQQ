@@ -36,8 +36,21 @@ case 'push_message':
       // v2.5.0 新消息振动提醒：手表端核心提示通道（勿扰/群聊过滤已在手机端完成，
       // 能到手的帧都是该推的）。自己发的回显、撤回同步帧、不可见会话不振动。
       // v2.8.0：受「新消息手环震动」互通开关控制（手机端/手环端均可改，双向同步）。
-      if (msg.is_self !== true && msg.recall !== 1 && msg.visible !== false && store.getSettings().msg_vibrate !== false) {
-        try { require('@system.vibrator').vibrate({ mode: 'short' }) } catch (e) {}
+      // v2.8.3 @我 双保险：at=1（数字，APP Gson 直发）/true（decodePush 形态）均强提醒
+      //   —— 长震一次，与普通短震区分，即使高亮样式被固件降级也能感知被 @。
+      {
+        const atMe = (msg.at === 1 || msg.at === true) && msg.is_self !== true
+        if (msg.is_self !== true && msg.recall !== 1 && msg.recall !== true && msg.recall !== 0 && msg.visible !== false) {
+          try {
+            const vib = require('@system.vibrator')
+            if (atMe && store.getSettings().msg_vibrate !== false) {
+              vib.vibrate({ mode: 'long' })
+            } else if (store.getSettings().msg_vibrate !== false) {
+              vib.vibrate({ mode: 'short' })
+            }
+          } catch (e) {}
+        }
+        if (atMe) { try { console.log('[BANDQQ] v18 at-me frame target=' + msg.target_id) } catch (e) {} }
       }
       store.upsertMessage(msg).then(() => { try { console.log('[BANDQQ] v17 upsert target=' + msg.target_id + ' len=' + (typeof msg.content === 'string' ? msg.content.length : '?') + ' isSelf=' + (msg.is_self === true)) } catch (e) {}; emit('message', msg) }).catch((e) => console.error('upsert fail', e))
       break

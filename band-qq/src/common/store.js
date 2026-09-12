@@ -265,7 +265,9 @@ export function createStore(storageImpl) {
       if (!key || key === '' || key === 'undefined') return
 
       // 撤回同步帧：按 time 原位替换内容，不新增消息、不动未读数（手机端 v2.4.5）
-      if (msg.recall === true) {
+      // v2.4.5 撤回同步帧：APP 端 Gson addProperty("recall", 1) 发的是数字 1，
+      // 严格 === true 永不命中 → 撤回帧被当普通新消息追加（震动+入列）。数字/布尔双兼容
+      if (msg.recall === true || msg.recall === 1) {
         const messages = messagesByTarget[key] || []
         const hit = messages.find((m) => (m.time || 0) === (msg.time || -1))
         if (hit && hit.content !== content) {
@@ -299,8 +301,10 @@ export function createStore(storageImpl) {
           is_self: msg.is_self === true,
           time: msg.time || Date.now()
         }
-        // @我 标志只在为真时存储（省缓存字节），聊天页据此高亮
-        if (msg.at === true) item.at = true
+        // @我 标志只在为真时存储（省缓存字节），聊天页据此高亮。
+        // v2.8.3 修复：APP 端发 at:1（数字），decodePush 从未被调用（死代码），
+        // 严格 === true 永不命中 → 实时推送的 @我 高亮从未生效（历史路径原样存 1 反而 truthy）
+        if (msg.at === true || msg.at === 1) item.at = true
         messages.push(item)
         // 按时间升序排列，保证消息顺序不乱（秒/毫秒混用也统一比较）
         messages.sort((a, b) => (a.time || 0) - (b.time || 0))
@@ -328,7 +332,8 @@ export function createStore(storageImpl) {
         is_temporary: isTemp,
         unread: unread !== null ? unread : ((idx >= 0 && conversations[idx].unread) || 0),
         // @我 未读提示：本条 @我 且非自发 → 置位；其余保持原状（读后由手机端会话帧归零）
-        cat: (msg.at === true && !(msg.is_self === true))
+        // 数字/布尔双兼容（同 at 存储修复，v2.8.3）
+        cat: ((msg.at === true || msg.at === 1) && !(msg.is_self === true))
           ? 1
           : (prevConv && prevConv.cat ? 1 : 0)
       })

@@ -281,4 +281,30 @@ describe('store v2（未读/快捷回复/翻页合并/显示字段）', () => {
     assert.equal(convs.find((x) => x.id === 'b').hueBg, '#319b31')
     assert.equal(convs.find((x) => x.id === 'c').hueBg, '#31319b')
   })
+
+  it('v2.8.3 修复：at=1（APP Gson 数字形态）实时推送也标记 @我 高亮与会话 cat', async () => {
+    // APP 端 toHandBandFrame 用 addProperty("at", 1) 发数字 1（decodePush 从未被调用）
+    await store.upsertMessage({ type: 'push_message', message_type: 'group', target_id: '400', sender_id: '2', sender_name: '王', content: '看这里', time: 1700000010, at: 1 })
+    const msgs = await store.getMessages('400')
+    assert.equal(msgs[0].at, true)
+    const convs = await store.getConversations()
+    assert.equal(convs.find((x) => x.id === '400').cat, 1)
+    // 布尔形态（decodePush 兼容路径）同样生效
+    await store.upsertMessage({ type: 'push_message', message_type: 'private', target_id: '401', sender_id: '3', sender_name: '李', content: '在吗', time: 1700000011, at: true })
+    assert.equal((await store.getMessages('401'))[0].at, true)
+    // 无 at 字段的普通消息不带标志
+    await store.upsertMessage({ type: 'push_message', message_type: 'private', target_id: '402', sender_id: '4', sender_name: '赵', content: '普通', time: 1700000012 })
+    assert.equal((await store.getMessages('402'))[0].at, undefined)
+    assert.equal((await store.getConversations()).find((x) => x.id === '402').cat, 0)
+  })
+
+  it('v2.8.3 修复：recall=1（APP Gson 数字形态）撤回帧原位替换而不新增消息', async () => {
+    await store.upsertMessage({ type: 'push_message', message_type: 'private', target_id: '500', sender_id: '2', sender_name: 'A', content: '原消息', time: 1700000020 })
+    // 撤回同步帧：数字 1 形态
+    await store.upsertMessage({ type: 'push_message', message_type: 'private', target_id: '500', sender_id: '2', sender_name: 'A', content: '对方撤回了一条消息', time: 1700000020, recall: 1 })
+    const msgs = await store.getMessages('500')
+    assert.equal(msgs.length, 1, '撤回帧不新增消息')
+    assert.equal(msgs[0].content, '对方撤回了一条消息')
+    assert.equal(msgs[0].rc, 1, '原位灰显标志')
+  })
 })

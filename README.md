@@ -1,16 +1,35 @@
-# BandQQ v2.8.2 — 小米手环 9/10/11 QQ 消息助手（手环快应用 + 安卓同步器）
+# BandQQ v2.8.3 — 小米手环 9/10/11 QQ 消息助手（手环快应用 + 安卓同步器）
 
 > 🧠 **AI 协作记忆库**：[`MEMORY.md`](MEMORY.md) — 本项目的跨会话持久记忆（架构 / bug 台账 / 构建配方 / 任务清单）。任何新会话恢复上下文，先读它。
 
-[![Version](https://img.shields.io/badge/version-2.8.2-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-2.8.3-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
 
 **BandQQ** 是一套开源的「小米手环 QQ 消息助手」双端方案：手环端运行 Vela 快应用（rpk），手机端运行安卓同步器（APK），通过小米互联蓝牙通道把 QQ 消息实时同步到手环，支持直接在手环上**查看 / 回复 / 翻历史消息 / 收图**。
+
+## 界面预览（手环 10/11 · 212×520）
+
+| 会话列表 | 聊天页（@我 金色高亮） |
+|:---:|:---:|
+| ![会话列表](docs/screenshots/01-conversations.png) | ![聊天页@我](docs/screenshots/02-chat-atme.png) |
+
+| 设置 | 关于 |
+|:---:|:---:|
+| ![设置](docs/screenshots/03-settings.png) | ![关于](docs/screenshots/04-about.png) |
+
+> 被群友 @ 时：会话列表金色「@我」角标 + 聊天页「@我」徽标与高亮呼吸气泡 + 强震动提醒，三重感知不错过任何一条艾特。
 
 > **上游仓库说明**：本项目上游为 [Astroptis/band-qq-assistant](https://github.com/Astroptis/band-qq-assistant)。v2.x 系列以上游 main（opencode 基线）为底重写：性能架构升级为「手机端预处理 + 手环零计算直渲染」，并带回未读角标 / 快捷回复 / 历史翻页 / 彩色头像等特性。感谢上游作者的奠基工作。
 
 > 关键词：小米手环9 / Mi Band 9 / 小米手环10 / 小米手环11 / Mi Band 11 / 小米手环QQ / 小米手环9 Pro / Redmi Watch / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / Stapxs-QQ-Lite-X / wearable QQ / smartband chat / Mi Band QQ client
 
-## v2.8.2 + DevTools 1.2.2 更新日志（当前版本）
+## v2.8.3 更新日志（当前版本）
+
+### @我 从未生效的真正根因：数字/布尔类型断裂（本轮修复）
+用户四轮实测后动效仍不出现，本轮逐帧对比 APP 下发字节与手环判定，抓住真凶：APP 端 Gson `addProperty("at", 1)` 下发**数字 1**，手环端 store 判定 `msg.at === true`（严格布尔）——`1 === true` 永远为 false，且负责类型转换的 `protocol.decodePush()` 是**从未被调用的死代码**（app.ux 直接把原始帧塞给 store）→ 实时推送的 @我 高亮从未生效；历史拉取路径原样存数字 1（truthy）反而能亮，完美解释「有时有有时没有」的混乱。同型断裂还击中了撤回同步（`recall:1` vs `=== true` → 撤回帧被当普通消息入库）。
+- **修复**：store.js 三处判定数字/布尔双兼容（at 高亮 / 会话 cat / recall 原位替换）；app.ux @我 强震动双保险（长震区别于普通短震，即使样式被固件降级也能感知被 @）；新增 2 例单测锁定数字形态（51/51 过）
+- **手环务必刷 2.8.3（vc37）**
+
+## v2.8.2 + DevTools 1.2.2 更新日志
 
 ### 发送链路已通（1.2.1 实测确认）
 用户日志：连接存活 31s+、连发 8 条零断开——NetworkOnMainThreadException 修复彻底生效，DevTools → APP → 手环消息链路打通。

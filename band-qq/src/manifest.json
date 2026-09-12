@@ -2,8 +2,8 @@
   "package": "com.example.bandqq",
   "name": "QQ助手",
   "icon": "/common/icon.png",
-  "versionName": "2.8.2",
-  "versionCode": 36,
+  "versionName": "2.8.3",
+  "versionCode": 37,
   "minAPILevel": 1,
   "deviceTypeList": [
     "watch"
