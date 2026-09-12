@@ -1,39 +1,44 @@
 <template>
-  <div class="page {{dc === 'round' ? 'page-round' : ''}} {{dc === 'wide' ? 'page-wide' : ''}}">
-    <div class="top-row">
-      <image class="btn-back" src="../../common/ui/back.png" onclick="goBack"></image>
+  <div class="page {{dc === 'round' ? 'page-round' : ''}} {{dc === 'wide' ? 'page-wide' : ''}}" if="{{dcReady}}">
+    <div class="top-row" style="{{ds.topRow}}">
+      <image class="btn-back" style="{{ds.btnBack}}" src="../../common/ui/back.png" onclick="goBack"></image>
     </div>
-    <div class="title-bar">
-      <text class="page-title">{{name}}</text>
+    <div class="title-bar" style="{{ds.titleBar}}">
+      <text class="page-title" style="{{ds.pageTitle}}">{{name}}</text>
     </div>
-    <div class="send-status" show="{{sendStatus}}">
-      <text class="send-status-text">{{sendStatus}}</text>
+    <div class="send-status" style="{{ds.sendStatus}}" show="{{sendStatus}}">
+      <text class="send-status-text" style="{{ds.sendStatusText}}">{{sendStatus}}</text>
     </div>
     <scroll id="msgList" class="msg-area" scroll-y="true" scroll-top="{{scrollTop}}">
-      <div class="older-wrap" show="{{hasMore}}">
-        <text class="older-btn" onclick="loadOlder">{{loadingOlder ? '加载中…' : '加载更早的消息'}}</text>
+      <div class="older-wrap" style="{{ds.olderWrap}}" show="{{hasMore}}">
+        <text class="older-btn" style="{{ds.olderBtn}}" onclick="loadOlder">{{loadingOlder ? '加载中…' : '加载更早的消息'}}</text>
       </div>
-      <div class="msg-item {{item.is_self ? 'self' : 'other'}}" for="{{item in messages}}" tid="tid">
+      <div class="msg-item {{item.is_self ? 'self' : 'other'}}" style="{{ds.msgItem}}" for="{{item in messages}}" tid="tid">
         <!-- v2.9.0 拍一拍消息：居中特效胶囊（紫金边框 + 晃动动画，无 emoji 依赖防 tofu） -->
-        <div class="poke-wrap" if="{{item.poke && !item.is_self && !item.rc}}">
-          <text class="poke-bubble">{{item.content}}</text>
+        <div class="poke-wrap" style="{{ds.pokeWrap}}" if="{{item.poke && !item.is_self && !item.rc}}">
+          <text class="poke-bubble" style="{{ds.pokeBubble}}">{{item.content}}</text>
         </div>
-        <div class="msg-col {{item.is_self ? 'col-self' : 'col-other'}}" if="{{!(item.poke && !item.is_self && !item.rc)}}">
-          <text class="msg-name" if="{{item.message_type === 'group' && !item.is_self}}">{{item.sender_name}}</text>
-          <text class="at-badge" if="{{item.at && !item.is_self && !item.rc}}">@我</text>
-          <text class="bubble {{item.is_self ? 'bubble-self' : (item.rc ? 'bubble-rc' : (item.at ? 'bubble-other bubble-at' : 'bubble-other'))}}">{{item.content}}</text>
-        </div>
-      </div>
-    </scroll>
-    <scroll class="quick-area" scroll-x="true" show="{{quickReplies.length}}">
-      <div class="quick-row">
-        <div class="quick-btn" for="{{q in quickReplies}}" tid="content" @click="quickSend(q)">
-          <text class="quick-text">{{q.label}}</text>
+        <div class="msg-col {{item.is_self ? 'col-self' : 'col-other'}}" style="{{ds.msgCol}}" if="{{!(item.poke && !item.is_self && !item.rc)}}">
+          <text class="msg-name" style="{{ds.msgName}}" if="{{item.message_type === 'group' && !item.is_self}}">{{item.sender_name}}</text>
+          <text class="at-badge" style="{{ds.atBadge}}" if="{{item.at && !item.is_self && !item.rc}}">@我</text>
+          <text class="bubble {{item.is_self ? 'bubble-self' : (item.rc ? 'bubble-rc' : (item.at ? 'bubble-other bubble-at' : 'bubble-other'))}}" style="{{ds.bubble}}">{{item.content}}</text>
         </div>
       </div>
     </scroll>
-    <div class="input-bar" @click="openCompose">
-      <image class="btn" src="../../common/ui/kb_show.png"></image>
+    <scroll class="quick-area" style="{{ds.quickArea}}" scroll-x="true" show="{{quickReplies.length}}">
+      <div class="quick-row" style="{{ds.quickRow}}">
+        <div class="quick-btn" style="{{ds.quickBtn}}" for="{{q in quickReplies}}" tid="content" @click="quickSend(q)">
+          <text class="quick-text" style="{{ds.quickText}}">{{q.label}}</text>
+        </div>
+      </div>
+    </scroll>
+    <div class="input-bar" style="{{ds.inputBar}}" @click="openCompose">
+      <image class="btn" style="{{ds.btn}}" src="../../common/ui/kb_show.png"></image>
+    </div>
+    <!-- v2.11.0 宽/圆屏发送状态悬浮 toast：v2.10.0 直接隐藏导致发送无反馈；
+         放模板末尾（无后续兄弟，避开流内 absolute 打乱兄弟布局的引擎坑），band 不渲染此节点 -->
+    <div class="send-toast" style="{{ds.sendToast}}" show="{{sendStatus && dc !== 'band'}}">
+      <text class="send-toast-text">{{sendStatus}}</text>
     </div>
   </div>
 </template>
@@ -92,38 +97,6 @@
   .quick-btn { height: 40px; border-radius: 20px; background-color: #262626; border-width: 1px; border-color: #3a3a3a; justify-content: center; align-items: center; margin: 0 4px; padding: 0 12px; flex-shrink: 0; }
   .quick-text { font-size: 16px; color: #e8e8e8; }
   .input-bar { height: 74px; flex-direction: row; align-items: center; justify-content: center; border-top: 1px solid #222222; }
-
-  /* ============ v2.10.0 机型分档覆盖 ============
-     宽屏/圆屏视口纵向紧张：顶栏/快捷区/输入栏紧凑化，
-     发送状态改绝对定位悬浮，不占布局高度 */
-  .page-wide { }
-  .page-wide .top-row { height: 44px; }
-  .page-wide .btn-back { width: 56px; height: 40px; }
-  .page-wide .title-bar { height: 26px; }
-  .page-wide .page-title { font-size: 19px; }
-  .page-wide .send-status { height: 0px; overflow: hidden; }
-  .page-wide .send-status-text { font-size: 12px; }
-  .page-wide .msg-col { max-width: 150px; }
-  .page-wide .quick-area { height: 36px; }
-  .page-wide .quick-row { height: 36px; }
-  .page-wide .quick-btn { height: 28px; border-radius: 14px; }
-  .page-wide .quick-text { font-size: 13px; }
-  .page-wide .input-bar { height: 42px; }
-  .page-wide .btn { width: 56px; height: 40px; }
-  .page-round { }
-  .page-round .top-row { height: 38px; }
-  .page-round .btn-back { width: 50px; height: 34px; }
-  .page-round .title-bar { height: 22px; }
-  .page-round .page-title { font-size: 17px; max-width: 150px; }
-  .page-round .send-status { height: 0px; overflow: hidden; }
-  .page-round .send-status-text { font-size: 12px; }
-  .page-round .msg-col { max-width: 150px; }
-  .page-round .quick-area { height: 28px; }
-  .page-round .quick-row { height: 28px; }
-  .page-round .quick-btn { height: 22px; border-radius: 11px; padding: 0 8px; }
-  .page-round .quick-text { font-size: 11px; }
-  .page-round .input-bar { height: 34px; border-top: none; }
-  .page-round .btn { width: 50px; height: 34px; }
 </style>
 
 <script>
@@ -144,13 +117,17 @@
       quickReplies: [],
       hasMore: false,
       loadingOlder: false,
-      dc: 'band'
+      dc: 'band',
+      dcReady: false,
+      ds: {}
     },
     onInit(params) {
       console.log('[BANDQQ] v21 chat onInit')
       const def0 = this.$app.$def
       this.dc = def0.deviceProfile.cls()
-      def0.on('device_profile', () => { this.dc = def0.deviceProfile.cls() })
+      this.ds = def0.deviceProfile.stylesFor(this.dc)
+      if (def0.deviceProfile.ready()) this.dcReady = true
+      def.on('device_profile', () => { this.dc = def0.deviceProfile.cls(); this.ds = def0.deviceProfile.stylesFor(this.dc); this.dcReady = true })
       let targetId = (params && params.targetId) || ''
       let convName = (params && params.name) || ''
       if (!targetId && params && params.uri) {

@@ -1,49 +1,49 @@
 <template>
-  <div class="page {{dc === 'round' ? 'page-round' : ''}} {{dc === 'wide' ? 'page-wide' : ''}}">
-    <div class="top-row">
-      <image class="btn" src="../../common/ui/back.png" onclick="goBack"></image>
+  <div class="page {{dc === 'round' ? 'page-round' : ''}} {{dc === 'wide' ? 'page-wide' : ''}}" if="{{dcReady}}">
+    <div class="top-row" style="{{ds.topRow}}">
+      <image class="btn" style="{{ds.btn}}" src="../../common/ui/back.png" onclick="goBack"></image>
     </div>
-    <div class="title-bar">
-      <text class="page-title">设置</text>
+    <div class="title-bar" style="{{ds.titleBar}}">
+      <text class="page-title" style="{{ds.pageTitle}}">设置</text>
     </div>
-    <scroll class="body" scroll-y="true">
-      <text class="section">连接</text>
-      <div class="card row">
-        <text class="row-label">互联状态</text>
-        <text class="row-value">{{statusText}}</text>
+    <scroll class="body" style="{{ds.body}}" scroll-y="true">
+      <text class="section" style="{{ds.section}}">连接</text>
+      <div class="card row" style="{{ds.row}}">
+        <text class="row-label" style="{{ds.rowLabel}}">互联状态</text>
+        <text class="row-value" style="{{ds.rowValue}}">{{statusText}}</text>
       </div>
-      <div class="card row">
-        <text class="row-label">协议端</text>
-        <text class="row-value">{{protocolText}}</text>
+      <div class="card row" style="{{ds.row}}">
+        <text class="row-label" style="{{ds.rowLabel}}">协议端</text>
+        <text class="row-value" style="{{ds.rowValue}}">{{protocolText}}</text>
       </div>
-      <text class="section">偏好</text>
-      <div class="card row" @click="toggleVibrate">
-        <text class="row-label">消息震动</text>
-        <text class="row-value">{{vibrateText}}</text>
+      <text class="section" style="{{ds.section}}">偏好</text>
+      <div class="card row" style="{{ds.row}}" @click="toggleVibrate">
+        <text class="row-label" style="{{ds.rowLabel}}">消息震动</text>
+        <text class="row-value" style="{{ds.rowValue}}">{{vibrateText}}</text>
       </div>
-      <div class="card row" @click="toggleEmoji">
-        <text class="row-label">表情渲染</text>
-        <text class="row-value">{{emojiText}}</text>
+      <div class="card row" style="{{ds.row}}" @click="toggleEmoji">
+        <text class="row-label" style="{{ds.rowLabel}}">表情渲染</text>
+        <text class="row-value" style="{{ds.rowValue}}">{{emojiText}}</text>
       </div>
-      <text class="section">更多</text>
-      <div class="card row" @click="goAbout">
-        <text class="row-label">关于 BandQQ</text>
-        <text class="row-value arrow">›</text>
+      <text class="section" style="{{ds.section}}">更多</text>
+      <div class="card row" style="{{ds.row}}" @click="goAbout">
+        <text class="row-label" style="{{ds.rowLabel}}">关于 BandQQ</text>
+        <text class="row-value arrow" style="{{ds.rowValue}}">›</text>
       </div>
-      <div class="card row" @click="askClear">
-        <text class="row-label">清空记录</text>
-        <text class="row-value danger">清空</text>
+      <div class="card row" style="{{ds.row}}" @click="askClear">
+        <text class="row-label" style="{{ds.rowLabel}}">清空记录</text>
+        <text class="row-value danger" style="{{ds.rowValue}}">清空</text>
       </div>
-      <div class="tail-space"></div>
+      <div class="tail-space" style="{{ds.tailSpace}}"></div>
     </scroll>
 
     <div class="mask" if="{{confirmShow}}">
-      <div class="confirm-box">
-        <text class="confirm-title">警告</text>
-        <text class="confirm-desc">将清空手环本地记录，并请求手机端清除其保存的全部聊天记录，两端同步清空且不可恢复，确定继续？</text>
+      <div class="confirm-box" style="{{ds.confirmBox}}">
+        <text class="confirm-title" style="{{ds.confirmTitle}}">警告</text>
+        <text class="confirm-desc" style="{{ds.confirmDesc}}">将清空手环本地记录，并请求手机端清除其保存的全部聊天记录，两端同步清空且不可恢复，确定继续？</text>
         <div class="confirm-btns">
-          <text class="confirm-cancel" onclick="cancelClear">取消</text>
-          <text class="confirm-ok" onclick="doClear">确定</text>
+          <text class="confirm-cancel" style="{{ds.confirmCancel}}" onclick="cancelClear">取消</text>
+          <text class="confirm-ok" style="{{ds.confirmOk}}" onclick="doClear">确定</text>
         </div>
       </div>
     </div>
@@ -76,29 +76,6 @@
   .confirm-btns { flex-direction: row; justify-content: space-between; }
   .confirm-cancel { flex: 1; text-align: center; padding: 9px 0; font-size: 16px; color: #999999; background-color: #3a3a3a; border-radius: 12px; margin-right: 8px; }
   .confirm-ok { flex: 1; text-align: center; padding: 9px 0; font-size: 16px; color: #ffffff; background-color: #ff5a5a; border-radius: 12px; }
-
-  /* ============ v2.10.0 机型分档覆盖 ============ */
-  .page-wide { }
-  .page-wide .top-row { height: 44px; }
-  .page-wide .btn { width: 56px; height: 40px; }
-  .page-wide .title-bar { height: 30px; }
-  .page-wide .page-title { font-size: 20px; }
-  .page-wide .row { height: 48px; margin: 5px 10px; }
-  .page-round { }
-  .page-round .top-row { height: 40px; }
-  .page-round .btn { width: 50px; height: 36px; }
-  .page-round .title-bar { height: 24px; }
-  .page-round .page-title { font-size: 19px; }
-  .page-round .body { width: 100%; padding: 0 14px; }
-  .page-round .row { height: 42px; margin: 4px 0; padding: 0 10px; border-radius: 12px; }
-  .page-round .row-label { font-size: 16px; }
-  .page-round .row-value { font-size: 16px; }
-  .page-round .section { font-size: 12px; padding: 10px 10px 0 10px; }
-  /* 圆屏弹窗：宽度与总高压缩到圆弧安全区内 */
-  .page-round .confirm-box { width: 150px; padding: 10px; }
-  .page-round .confirm-desc { font-size: 12px; lines: 3; text-overflow: ellipsis; margin-bottom: 10px; }
-  .page-round .confirm-cancel { padding: 6px 0; font-size: 14px; }
-  .page-round .confirm-ok { padding: 6px 0; font-size: 14px; }
 </style>
 
 <script>
@@ -113,7 +90,9 @@
       vibrateText: '开',
       emojiText: '原生',
       confirmShow: false,
-      dc: 'band'
+      dc: 'band',
+      dcReady: false,
+      ds: {}
     },
     onShow() {
       this.refreshStatus()
@@ -123,7 +102,9 @@
     onInit() {
       const def = this.$app.$def
       this.dc = def.deviceProfile.cls()
-      def.on('device_profile', () => { this.dc = def.deviceProfile.cls() })
+      this.ds = def.deviceProfile.stylesFor(this.dc)
+      if (def.deviceProfile.ready()) this.dcReady = true
+      def.on('device_profile', () => { this.dc = def.deviceProfile.cls(); this.ds = def.deviceProfile.stylesFor(this.dc); this.dcReady = true })
       this.$app.$def.on('state', () => this.refreshStatus())
       // v2.8.0 双端互通：手机端改了设置 → 快照到达 → 刷新行文案
       this.$app.$def.on('settings', () => this.refreshSettings())

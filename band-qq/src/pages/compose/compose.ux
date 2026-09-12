@@ -1,13 +1,13 @@
 <import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
 <template>
-  <div class="page {{dc === 'round' ? 'page-round' : ''}} {{dc === 'wide' ? 'page-wide' : ''}}">
-    <div class="top-bar">
-      <image class="btn" src="../../common/ui/back.png" onclick="goBack"></image>
-      <text class="done-btn" onclick="confirmDraft">完成</text>
+  <div class="page {{dc === 'round' ? 'page-round' : ''}} {{dc === 'wide' ? 'page-wide' : ''}}" if="{{dcReady}}">
+    <div class="top-bar" style="{{ds.topBar}}">
+      <image class="btn" style="{{ds.btn}}" src="../../common/ui/back.png" onclick="goBack"></image>
+      <text class="done-btn" style="{{ds.doneBtn}}" onclick="confirmDraft">完成</text>
     </div>
-    <div class="preview-box">
-      <scroll class="preview-scroll" scroll-y="true">
-        <text class="preview-text">{{draft || '在这里输入内容，点击下方键盘按键'}}</text>
+    <div class="preview-box" style="{{ds.previewBox}}">
+      <scroll class="preview-scroll" style="{{ds.previewScroll}}" scroll-y="true">
+        <text class="preview-text" style="{{ds.previewText}}">{{draft || '在这里输入内容，点击下方键盘按键'}}</text>
       </scroll>
     </div>
     <!-- v2.10.0 机型分档：band 机直挂官方胶囊键盘（拼音引擎零回归）；
@@ -28,35 +28,35 @@
     </div>
     <!-- 自建紧凑键盘（wide/round）：五行 QWERTY，纯 flex 原生命中 -->
     <div class="skb" if="{{dc !== 'band'}}">
-      <div class="skb-row">
-        <text class="skb-key" for="{{k in skbRows[skbMode][0]}}" @click="skbTap(k)">{{skbMode === 'abc' && skbAlpha ? k.toUpperCase() : k}}</text>
+      <div class="skb-row" style="{{ds.skbRow}}">
+        <text class="skb-key" style="{{ds.skbKey}}" for="{{k in skbRows[skbMode][0]}}" @click="skbTap(k)">{{skbMode === 'abc' && skbAlpha ? k.toUpperCase() : k}}</text>
       </div>
-      <div class="skb-row">
-        <text class="skb-key" for="{{k in skbRows[skbMode][1]}}" @click="skbTap(k)">{{skbMode === 'abc' && skbAlpha ? k.toUpperCase() : k}}</text>
+      <div class="skb-row" style="{{ds.skbRow}}">
+        <text class="skb-key" style="{{ds.skbKey}}" for="{{k in skbRows[skbMode][1]}}" @click="skbTap(k)">{{skbMode === 'abc' && skbAlpha ? k.toUpperCase() : k}}</text>
       </div>
-      <div class="skb-row">
-        <text class="skb-fn" @click="skbCase">{{skbCaseTxt}}</text>
-        <text class="skb-key" for="{{k in skbRows[skbMode][2]}}" @click="skbTap(k)">{{skbMode === 'abc' && skbAlpha ? k.toUpperCase() : k}}</text>
-        <text class="skb-fn" @click="skbDel">⌫</text>
+      <div class="skb-row" style="{{ds.skbRow}}">
+        <text class="skb-fn" style="{{ds.skbFn}}" @click="skbCase">{{skbCaseTxt}}</text>
+        <text class="skb-key" style="{{ds.skbKey}}" for="{{k in skbRows[skbMode][2]}}" @click="skbTap(k)">{{skbMode === 'abc' && skbAlpha ? k.toUpperCase() : k}}</text>
+        <text class="skb-fn" style="{{ds.skbFn}}" @click="skbDel">删</text>
       </div>
-      <div class="skb-row">
-        <text class="skb-fn skb-wide-fn" @click="skbModeToggle">{{skbModeTxt}}</text>
-        <text class="skb-key" @click="skbTap('，')">，</text>
-        <text class="skb-space" @click="skbTap(' ')">空格</text>
-        <text class="skb-key" @click="skbTap('。')">。</text>
+      <div class="skb-row" style="{{ds.skbRow}}">
+        <text class="skb-fn skb-wide-fn" style="{{ds.skbFn}}" @click="skbModeToggle">{{skbModeTxt}}</text>
+        <text class="skb-key" style="{{ds.skbKey}}" @click="skbTap('，')">，</text>
+        <text class="skb-space" style="{{ds.skbSpace}}" @click="skbTap(' ')">空格</text>
+        <text class="skb-key" style="{{ds.skbKey}}" @click="skbTap('。')">。</text>
         <text class="skb-fn skb-ok" @click="confirmDraft">完成</text>
       </div>
     </div>
 
     <div class="mask" if="{{confirmShow}}">
-      <div class="confirm-box">
-        <text class="confirm-title">确认发送</text>
-        <scroll class="confirm-desc-scroll" scroll-y="true">
-          <text class="confirm-desc">{{draft}}</text>
+      <div class="confirm-box" style="{{ds.confirmBox}}">
+        <text class="confirm-title" style="{{ds.confirmTitle}}">确认发送</text>
+        <scroll class="confirm-desc-scroll" style="{{ds.confirmDescScroll}}" scroll-y="true">
+          <text class="confirm-desc" style="{{ds.confirmDesc}}">{{draft}}</text>
         </scroll>
-        <div class="confirm-btns">
-          <text class="confirm-cancel" onclick="cancelConfirm">取消</text>
-          <text class="confirm-ok" onclick="doConfirm">确认</text>
+        <div class="confirm-btns" style="{{ds.confirmBtns}}">
+          <text class="confirm-cancel" style="{{ds.confirmCancel}}" onclick="cancelConfirm">取消</text>
+          <text class="confirm-ok" style="{{ds.confirmOk}}" onclick="doConfirm">确认</text>
         </div>
       </div>
     </div>
@@ -83,34 +83,6 @@
   .confirm-btns { flex-direction: row; justify-content: space-between; margin-top: 16px; }
   .confirm-cancel { flex: 1; text-align: center; padding: 12px 0; font-size: 20px; color: #999999; background-color: #3a3a3a; border-radius: 16px; margin-right: 12px; }
   .confirm-ok { flex: 1; text-align: center; padding: 12px 0; font-size: 20px; color: #ffffff; background-color: #07c160; border-radius: 16px; }
-
-  /* ============ v2.10.0 机型分档覆盖 ============ */
-  .page-wide { }
-  .page-wide .top-bar { height: 44px; }
-  .page-wide .btn { width: 56px; height: 40px; }
-  .page-wide .done-btn { width: 92px; height: 40px; line-height: 40px; font-size: 18px; }
-  .page-wide .preview-scroll { width: 100%; }
-  .page-wide .preview-text { font-size: 19px; line-height: 27px; }
-  .page-round { }
-  .page-round .top-bar { height: 36px; padding: 0 4px; }
-  .page-round .btn { width: 48px; height: 34px; }
-  .page-round .done-btn { width: 78px; height: 32px; line-height: 32px; font-size: 15px; border-radius: 16px; }
-  .page-round .preview-box { padding: 4px 14px; }
-  .page-round .preview-scroll { width: 100%; }
-  .page-round .preview-text { font-size: 17px; line-height: 24px; }
-
-  /* ============ v2.10.0 自建紧凑键盘（wide/round）============
-     纯 flex 原生布局，无 transform，触控命中零风险；band 机不走此分支 */
-  .skb { flex-shrink: 0; flex-direction: column; padding: 2px 3px 5px 3px; background-color: #111111; }
-  .skb-row { flex-direction: row; justify-content: center; margin-top: 3px; }
-  .skb-key { width: 16px; height: 20px; margin: 0 1px; border-radius: 4px; background-color: #262626; color: #ffffff; font-size: 10px; text-align: center; line-height: 20px; }
-  .skb-fn { width: 22px; height: 20px; margin: 0 1px; border-radius: 4px; background-color: #3a3a3a; color: #e8e8e8; font-size: 10px; text-align: center; line-height: 20px; }
-  .skb-wide-fn { width: 26px; }
-  .skb-space { flex: 1; height: 20px; margin: 0 2px; border-radius: 4px; background-color: #262626; color: #bbbbbb; font-size: 10px; text-align: center; line-height: 20px; }
-  .skb-ok { background-color: #07c160; color: #ffffff; width: 30px; }
-  /* 圆屏再压一行高度，给预览区让空间 */
-  .page-round .skb-key, .page-round .skb-fn, .page-round .skb-space { height: 16px; line-height: 16px; }
-  .page-round .skb-row { margin-top: 2px; }
 </style>
 
 <script>
@@ -126,6 +98,8 @@
     private: {
       confirmShow: false,
       dc: 'band',
+      dcReady: false,
+      ds: {},
       kb: { kbType: 'pill-shaped', kbScale: 1, kbW: 192, kbH: 305, kbLeft: 0, kbOrigin: 'bottom left', kbSlotH: 305 },
       skbMode: 'abc',
       skbAlpha: false,
@@ -156,6 +130,8 @@
       const applyProfile = () => {
         const p = def.deviceProfile.get()
         this.dc = p.cls
+        this.ds = def.deviceProfile.stylesFor(p.cls)
+        this.dcReady = true
         this.kb = { kbType: p.kbType, kbScale: p.kbScale, kbW: p.kbW, kbH: p.kbH, kbLeft: p.kbLeft, kbOrigin: p.kbOrigin, kbSlotH: p.kbSlotH }
       }
       applyProfile()

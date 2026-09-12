@@ -1,34 +1,34 @@
 <template>
-  <div class="page {{dc === 'round' ? 'page-round' : ''}} {{dc === 'wide' ? 'page-wide' : ''}}">
-    <div class="top-row">
-      <image class="btn" src="../../common/ui/back.png" onclick="goBack"></image>
+  <div class="page {{dc === 'round' ? 'page-round' : ''}} {{dc === 'wide' ? 'page-wide' : ''}}" if="{{dcReady}}">
+    <div class="top-row" style="{{ds.topRow}}">
+      <image class="btn" style="{{ds.btn}}" src="../../common/ui/back.png" onclick="goBack"></image>
     </div>
-    <div class="title-bar">
-      <text class="page-title">关于</text>
+    <div class="title-bar" style="{{ds.titleBar}}">
+      <text class="page-title" style="{{ds.pageTitle}}">关于</text>
     </div>
-    <scroll class="body" scroll-y="true">
-      <div class="hero" onclick="onVerTap">
-        <image class="icon" src="../../common/icon.png"></image>
-        <text class="app-name">BandQQ</text>
+    <scroll class="body" style="{{ds.body}}" scroll-y="true">
+      <div class="hero" style="{{ds.hero}}" onclick="onVerTap">
+        <image class="icon" style="{{ds.icon}}" src="../../common/icon.png"></image>
+        <text class="app-name" style="{{ds.appName}}">BandQQ</text>
         <!-- v2.9.0：连点版本区 7 次开启演示模式（注入演示会话，无手机也可体验界面）；
              点击区挂在整个 hero（小 text 点击区在部分固件上不响应） -->
-        <text class="ver">v2.10.0 · 快应用端</text>
-        <text class="demo-hint" if="{{demoHint}}">{{demoHint}}</text>
+        <text class="ver" style="{{ds.ver}}">v2.11.0 · 快应用端</text>
+        <text class="demo-hint" style="{{ds.demoHint}}" if="{{demoHint}}">{{demoHint}}</text>
       </div>
-      <div class="card col">
-        <text class="line">小米手环 QQ 客户端 + Android 同步器，通过小米互联双向同步 QQ 消息，支持回复、@提醒、拍一拍特效、会话免打扰、表情、快捷回复、记录同步与自动拉起。</text>
+      <div class="card col" style="{{ds.card}}">
+        <text class="line" style="{{ds.line}}">小米手环 QQ 客户端 + Android 同步器，通过小米互联双向同步 QQ 消息，支持回复、@提醒、拍一拍特效、会话免打扰、表情、快捷回复、记录同步与自动拉起。</text>
       </div>
-      <div class="card col">
-        <text class="k">作者</text>
-        <text class="v">一秋</text>
+      <div class="card col" style="{{ds.card}}">
+        <text class="k" style="{{ds.k}}">作者</text>
+        <text class="v" style="{{ds.v}}">一秋</text>
       </div>
-      <div class="card col">
-        <text class="k">联系方式</text>
-        <text class="v">QQ 2308534727</text>
+      <div class="card col" style="{{ds.card}}">
+        <text class="k" style="{{ds.k}}">联系方式</text>
+        <text class="v" style="{{ds.v}}">QQ 2308534727</text>
       </div>
-      <div class="card col" @click="copyRepo">
-        <text class="k">GitHub（点击复制链接）</text>
-        <text class="v">github.com/Gsjsjzhznsz/BandQQ</text>
+      <div class="card col" style="{{ds.card}}" @click="copyRepo">
+        <text class="k" style="{{ds.k}}">GitHub（点击复制链接）</text>
+        <text class="v" style="{{ds.v}}">github.com/Gsjsjzhznsz/BandQQ</text>
       </div>
     </scroll>
   </div>
@@ -51,24 +51,6 @@
   .line { font-size: 14px; color: #dddddd; line-height: 20px; }
   .k { font-size: 12px; color: rgba(255, 255, 255, 0.45); }
   .v { font-size: 17px; color: #5b9bff; margin-top: 2px; }
-
-  /* ============ v2.10.0 机型分档覆盖 ============ */
-  .page-wide { }
-  .page-wide .top-row { height: 44px; }
-  .page-wide .btn { width: 56px; height: 40px; }
-  .page-wide .title-bar { height: 30px; }
-  .page-round { }
-  .page-round .top-row { height: 40px; }
-  .page-round .btn { width: 50px; height: 36px; }
-  .page-round .title-bar { height: 22px; }
-  .page-round .page-title { font-size: 19px; }
-  .page-round .body { width: 100%; padding: 0 14px; }
-  .page-round .hero { margin: 4px 8px 0 8px; }
-  .page-round .icon { width: 44px; height: 44px; border-radius: 12px; }
-  .page-round .app-name { font-size: 18px; margin-top: 4px; }
-  .page-round .card { margin: 3px 2px; padding: 7px 10px; border-radius: 12px; }
-  .page-round .line { font-size: 12px; line-height: 17px; }
-  .page-round .v { font-size: 14px; }
 </style>
 
 <script>
@@ -81,14 +63,18 @@
   export default {
     private: {
       demoHint: '',
-      dc: 'band'
+      dc: 'band',
+      dcReady: false,
+      ds: {}
     },
     _tapCount: 0,
     _tapTimer: null,
     onInit() {
       const def = this.$app.$def
       this.dc = def.deviceProfile.cls()
-      def.on('device_profile', () => { this.dc = def.deviceProfile.cls() })
+      this.ds = def.deviceProfile.stylesFor(this.dc)
+      if (def.deviceProfile.ready()) this.dcReady = true
+      def.on('device_profile', () => { this.dc = def.deviceProfile.cls(); this.ds = def.deviceProfile.stylesFor(this.dc); this.dcReady = true })
     },
     goBack() {
       router.back()

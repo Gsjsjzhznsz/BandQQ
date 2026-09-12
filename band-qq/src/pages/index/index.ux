@@ -1,48 +1,48 @@
 <template>
-  <div class="page {{dc === 'round' ? 'page-round' : ''}} {{dc === 'wide' ? 'page-wide' : ''}}">
-    <div class="top-row">
-      <image class="btn" src="../../common/ui/more.png" @click="goSettings"></image>
+  <div class="page {{dc === 'round' ? 'page-round' : ''}} {{dc === 'wide' ? 'page-wide' : ''}}" if="{{dcReady}}">
+    <div class="top-row" style="{{ds.topRow}}">
+      <image class="btn" style="{{ds.btn}}" src="../../common/ui/more.png" @click="goSettings"></image>
     </div>
     <!-- v2.9.1 布局根治：scroll 背景只绘内容区导致列表视觉半页断裂（Vela 引擎行为），
          背景移至外层普通 div（flex:1 撑满中区），scroll 改 absolute 铺满 wrap 不再依赖引擎 flex 实现 -->
     <div class="list-wrap">
-    <scroll class="list" scroll-y="true" show="{{conversations.length}}">
-      <div class="item" for="{{item in conversations}}" tid="id" @click="openChatItem(item)" @longpress="showMenu(item)">
-        <div class="avatar" style="background-color: {{item.hueBg}};">
-          <text class="avatar-text">{{item.achar}}</text>
+    <scroll class="list" style="{{ds.list}}" scroll-y="true" show="{{conversations.length}}">
+      <div class="item" style="{{ds.item}}" for="{{item in conversations}}" tid="id" @click="openChatItem(item)" @longpress="showMenu(item)">
+        <div class="avatar" style="background-color: {{item.hueBg}}; {{ds.avatar}}">
+          <text class="avatar-text" style="{{ds.avatarText}}">{{item.achar}}</text>
         </div>
         <div class="mid">
           <div class="name-row">
-            <text class="item-name">{{item.n9}}</text>
-            <text class="item-at" if="{{item.cat}}">@我</text>
-            <text class="item-tag" if="{{item.is_temporary}}">临时</text>
+            <text class="item-name" style="{{ds.itemName}}">{{item.n9}}</text>
+            <text class="item-at" style="{{ds.itemAt}}" if="{{item.cat}}">@我</text>
+            <text class="item-tag" style="{{ds.itemTag}}" if="{{item.is_temporary}}">临时</text>
           </div>
-          <text class="item-prev" show="{{item.prev}}">{{item.prev}}</text>
+          <text class="item-prev" style="{{ds.itemPrev}}" show="{{item.prev}}">{{item.prev}}</text>
         </div>
-        <div class="right">
-          <text class="item-time" show="{{item.tstr}}">{{item.tstr}}</text>
+        <div class="right" style="{{ds.right}}">
+          <text class="item-time" style="{{ds.itemTime}}" show="{{item.tstr}}">{{item.tstr}}</text>
           <!-- v2.9.0：免打扰会话未读徽标变灰（长按会话开关，双端同步，不拉起快应用） -->
-          <div class="{{item.muted ? 'badge badge-muted' : 'badge'}}" show="{{item.unread > 0}}">
-            <text class="badge-text">{{item.unread > 99 ? '99+' : item.unread}}</text>
+          <div class="{{item.muted ? 'badge badge-muted' : 'badge'}}" style="{{ds.badge}}" show="{{item.unread > 0}}">
+            <text class="badge-text" style="{{ds.badgeText}}">{{item.unread > 99 ? '99+' : item.unread}}</text>
           </div>
         </div>
       </div>
     </scroll>
     <!-- 空态移入 wrap 内 absolute 覆盖，不参与 flex 布局 -->
     <div class="empty-wrap" show="{{!conversations.length}}">
-      <image class="empty-icon" src="../../common/ui/empty_icon.png"></image>
-      <text class="empty-text">{{conversations.length === 0 ? '请在手机端添加联系人' : '暂无会话'}}</text>
+      <image class="empty-icon" style="{{ds.emptyIcon}}" src="../../common/ui/empty_icon.png"></image>
+      <text class="empty-text" style="{{ds.emptyText}}">{{conversations.length === 0 ? '请在手机端添加联系人' : '暂无会话'}}</text>
     </div>
     </div>
     <!-- v2.9.0 长按会话菜单：消息免打扰开关 -->
     <div class="menu-mask" if="{{menuConv}}" @click="closeMenu"></div>
-    <div class="menu" if="{{menuConv}}">
-      <text class="menu-title">{{menuConv.n9 || menuConv.name}}</text>
-      <text class="menu-row" onclick="toggleMute">{{menuMuted ? '关闭消息免打扰' : '消息免打扰'}}</text>
-      <text class="menu-row menu-cancel" onclick="closeMenu">取消</text>
+    <div class="menu" style="{{ds.menu}}" if="{{menuConv}}">
+      <text class="menu-title" style="{{ds.menuTitle}}">{{menuConv.n9 || menuConv.name}}</text>
+      <text class="menu-row" style="{{ds.menuRow}}" onclick="toggleMute">{{menuMuted ? '关闭消息免打扰' : '消息免打扰'}}</text>
+      <text class="menu-row menu-cancel" style="{{ds.menuRow}}" onclick="closeMenu">取消</text>
     </div>
-    <div class="status-bar">
-      <text class="status-text">{{statusText}}</text>
+    <div class="status-bar" style="{{ds.statusBar}}">
+      <text class="status-text" style="{{ds.statusText}}">{{statusText}}</text>
     </div>
   </div>
 </template>
@@ -90,29 +90,6 @@
   .menu-title { font-size: 18px; color: rgba(255, 255, 255, 0.55); text-align: center; margin-bottom: 8px; lines: 1; text-overflow: ellipsis; }
   .menu-row { font-size: 20px; color: #e8e8e8; text-align: center; padding: 12px 0; }
   .menu-cancel { color: rgba(255, 255, 255, 0.5); border-top: 1px solid #333333; }
-
-  /* ============ v2.10.0 机型分档覆盖 ============
-     wide：Redmi Watch 5/6（432×514，designWidth 192 下视口 192×228）
-     round：Watch S3/S4（466×466）/ S5（480×480），视口 192×192，需避圆弧安全区 */
-  .page-wide { }
-  .page-wide .top-row { height: 44px; }
-  .page-wide .btn { width: 56px; height: 40px; }
-  .page-wide .status-bar { height: 30px; }
-  .page-wide .item { height: 64px; }
-  .page-wide .right { height: 64px; }
-  .page-wide .avatar { width: 38px; height: 38px; border-radius: 19px; }
-  .page-wide .badge { bottom: 8px; }
-  .page-round .top-row { height: 40px; }
-  .page-round .btn { width: 50px; height: 36px; }
-  .page-round .status-bar { height: 24px; }
-  .page-round .status-text { font-size: 15px; }
-  /* 圆弧安全区：列表两侧内收，首尾行避开弧线裁切 */
-  .page-round .list { padding: 2px 14px 0 14px; }
-  .page-round .item { height: 58px; border-radius: 14px; }
-  .page-round .right { height: 58px; }
-  .page-round .avatar { width: 36px; height: 36px; border-radius: 18px; margin-left: 6px; }
-  .page-round .badge { right: 4px; bottom: 8px; }
-  .page-round .menu { padding-bottom: 44px; }
 </style>
 
 <script>
@@ -127,7 +104,9 @@
       conversations: [],
       menuConv: null,
       menuMuted: false,
-      dc: 'band'
+      dc: 'band',
+      dcReady: false,
+      ds: {}
     },
     onShow() {
       console.log('[BANDQQ] v21 index onShow')
@@ -140,7 +119,9 @@
       const def = this.$app.$def
       // v2.10.0 机型分档：读取全局 profile，异步到达后随事件刷新
       this.dc = def.deviceProfile.cls()
-      def.on('device_profile', () => { this.dc = def.deviceProfile.cls() })
+      this.ds = def.deviceProfile.stylesFor(this.dc)
+      if (def.deviceProfile.ready()) this.dcReady = true
+      def.on('device_profile', () => { this.dc = def.deviceProfile.cls(); this.ds = def.deviceProfile.stylesFor(this.dc); this.dcReady = true })
       // 抖动根治：所有数据事件统一走 120ms 尾沿防抖 + 签名比对，
       // 消息风暴时每 120ms 至多渲染一次，内容未变不触发任何渲染
       this._scheduleRefresh = () => {
