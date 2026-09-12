@@ -1,68 +1,68 @@
 <template>
   <div class="page">
     <div style="background-color:black; flex-direction: column;">
-      <div style="width: 197.82px; height: 132.29px;">
-        <div style="width: 197.82px; height: 132.29px;">
-          <img src="./assets/full/back2.png" style="position: absolute;top:15.66px;left:2.88px;width:192.05px;height:21.43px;" @click="onBtnClick('switchCn')" show="{{numFlag}}" />
-          <img src="./assets/full/123.png" style="position: absolute;top:109.63px;left:49.04px;width:49.46px;height:19.78px;" @click="onBtnClick('switchNum')" show="{{downFlag==='' && !numFlag && lang==='cn'}}" />
-          <img src="./assets/full/bigA.png" style="position: absolute;top:109.63px;left:49.04px;width:49.46px;height:19.78px;" @click="onBtnClick('switchLow')" show="{{downFlag==='' && upperFlag && lang==='en'}}" />
-          <img src="./assets/full/A.png" style="position: absolute;top:109.63px;left:49.04px;width:49.46px;height:19.78px;" @click="onBtnClick('switchUpper')" show="{{downFlag==='' && !upperFlag && lang==='en'}}" />
-          <div style="position: absolute;top:15.66px;left:32.15px;width:133.53px;height:21.43px;background-color:rgb(38,38,38);border-radius: 4.95px;border: 1.24px solid #333333" show="{{downFlag===''&& !numFlag}}"></div>
-          <img show="{{resultList.length > 0}}" style="position: absolute;top:17.72px;left:146.3px;" src="./assets/full/down.png" @click="onBtnClick('down')" />
-          <img src="./assets/full/{{lang}}.png" style="position: absolute;top:15.66px;left:2.88px;width:27.61px;height:21.43px;" @click="onBtnClick('lang')" show="{{downFlag==='' && !numFlag}}" />
-          <div style="position: absolute;top:-1.65px;left:32.15px;width:133.53px;" show="{{downFlag==='' && !numFlag && cval}}">
-            <text class="caltext" style="width:121.99px;"> {{cval}}_ </text>
+      <div style="width: 198px; height: 132px;">
+        <div style="width: 198px; height: 132px;">
+          <img src="./assets/full/back2.png" style="position: absolute;top:16px;left:3px;width:192px;height:21px;" @click="onBtnClick('switchCn')" show="{{numFlag}}" />
+          <img src="./assets/full/123.png" style="position: absolute;top:110px;left:49px;width:49px;height:20px;" @click="onBtnClick('switchNum')" show="{{downFlag==='' && !numFlag && lang==='cn'}}" />
+          <img src="./assets/full/bigA.png" style="position: absolute;top:110px;left:49px;width:49px;height:20px;" @click="onBtnClick('switchLow')" show="{{downFlag==='' && upperFlag && lang==='en'}}" />
+          <img src="./assets/full/A.png" style="position: absolute;top:110px;left:49px;width:49px;height:20px;" @click="onBtnClick('switchUpper')" show="{{downFlag==='' && !upperFlag && lang==='en'}}" />
+          <div style="position: absolute;top:16px;left:32px;width:134px;height:21px;background-color:rgb(38,38,38);border-radius: 5px;border: 1px solid #333333" show="{{downFlag===''&& !numFlag}}"></div>
+          <img show="{{resultList.length > 0}}" style="position: absolute;top:18px;left:146px;" src="./assets/full/down.png" @click="onBtnClick('down')" />
+          <img src="./assets/full/{{lang}}.png" style="position: absolute;top:16px;left:3px;width:28px;height:21px;" @click="onBtnClick('lang')" show="{{downFlag==='' && !numFlag}}" />
+          <div style="position: absolute;top:0px;left:32px;width:134px;" show="{{downFlag==='' && !numFlag && cval}}">
+            <text class="caltext" style="width:122px;"> {{cval}}_ </text>
           </div>
-          <div style="position: absolute;top:15.66px;left:32.97px;width:114.16px" show="{{lang === 'cn'&& !numFlag}}">
+          <div style="position: absolute;top:16px;left:33px;width:114px" show="{{lang === 'cn'&& !numFlag}}">
             <div class="item column center" for="{{cvalList}}">
               <input show='{{resultList.length > $idx}}' class="calbtn0" type="button" value="{{resultList[$idx]}}" @click="onRsSelect(resultList[$idx])" />
             </div>
           </div>
-          <div style="position: absolute;top:15.66px;left:32.97px;width:131.88px;height:21.43px;align-items: center;justify-content: center" show="{{downFlag==='' && !numFlag && lang==='en'}}" @click="onBtnClick('switchNum')" >
+          <div style="position: absolute;top:16px;left:33px;width:132px;height:21px;align-items: center;justify-content: center" show="{{downFlag==='' && !numFlag && lang==='en'}}" @click="onBtnClick('switchNum')" >
             <img src="./assets/full/123_boardless.png" />
           </div>
           <list class="list3" if="{{downFlag==='down'}}">
             <list-item type="waitingRows62t9" class="item3" for="{{itemArray in resultList2}}">
-              <div class="item column center" style="height:21.43px;" for="{{item in itemArray}}">
+              <div class="item column center" style="height:21px;" for="{{item in itemArray}}">
                 <input class="calbtn0" type="button" value="{{item}}" @click="onRsSelect(item)" />
               </div>
             </list-item>
           </list>
-          <div style="position: absolute;top:39.15px;left:3.3px;width:191.23px;height:21.43px;" show="{{downFlag===''&&!numFlag}}">
-            <img src="./assets/full/Q.png" style="width:22.25px;height:21.43px;margin-right: 1.65px;" @click="onSelect('Q')" />
+          <div style="position: absolute;top:39px;left:3px;width:191px;height:21px;" show="{{downFlag===''&&!numFlag}}">
+            <img src="./assets/full/Q.png" style="width:22px;height:21px;margin-right: 2px;" @click="onSelect('Q')" />
             <text class="calbtnfull" for="{{item in keys['full62'][0]}}" @click="onSelect(item)">{{item}}</text>
-            <img src="./assets/full/P.png" style="width:22.25px;height:21.43px;" @click="onSelect('P')" />
+            <img src="./assets/full/P.png" style="width:22px;height:21px;" @click="onSelect('P')" />
           </div>
-          <div style="position: absolute;top:62.64px;left:9.48px;width:180.51px;height:21.43px;" show="{{downFlag===''&&!numFlag}}">
-            <img src="./assets/full/btA.png" style="width:24.73px;height:21.43px;margin-right: 1.65px;" @click="onSelect('A')" />
+          <div style="position: absolute;top:63px;left:9px;width:181px;height:21px;" show="{{downFlag===''&&!numFlag}}">
+            <img src="./assets/full/btA.png" style="width:25px;height:21px;margin-right: 2px;" @click="onSelect('A')" />
             <text class="calbtnfull" for="{{item in keys['full62'][1]}}" @click="onSelect(item)">{{item}}</text>
-            <img src="./assets/full/L.png" style="width:24.73px;height:21.43px;" @click="onSelect('L')" />
+            <img src="./assets/full/L.png" style="width:25px;height:21px;" @click="onSelect('L')" />
           </div>
-          <div style="position: absolute;top:86.13px;left:23.08px;width:151.66px;height:21.43px;" show="{{downFlag===''&&!numFlag}}">
-            <img src="./assets/full/Z.png" style="width:29.67px;height:21.43px;margin-right: 1.65px;" @click="onSelect('Z')" />
+          <div style="position: absolute;top:86px;left:23px;width:152px;height:21px;" show="{{downFlag===''&&!numFlag}}">
+            <img src="./assets/full/Z.png" style="width:30px;height:21px;margin-right: 2px;" @click="onSelect('Z')" />
             <text class="calbtnfull" for="{{item in keys['full62'][2]}}" @click="onSelect(item)">{{item}}</text>
-            <img src="./assets/full/M.png" style="width:29.67px;height:21.43px;" @click="onSelect('M')" />
+            <img src="./assets/full/M.png" style="width:30px;height:21px;" @click="onSelect('M')" />
           </div>
-          <div style="position: absolute;top:39.15px;left:3.3px;width:191.23px;height:21.43px;" show="{{numFlag}}">
-            <img src="./assets/full/1.png" style="width:22.25px;height:21.43px;margin-right: 1.65px;" @click="onSelect('1')" />
+          <div style="position: absolute;top:39px;left:3px;width:191px;height:21px;" show="{{numFlag}}">
+            <img src="./assets/full/1.png" style="width:22px;height:21px;margin-right: 2px;" @click="onSelect('1')" />
             <text class="calbtnfull" for="{{item in keys['sign62'][0]}}" @click="onSelect(item)">{{item}}</text>
-            <img src="./assets/full/0.png" style="width:22.25px;height:21.43px;" @click="onSelect('0')" />
+            <img src="./assets/full/0.png" style="width:22px;height:21px;" @click="onSelect('0')" />
           </div>
-          <div style="position: absolute;top:62.64px;left:9.48px;width:180.51px;height:21.43px;" show="{{numFlag}}">
-            <img src="./assets/full/2-1.png" style="width:24.73px;height:21.43px;margin-right: 1.65px;" @click="onSelect('~')" />
+          <div style="position: absolute;top:63px;left:9px;width:181px;height:21px;" show="{{numFlag}}">
+            <img src="./assets/full/2-1.png" style="width:25px;height:21px;margin-right: 2px;" @click="onSelect('~')" />
             <text class="calbtnfull" for="{{item in keys['sign62'][1]}}" @click="onSelect(item)">{{item}}</text>
-            <img src="./assets/full/2-2.png" style="width:24.73px;height:21.43px;" @click="onSelect('?')" />
+            <img src="./assets/full/2-2.png" style="width:25px;height:21px;" @click="onSelect('?')" />
           </div>
-          <div style="position: absolute;top:86.13px;left:23.08px;width:151.66px;height:21.43px;" show="{{numFlag}}">
-            <img src="./assets/full/3-1.png" style="width:29.67px;height:21.43px;margin-right: 1.65px;" @click="onSelect('(')" />
+          <div style="position: absolute;top:86px;left:23px;width:152px;height:21px;" show="{{numFlag}}">
+            <img src="./assets/full/3-1.png" style="width:30px;height:21px;margin-right: 2px;" @click="onSelect('(')" />
             <text class="calbtnfull" for="{{item in keys['sign62'][2]}}" @click="onSelect(item)">{{item}}</text>
-            <img src="./assets/full/3-2.png" style="width:29.67px;height:21.43px;" @click="onSelect('、')" />
+            <img src="./assets/full/3-2.png" style="width:30px;height:21px;" @click="onSelect('、')" />
           </div>
-          <img src="./assets/full/del.png" style="position: absolute;top:15.66px;left:167.32px;width:27.61px;height:21.43px;" @click="onBtnClick('D')" show="{{downFlag==='' && !numFlag }}" />
-          <img src="./assets/full/space.png" style="position: absolute;top:109.63px;left:99.73px;width:49.46px;height:19.78px;" @click="onBtnClick('space')" show="{{downFlag==='' && !numFlag }}" />
-          <img src="./assets/full/4-2.png" style="position: absolute;top:109.63px;left:99.73px;width:49.46px;height:19.78px;" @click="onSelect('。')" show="{{numFlag }}" />
-          <img src="./assets/full/4-1.png" style="position: absolute;top:109.63px;left:49.04px;width:49.46px;height:19.78px;" @click="onSelect('，')" show="{{numFlag }}" />
-          <img style="position: absolute;top:84.07px;left:32.15px;" src="./assets/full/up.png" @click="onBtnClick('down')" show="{{downFlag==='down'}}" />
+          <img src="./assets/full/del.png" style="position: absolute;top:16px;left:167px;width:28px;height:21px;" @click="onBtnClick('D')" show="{{downFlag==='' && !numFlag }}" />
+          <img src="./assets/full/space.png" style="position: absolute;top:110px;left:100px;width:49px;height:20px;" @click="onBtnClick('space')" show="{{downFlag==='' && !numFlag }}" />
+          <img src="./assets/full/4-2.png" style="position: absolute;top:110px;left:100px;width:49px;height:20px;" @click="onSelect('。')" show="{{numFlag }}" />
+          <img src="./assets/full/4-1.png" style="position: absolute;top:110px;left:49px;width:49px;height:20px;" @click="onSelect('，')" show="{{numFlag }}" />
+          <img style="position: absolute;top:84px;left:32px;" src="./assets/full/up.png" @click="onBtnClick('down')" show="{{downFlag==='down'}}" />
         </div>
       </div>
     </div>
@@ -81,41 +81,41 @@
     flex-direction: column;
     align-items: flex-start;
   }
-  .item { height:21.43px; flex:1 }
-  .calbtn0 { color:#fff; font-size:11.54px; background-color:rgba(38,38,38,0); border-radius:0; height:21.43px; width:21.43px; text-align:center }
-  .calbtnfull { color:#fff; font-size:9.89px; font-weight:bold; background-color:#262626; border-radius:4.95px; margin-right:1.65px; height:21.43px; width:16.49px; text-align:center; border:1.24px solid rgba(255,255,255,0.06) }
-  .caltext { text-align:left; line-height:15.66px; lines:1; text-overflow:ellipsis; color:#0d84ff; height:18.55px; font-size:11.54px; text-align:left; font-weight:bold; padding-left:3.3px }
+  .item { height:21px; flex:1 }
+  .calbtn0 { color:#fff; font-size:12px; background-color:rgba(38,38,38,0); border-radius:0; height:21px; width:21px; text-align:center }
+  .calbtnfull { color:#fff; font-size:10px; font-weight:bold; background-color:#262626; border-radius:5px; margin-right:2px; height:21px; width:16px; text-align:center; border:1px solid rgba(255,255,255,0.06) }
+  .caltext { text-align:left; line-height:16px; lines:1; text-overflow:ellipsis; color:#0d84ff; height:19px; font-size:12px; text-align:left; font-weight:bold; padding-left:3px }
   
   .list3 { 
     position:absolute; 
-    top:15.66px; 
-    left:32.15px; 
-    width:133.53px; 
-    height:65.94px; 
+    top:16px; 
+    left:32px; 
+    width:134px; 
+    height:66px; 
     flex-direction:column; 
     background-color:#262626; 
-    border-radius:4.95px;
+    border-radius:5px;
     z-index: 500;
   }
 
-  .item3 { width:133.53px; height:21.43px }
-  .waiting-keys { width:14.84px; height:16.49px; text-align: center; }
+  .item3 { width:134px; height:21px }
+  .waiting-keys { width:15px; height:16px; text-align: center; }
 
   .hide-button-container {
     position: absolute;
     top: 0px;
     right: 0px; 
-    width: 24.73px;
-    height: 15.66px;
+    width: 25px;
+    height: 16px;
     justify-content: center;
     align-items: center;
     background-color: rgba(50, 50, 50, 0.5);
-    border-radius: 0 0 0 6.18px;
+    border-radius: 0 0 0 6px;
     z-index: 1000;
   }
   .hide-button-icon {
-    width: 17.31px;
-    height: 17.31px;
+    width: 17px;
+    height: 17px;
   }
 </style>
 

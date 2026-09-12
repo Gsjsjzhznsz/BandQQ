@@ -14,7 +14,7 @@
          （S3/S4 466×466 原生渲染重构版；px 常量 ×192/466 映射 designWidth 192，
           与 fork 真机渲染一致：480 画布 + 466 化按键资源，触控走真实布局命中；
           拼音候选/en 大小写/数字符号三态；键盘右上角隐藏钮收起，点预览区唤回）
-         kb-wrap 仅作占位（组件根容器 absolute 贴底）：132.29px 键盘高 + 0.71px 余量 -->
+         kb-wrap 仅作占位（组件根容器 absolute 贴底）：132px 键盘高 + 1px 余量 -->
     <div class="kb-wrap" style="height: {{kbH}}px;">
       <input-method
         hide="{{false}}"

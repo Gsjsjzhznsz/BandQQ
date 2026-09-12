@@ -3,7 +3,7 @@
   "name": "QQ助手",
   "icon": "/common/icon.png",
   "versionName": "2.11.0-s",
-  "versionCode": 48,
+  "versionCode": 61,
   "minAPILevel": 1,
   "deviceTypeList": [
     "watch"
