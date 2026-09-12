@@ -5,47 +5,25 @@
       <image class="btn" style="{{ds.btn}}" src="../../common/ui/back.png" onclick="goBack"></image>
       <text class="done-btn" style="{{ds.doneBtn}}" onclick="confirmDraft">完成</text>
     </div>
-    <div class="preview-box" style="{{ds.previewBox}}">
+    <div class="preview-box" style="{{ds.previewBox}}" onclick="showKb">
       <scroll class="preview-scroll" style="{{ds.previewScroll}}" scroll-y="true">
         <text class="preview-text" style="{{ds.previewText}}">{{draft || '在这里输入内容，点击下方键盘按键'}}</text>
       </scroll>
     </div>
-    <!-- v2.10.0 机型分档：band 机直挂官方胶囊键盘（拼音引擎零回归）；
-         宽/圆屏自建紧凑键盘（官方 rect/circle 变体按 designWidth≈物理宽写死内尺寸，
-         缩放包装后触控命中坐标不随 transform 映射，实测点击无效 → 原生布局自建） -->
-    <div class="kb-wrap" if="{{dc === 'band'}}" style="height: {{kb.kbSlotH}}px;">
-      <div class="kb-inner" style="width: {{kb.kbW}}px; height: {{kb.kbH}}px; transform: scale({{kb.kbScale}}); transform-origin: {{kb.kbOrigin}}; left: {{kb.kbLeft}}px;">
-        <input-method
-          hide="{{false}}"
-          keyboardtype="QWERTY"
-          maxlength="5"
-          vibratemode="short"
-          screentype="{{kb.kbType}}"
-          @complete="onComplete"
-          @delete="onDelete"
-        ></input-method>
-      </div>
-    </div>
-    <!-- 自建紧凑键盘（wide/round）：五行 QWERTY，纯 flex 原生命中 -->
-    <div class="skb" if="{{dc !== 'band'}}">
-      <div class="skb-row" style="{{ds.skbRow}}">
-        <text class="skb-key" style="{{ds.skbKey}}" for="{{k in skbRows[skbMode][0]}}" @click="skbTap(k)">{{skbMode === 'abc' && skbAlpha ? k.toUpperCase() : k}}</text>
-      </div>
-      <div class="skb-row" style="{{ds.skbRow}}">
-        <text class="skb-key" style="{{ds.skbKey}}" for="{{k in skbRows[skbMode][1]}}" @click="skbTap(k)">{{skbMode === 'abc' && skbAlpha ? k.toUpperCase() : k}}</text>
-      </div>
-      <div class="skb-row" style="{{ds.skbRow}}">
-        <text class="skb-fn" style="{{ds.skbFn}}" @click="skbCase">{{skbCaseTxt}}</text>
-        <text class="skb-key" style="{{ds.skbKey}}" for="{{k in skbRows[skbMode][2]}}" @click="skbTap(k)">{{skbMode === 'abc' && skbAlpha ? k.toUpperCase() : k}}</text>
-        <text class="skb-fn" style="{{ds.skbFn}}" @click="skbDel">删</text>
-      </div>
-      <div class="skb-row" style="{{ds.skbRow}}">
-        <text class="skb-fn skb-wide-fn" style="{{ds.skbFn}}" @click="skbModeToggle">{{skbModeTxt}}</text>
-        <text class="skb-key" style="{{ds.skbKey}}" @click="skbTap('，')">，</text>
-        <text class="skb-space" style="{{ds.skbSpace}}" @click="skbTap(' ')">空格</text>
-        <text class="skb-key" style="{{ds.skbKey}}" @click="skbTap('。')">。</text>
-        <text class="skb-fn skb-ok" @click="confirmDraft">完成</text>
-      </div>
+    <!-- v2.11.0-s 键盘换装：AetherZeng1145/Vela-Input-Method-Revise QWERTY 圆屏版
+         （S3/S4 466×466 原生渲染重构版；px 常量 ×192/466 映射 designWidth 192，
+          与 fork 真机渲染一致：480 画布 + 466 化按键资源，触控走真实布局命中；
+          拼音候选/en 大小写/数字符号三态；键盘右上角隐藏钮收起，点预览区唤回）
+         kb-wrap 仅作占位（组件根容器 absolute 贴底）：132.29px 键盘高 + 0.71px 余量 -->
+    <div class="kb-wrap" style="height: {{kbH}}px;">
+      <input-method
+        hide="{{false}}"
+        maxlength="5"
+        vibratemode="short"
+        @complete="onComplete"
+        @delete="onDelete"
+        @hide="onKbHide"
+      ></input-method>
     </div>
 
     <div class="mask" if="{{confirmShow}}">
@@ -72,9 +50,8 @@
   .preview-box { flex: 1; padding: 8px 10px; align-items: flex-start; justify-content: flex-start; }
   .preview-scroll { width: 176px; flex: 1; }
   .preview-text { font-size: 24px; color: #0d84ff; line-height: 34px; text-align: left; word-break: break-all; }
-  /* v2.10.0 键盘缩放包装：kb-wrap 占位视觉高度（kbSlotH），kb-inner 绝对定位锚底 + transform 等比缩放 */
-  .kb-wrap { position: relative; width: 100%; flex-shrink: 0; }
-  .kb-inner { position: absolute; bottom: 0; }
+  /* v2.11.0-s 键盘占位：kb-wrap 相对定位（组件根容器 absolute 锚定其内）+ flex 不压缩；收起时 overflow 裁切 */
+  .kb-wrap { position: relative; width: 100%; flex-shrink: 0; overflow: hidden; }
   .mask { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.65); align-items: center; justify-content: center; }
   .confirm-box { width: 176px; background-color: #2b2b2b; border-radius: 14px; padding: 14px; flex-direction: column; }
   .confirm-title { font-size: 18px; color: #ffffff; font-weight: bold; text-align: center; margin-bottom: 8px; }
@@ -97,32 +74,10 @@
     },
     private: {
       confirmShow: false,
-      dc: 'band',
+      dc: 'round',
       dcReady: false,
       ds: {},
-      kb: { kbType: 'pill-shaped', kbScale: 1, kbW: 192, kbH: 305, kbLeft: 0, kbOrigin: 'bottom left', kbSlotH: 305 },
-      skbMode: 'abc',
-      skbAlpha: false,
-      skbRows: {
-        abc: [
-          ['q', 'w', 'e', 'r', 't', 'y', 'u', 'i', 'o', 'p'],
-          ['a', 's', 'd', 'f', 'g', 'h', 'j', 'k', 'l'],
-          ['z', 'x', 'c', 'v', 'b', 'n', 'm']
-        ],
-        '123': [
-          ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0'],
-          ['-', '/', ':', ';', '(', ')', '@', '“', '”'],
-          ['？', '！', '…', '~', '*']
-        ]
-      }
-    },
-    computed: {
-      skbCaseTxt() {
-        return this.skbMode === '123' ? 'abc' : (this.skbAlpha ? 'ABC' : 'abc')
-      },
-      skbModeTxt() {
-        return this.skbMode === 'abc' ? '123' : 'abc'
-      }
+      kbH: 133
     },
     onInit(params) {
       const def = this.$app.$def
@@ -132,7 +87,6 @@
         this.dc = p.cls
         this.ds = def.deviceProfile.stylesFor(p.cls)
         this.dcReady = true
-        this.kb = { kbType: p.kbType, kbScale: p.kbScale, kbW: p.kbW, kbH: p.kbH, kbLeft: p.kbLeft, kbOrigin: p.kbOrigin, kbSlotH: p.kbSlotH }
       }
       applyProfile()
       def.on('device_profile', applyProfile)
@@ -158,36 +112,12 @@
     onDelete() {
       this.draft = this.draft.slice(0, -1)
     },
-    /* ===== v2.10.0 自建紧凑键盘（wide/round）==== */
-    skbVibrate() {
-      try { require('@system.vibrator').vibrate({ mode: 'short' }) } catch (e) {}
+    /* QWERTY 键盘右上角隐藏钮 → 收起键盘；点预览区唤回 */
+    onKbHide() {
+      this.kbH = 0
     },
-    skbTap(k) {
-      if (!k) return
-      this.skbVibrate()
-      let ch = k
-      if (this.skbMode === 'abc' && this.skbAlpha) {
-        ch = k.toUpperCase()
-        this.skbAlpha = false // 自动退回小写（标准键盘行为）
-      }
-      this.draft += ch
-    },
-    skbDel() {
-      this.skbVibrate()
-      this.draft = this.draft.slice(0, -1)
-    },
-    skbCase() {
-      this.skbVibrate()
-      if (this.skbMode === '123') {
-        this.skbMode = 'abc'
-      } else {
-        this.skbAlpha = !this.skbAlpha
-      }
-    },
-    skbModeToggle() {
-      this.skbVibrate()
-      this.skbMode = this.skbMode === 'abc' ? '123' : 'abc'
-      this.skbAlpha = false
+    showKb() {
+      if (this.kbH === 0) this.kbH = 133
     },
     confirmDraft() {
       if (!this.draft.trim()) return

@@ -1,999 +1,349 @@
 <template>
-  <div class="page" style="flex-direction: column; height: {{hide ? '0px' : 'auto'}}; overflow: {{hide ? 'hidden' : 'visible'}};">
-    <!-- 键盘内容懒建：外 if 保证键盘隐藏时整个子树不进 VDOM（chat/search 首进 1s 卡顿根因：
-         旧实现 show 只是不可见，200+ 节点/图片在进页瞬间全部创建），首次弹出才创建，
-         之后 keyboardCreated 保活、hide 切换只走内层 show 显隐，不重复重建。 -->
-    <div if="{{!hide || keyboardCreated}}">
-      <div show="{{!hide}}" style="background-color:black;flex-direction: column;" >
-      <!-- 拼音小字行：键盘框外上方单独一行，黑底覆盖，仅中/日模式且有 cval 时显示，只展示不可点。
-           circle 屏彻底不建此节点（键盘固定 480x321，外置 28px 行会挤压键盘且顶部多一条黑条），
-           circle 的拼音改在键盘内部绝对定位显示；if 而非 show：show 隐藏时节点仍在 VDOM，
-           circle 顶部会残留黑条 -->
-      <div if="{{screentype !== 'circle'}}" class="cvalrow-wrap" show="{{(lang==='cn' || lang==='jp') && downFlag==='' && !numFlag && cval}}">
-        <text class="cvalrow">{{cvalDisplay}}</text>
-      </div>
-      <!-- 圆屏62 -->
-      <div if="{{screentype==='circle'}}" style="width: 480px;height: 321px;">
-        <!-- 全键盘 -->
-		<!-- 这里是480px圆表屏幕的键盘 -->
-        <div id="full-keyboard" if="{{keyboardtype!='T9'}}" style="width: 480px;height: 321px;">
-          <img src="./assets/full/back2.png" style="position: absolute;top:38px;left:7px;width:466px;height:52px;" @click="onBtnClick('switchCn')" show="{{numFlag}}" />
-          <img src="./assets/full/123.png" style="position: absolute;top:266px;left:119px;width:120px;height:48px;" @click="onBtnClick('switchNum')" show="{{downFlag==='' && !numFlag && lang==='cn'}}" />
-          <img src="./assets/full/123.png" style="position: absolute;top:266px;left:119px;width:120px;height:48px;" @click="onBtnClick('switchNum_jp')" show="{{downFlag==='' && !numFlag && lang==='jp'}}" />
-          <img src="./assets/full/bigA.png" style="position: absolute;top:266px;left:119px;width:120px;height:48px;" @click="onBtnClick('switchLow')" show="{{downFlag==='' && upperFlag && lang==='en'}}" />
-          <img src="./assets/full/A.png" style="position: absolute;top:266px;left:119px;width:120px;height:48px;" @click="onBtnClick('switchUpper')" show="{{downFlag==='' && !upperFlag && lang==='en'}}" />
-          <div style="position: absolute;top:38px;left:78px;width:324px;height:52px;background-color:rgb(38,38,38);border-radius: 12px;border: 3px solid #333333" show="{{downFlag===''&& !numFlag}}"></div>
-          <img show="{{resultRow0.length > 0}}" style="position: absolute;top:43px;left:355px;" src="./assets/full/down.png" @click="onBtnClick('down')" />
-          <!-- 带变量的相对路径在 aiot-tookit 2.0.4 中修复 -->
-          <img src="./assets/full/{{lang}}.png" style="position: absolute;top:38px;left:7px;width:67px;height:52px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang!='jp'}}" />
-          <img src="./assets/full/jp.png" style="position: absolute;top:38px;left:7px;width:67px;height:52px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang==='jp'}}" />
-          <!-- 拼音小字行：circle 屏在键盘内部绝对定位（对齐参考工程），浮于候选行上方，不占键盘高度 -->
-          <div style="position: absolute;top:-4px;left:78px;width:324px;" show="{{(lang==='cn' || lang==='jp') && downFlag==='' && !numFlag && cval}}">
-            <text class="caltext" style="width:296px;">{{cvalDisplay}}_</text>
+  <div class="page">
+    <div style="background-color:black; flex-direction: column;">
+      <div style="width: 197.82px; height: 132.29px;">
+        <div style="width: 197.82px; height: 132.29px;">
+          <img src="./assets/full/back2.png" style="position: absolute;top:15.66px;left:2.88px;width:192.05px;height:21.43px;" @click="onBtnClick('switchCn')" show="{{numFlag}}" />
+          <img src="./assets/full/123.png" style="position: absolute;top:109.63px;left:49.04px;width:49.46px;height:19.78px;" @click="onBtnClick('switchNum')" show="{{downFlag==='' && !numFlag && lang==='cn'}}" />
+          <img src="./assets/full/bigA.png" style="position: absolute;top:109.63px;left:49.04px;width:49.46px;height:19.78px;" @click="onBtnClick('switchLow')" show="{{downFlag==='' && upperFlag && lang==='en'}}" />
+          <img src="./assets/full/A.png" style="position: absolute;top:109.63px;left:49.04px;width:49.46px;height:19.78px;" @click="onBtnClick('switchUpper')" show="{{downFlag==='' && !upperFlag && lang==='en'}}" />
+          <div style="position: absolute;top:15.66px;left:32.15px;width:133.53px;height:21.43px;background-color:rgb(38,38,38);border-radius: 4.95px;border: 1.24px solid #333333" show="{{downFlag===''&& !numFlag}}"></div>
+          <img show="{{resultList.length > 0}}" style="position: absolute;top:17.72px;left:146.3px;" src="./assets/full/down.png" @click="onBtnClick('down')" />
+          <img src="./assets/full/{{lang}}.png" style="position: absolute;top:15.66px;left:2.88px;width:27.61px;height:21.43px;" @click="onBtnClick('lang')" show="{{downFlag==='' && !numFlag}}" />
+          <div style="position: absolute;top:-1.65px;left:32.15px;width:133.53px;" show="{{downFlag==='' && !numFlag && cval}}">
+            <text class="caltext" style="width:121.99px;"> {{cval}}_ </text>
           </div>
-          <!-- 候选横滚行：整词在前、单字随后，宽度自适应防长词拥挤（对齐 rect/pill 屏方案），容器止于右侧 down 箭头前 -->
-          <div style="position: absolute;top:38px;left:78px;width:275px;height:52px;" show="{{(lang === 'cn' || lang === 'jp') && !numFlag}}">
-            <scroll scroll-x="{{true}}" style="position:absolute;left:0px;width:100%;height:42px;top:5px">
-              <div style="position: absolute;left: 0px;height: 42px;padding-left:20px;padding-right:20px;">
-                <text for="{{resultRow0}}" show="{{resultRow0.length > $idx}}" class="calbtn02" style="padding-right:10px" @click="onRsSelect(resultRow0[$idx])">{{resultRow0[$idx]}}</text>
-              </div>
-            </scroll>
+          <div style="position: absolute;top:15.66px;left:32.97px;width:114.16px" show="{{lang === 'cn'&& !numFlag}}">
+            <div class="item column center" for="{{cvalList}}">
+              <input show='{{resultList.length > $idx}}' class="calbtn0" type="button" value="{{resultList[$idx]}}" @click="onRsSelect(resultList[$idx])" />
+            </div>
           </div>
-          <div style="position: absolute;top:38px;left:80px;width:320px;height:52px;align-content: center;align-items: center;justify-content: center" show="{{downFlag==='' && !numFlag && lang==='en'}}" @click="onBtnClick('switchNum')" >
+          <div style="position: absolute;top:15.66px;left:32.97px;width:131.88px;height:21.43px;align-items: center;justify-content: center" show="{{downFlag==='' && !numFlag && lang==='en'}}" @click="onBtnClick('switchNum')" >
             <img src="./assets/full/123_boardless.png" />
           </div>
-          <!-- 这里使用show会导致每次输入都会加载全部候选列表，很卡 -->
-          <scroll class="list3 expanded-scroll" scroll-y="{{true}}" if="{{downFlag==='down'}}">
-            <div class="expanded-candidates">
-              <text class="calbtn-down-text" for="{{item in resultList2}}" @click="onRsSelect(item)">{{item}}</text>
-            </div>
-          </scroll>
-          <div style="position: absolute;top:95px;left:8px;width:464px;height:52px;" show="{{downFlag===''&&!numFlag}}">
-            <img src="./assets/full/Q.png" style="width:54px;height:52px;margin-right: 4px;" @click="onSelect('Q')" />
+          <list class="list3" if="{{downFlag==='down'}}">
+            <list-item type="waitingRows62t9" class="item3" for="{{itemArray in resultList2}}">
+              <div class="item column center" style="height:21.43px;" for="{{item in itemArray}}">
+                <input class="calbtn0" type="button" value="{{item}}" @click="onRsSelect(item)" />
+              </div>
+            </list-item>
+          </list>
+          <div style="position: absolute;top:39.15px;left:3.3px;width:191.23px;height:21.43px;" show="{{downFlag===''&&!numFlag}}">
+            <img src="./assets/full/Q.png" style="width:22.25px;height:21.43px;margin-right: 1.65px;" @click="onSelect('Q')" />
             <text class="calbtnfull" for="{{item in keys['full62'][0]}}" @click="onSelect(item)">{{item}}</text>
-            <img src="./assets/full/P.png" style="width:54px;height:52px;" @click="onSelect('P')" />
+            <img src="./assets/full/P.png" style="width:22.25px;height:21.43px;" @click="onSelect('P')" />
           </div>
-          <div style="position: absolute;top:152px;left:23px;width:438px;height:52px;" show="{{downFlag===''&&!numFlag}}">
-            <img src="./assets/full/btA.png" style="width:60px;height:52px;margin-right: 4px;" @click="onSelect('A')" />
+          <div style="position: absolute;top:62.64px;left:9.48px;width:180.51px;height:21.43px;" show="{{downFlag===''&&!numFlag}}">
+            <img src="./assets/full/btA.png" style="width:24.73px;height:21.43px;margin-right: 1.65px;" @click="onSelect('A')" />
             <text class="calbtnfull" for="{{item in keys['full62'][1]}}" @click="onSelect(item)">{{item}}</text>
-            <img src="./assets/full/L.png" style="width:60px;height:52px;" @click="onSelect('L')" />
+            <img src="./assets/full/L.png" style="width:24.73px;height:21.43px;" @click="onSelect('L')" />
           </div>
-          <div style="position: absolute;top:209px;left:56px;width:368px;height:52px;" show="{{downFlag===''&&!numFlag}}">
-            <img src="./assets/full/Z.png" style="width:72px;height:52px;margin-right: 4px;" @click="onSelect('Z')" />
+          <div style="position: absolute;top:86.13px;left:23.08px;width:151.66px;height:21.43px;" show="{{downFlag===''&&!numFlag}}">
+            <img src="./assets/full/Z.png" style="width:29.67px;height:21.43px;margin-right: 1.65px;" @click="onSelect('Z')" />
             <text class="calbtnfull" for="{{item in keys['full62'][2]}}" @click="onSelect(item)">{{item}}</text>
-            <img src="./assets/full/M.png" style="width:72px;height:52px;" @click="onSelect('M')" />
+            <img src="./assets/full/M.png" style="width:29.67px;height:21.43px;" @click="onSelect('M')" />
           </div>
-          <div style="position: absolute;top:95px;left:8px;width:464px;height:52px;" show="{{numFlag}}">
-            <img src="./assets/full/1.png" style="width:54px;height:52px;margin-right: 4px;" @click="onSelect('1')" />
-            <text if="{{!numFlag_jp}}" class="calbtnfull" for="{{item in keys['sign62'][0]}}" @click="onSelect(item)">{{item}}</text>
-            <text else class="calbtnfull" for="{{item in keys['sign62_jp'][0]}}" @click="onSelect(item)">{{item}}</text>
-            <img src="./assets/full/0.png" style="width:54px;height:52px;" @click="onSelect('0')" />
+          <div style="position: absolute;top:39.15px;left:3.3px;width:191.23px;height:21.43px;" show="{{numFlag}}">
+            <img src="./assets/full/1.png" style="width:22.25px;height:21.43px;margin-right: 1.65px;" @click="onSelect('1')" />
+            <text class="calbtnfull" for="{{item in keys['sign62'][0]}}" @click="onSelect(item)">{{item}}</text>
+            <img src="./assets/full/0.png" style="width:22.25px;height:21.43px;" @click="onSelect('0')" />
           </div>
-          <div style="position: absolute;top:152px;left:23px;width:438px;height:52px;" show="{{numFlag}}">
-            <img src="./assets/full/2-1.png" style="width:60px;height:52px;margin-right: 4px;" @click="onSelect('~')" />
-            <text if="{{!numFlag_jp}}" class="calbtnfull" for="{{item in keys['sign62'][1]}}" @click="onSelect(item)">{{item}}</text>
-            <text else class="calbtnfull" for="{{item in keys['sign62_jp'][1]}}" @click="onSelect(item)">{{item}}</text>
-            <img src="./assets/full/2-2.png" style="width:60px;height:52px;" @click="onSelect('?')" />
+          <div style="position: absolute;top:62.64px;left:9.48px;width:180.51px;height:21.43px;" show="{{numFlag}}">
+            <img src="./assets/full/2-1.png" style="width:24.73px;height:21.43px;margin-right: 1.65px;" @click="onSelect('~')" />
+            <text class="calbtnfull" for="{{item in keys['sign62'][1]}}" @click="onSelect(item)">{{item}}</text>
+            <img src="./assets/full/2-2.png" style="width:24.73px;height:21.43px;" @click="onSelect('?')" />
           </div>
-          <div style="position: absolute;top:209px;left:56px;width:368px;height:52px;" show="{{numFlag}}">
-            <img src="./assets/full/3-1.png" style="width:72px;height:52px;margin-right: 4px;" @click="onSelect('(')" />
-            <text if="{{!numFlag_jp}}" class="calbtnfull" for="{{item in keys['sign62'][2]}}" @click="onSelect(item)">{{item}}</text>
-            <text else class="calbtnfull" for="{{item in keys['sign62_jp'][2]}}" @click="onSelect(item)">{{item}}</text>
-            <img src="./assets/full/3-2.png" style="width:72px;height:52px;" @click="onSelect('、')" />
+          <div style="position: absolute;top:86.13px;left:23.08px;width:151.66px;height:21.43px;" show="{{numFlag}}">
+            <img src="./assets/full/3-1.png" style="width:29.67px;height:21.43px;margin-right: 1.65px;" @click="onSelect('(')" />
+            <text class="calbtnfull" for="{{item in keys['sign62'][2]}}" @click="onSelect(item)">{{item}}</text>
+            <img src="./assets/full/3-2.png" style="width:29.67px;height:21.43px;" @click="onSelect('、')" />
           </div>
-          <img src="./assets/full/del.png" style="position: absolute;top:38px;left:406px;width:67px;height:52px;" @click="onBtnClick('D')" show="{{downFlag==='' && !numFlag }}" />
-          <img src="./assets/full/space.png" style="position: absolute;top:266px;left:242px;width:120px;height:48px;" @click="onBtnClick('space')" show="{{downFlag==='' && !numFlag }}" />
-          <img src="./assets/full/4-2.png" style="position: absolute;top:266px;left:242px;width:120px;height:48px;" @click="onSelect('。')" show="{{numFlag }}" />
-          <img src="./assets/full/4-1.png" style="position: absolute;top:266px;left:119px;width:120px;height:48px;" @click="onSelect('，')" show="{{numFlag && !numFlag_jp}}" />
-          <img src="./assets/full/4-1.png" style="position: absolute;top:266px;left:119px;width:120px;height:48px;" @click="onSelect('、')" show="{{numFlag_jp}}" />
-          <img style="position: absolute;top:204px;left:78px;" src="./assets/full/up.png" @click="onBtnClick('down')" show="{{downFlag==='down'}}" />
-        </div>
-        <!-- 九键 -->
-        <div else style="width: 480px;height: 321px;">
-          <img src="./assets/t9/back2.png" style="position: absolute;top:35px;left:31px;width: 60px;height: 60px;" @click="onBtnClick('switchCn')" show="{{numFlag}}" />
-          <img src="./assets/t9/123.png" style="position: absolute;top:99px;left:31px;width: 60px;height: 60px;" @click="onBtnClick('switchNum')" show="{{downFlag==='' && !numFlag && lang==='cn'}}" />
-          <img src="./assets/t9/bigA.png" style="position: absolute;top:99px;left:31px;width: 60px;height: 60px;" @click="onBtnClick('switchLow')" show="{{downFlag==='' && !numFlag && upperFlag && lang==='en'}}" />
-          <img src="./assets/t9/a.png" style="position: absolute;top:99px;left:31px;width: 60px;height: 60px;" @click="onBtnClick('switchUpper')" show="{{downFlag==='' && !numFlag && !upperFlag && lang==='en'}}" />
-          <div style="position: absolute;top:35px;left:95px;width:290px;height:60px;background-color:rgb(38,38,38);border-radius: 999px;border: 3px solid #333333" show="{{downFlag===''&& !numFlag}}"></div>
-          <img show="{{resultRow0.length > 0}}" style="position: absolute;top:44px;left:338px;" src="./assets/full/down.png" @click="onBtnClick('down')" />
-          <!-- 带变量的相对路径在 aiot-tookit 2.0.4 中修复 -->
-          <img src="./assets/t9/{{lang}}.png" style="position: absolute;top:35px;left:31px;width: 60px;height: 60px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag}}" />
-          <div show="{{downFlag==='' && !numFlag}}" style="position: absolute;top:-4px;left:240px;width:145px;height:40px;justify-content:flex-end">
-            <text for="{{waitingList}}" class="waiting-keys" style="color:{{$idx===waitingIndex ? 'rgb(13,132,255)' : 'white'}};" @click="onSelectWaiting($idx)">{{waitingList[$idx]}}</text>
-          </div>
-          <!-- 拼音小字行：circle 屏在键盘内部绝对定位（对齐参考工程），浮于候选行上方，不占键盘高度；左止于 waiting 列表前 -->
-          <div style="position: absolute;top:-4px;left:95px;width:145px;height:40px;" show="{{(lang==='cn' || lang==='jp') && downFlag==='' && !numFlag && cval}}">
-            <text class="caltext" style="width:145px;">{{cvalDisplay}}_</text>
-          </div>
-          <!-- 候选横滚行：整词在前、单字随后，宽度自适应防长词拥挤（对齐 rect/pill 屏方案），容器止于右侧 down 箭头前。
-               注意：容器必须给 height（scroll 在无高度容器内不渲染内容，T9 候选曾因此空白） -->
-          <div style="position: absolute;top:39px;left:105px;width:233px;height:52px;" show="{{(lang === 'cn' || lang === 'jp') && !numFlag}}">
-            <scroll scroll-x="{{true}}" style="position:absolute;left:0px;width:100%;height:42px;">
-              <div style="position: absolute;left: 0px;height: 42px;padding-left:20px;padding-right:20px">
-                <text for="{{resultRow0}}" show="{{resultRow0.length > $idx}}" class="calbtn02" style="padding-right:10px" @click="onRsSelect(resultRow0[$idx])">{{resultRow0[$idx]}}</text>
-              </div>
-            </scroll>
-          </div>
-          <div style="position: absolute;top:35px;left:95px;width:290px;height:60px;align-content: center;align-items: center;justify-content: center" show="{{downFlag==='' && !numFlag && lang==='en'}}" @click="onBtnClick('switchNum')" >
-            <img src="./assets/full/123_boardless.png" />
-          </div>
-          <!-- 这里使用show会导致每次输入都会加载全部候选列表，很卡 -->
-          <scroll class="list3 expanded-scroll" scroll-y="{{true}}" if="{{downFlag==='down'}}">
-            <div class="expanded-candidates">
-              <text class="calbtn-down-text" for="{{item in resultList2}}" @click="onRsSelect(item)">{{item}}</text>
-            </div>
-          </scroll>
-          <div style="position: absolute;top:99px;left:95px;width:294px;height:60px;" show="{{downFlag===''&&!numFlag}}">
-            <text class="calbtnt9" @click="onSelect('select')">选择</text>
-            <text class="calbtnt9" for="{{item in keys['t9'][0]}}" @click="onSelect(item)">{{item.toUpperCase()}}</text>
-          </div>
-          <div style="position: absolute;top:163px;left:95px;width:294px;height:60px;" show="{{downFlag===''&&!numFlag}}">
-            <text class="calbtnt9" for="{{item in keys['t9'][1]}}" @click="onSelect(item)">{{item.toUpperCase()}}</text>
-          </div>
-          <div style="position: absolute;top:227px;left:95px;width:294px;height:60px;" show="{{downFlag===''&&!numFlag}}">
-            <text class="calbtnt9" for="{{item in keys['t9'][2]}}" @click="onSelect(item)">{{item.toUpperCase()}}</text>
-          </div>
-          <div style="position: absolute;top:35px;left:95px;width:294px;height:60px;" show="{{numFlag}}">
-            <text class="calbtnt9" @click="onSelect('7')">7</text>
-            <text class="calbtnt9" @click="onSelect('8')">8</text>
-            <text class="calbtnt9" @click="onSelect('9')">9</text>
-          </div>
-          <div style="position: absolute;top:99px;left:95px;width:294px;height:60px;" show="{{numFlag}}">
-            <text class="calbtnt9" @click="onSelect('4')">4</text>
-            <text class="calbtnt9" @click="onSelect('5')">5</text>
-            <text class="calbtnt9" @click="onSelect('6')">6</text>
-          </div>
-          <div style="position: absolute;top:163px;left:95px;width:294px;height:60px;" show="{{numFlag}}">
-            <text class="calbtnt9" @click="onSelect('1')">1</text>
-            <text class="calbtnt9" @click="onSelect('2')">2</text>
-            <text class="calbtnt9" @click="onSelect('3')">3</text>
-          </div>
-          <div style="position: absolute;top:227px;left:95px;width:294px;height:60px;" show="{{numFlag}}">
-            <text class="calbtnt9" @click="onSelect('，')">，</text>
-            <text class="calbtnt9" @click="onSelect('0')">0</text>
-            <text class="calbtnt9" @click="onSelect('。')">。</text>
-          </div>
-          <img src="./assets/t9/del.png" style="position: absolute;top:35px;left:389px;width: 60px;height: 60px;" @click="onBtnClick('D')" show="{{downFlag==='' }}" />
-          <img src="./assets/t9/space.png" style="position: absolute;top:99px;left:389px;width: 60px;height: 60px;" @click="onBtnClick('space')" show="{{downFlag==='' && !numFlag }}" />
-          <img style="position: absolute;top:204px;left:78px;" src="./assets/full/up.png" @click="onBtnClick('down')" show="{{downFlag==='down'}}" />
+          <img src="./assets/full/del.png" style="position: absolute;top:15.66px;left:167.32px;width:27.61px;height:21.43px;" @click="onBtnClick('D')" show="{{downFlag==='' && !numFlag }}" />
+          <img src="./assets/full/space.png" style="position: absolute;top:109.63px;left:99.73px;width:49.46px;height:19.78px;" @click="onBtnClick('space')" show="{{downFlag==='' && !numFlag }}" />
+          <img src="./assets/full/4-2.png" style="position: absolute;top:109.63px;left:99.73px;width:49.46px;height:19.78px;" @click="onSelect('。')" show="{{numFlag }}" />
+          <img src="./assets/full/4-1.png" style="position: absolute;top:109.63px;left:49.04px;width:49.46px;height:19.78px;" @click="onSelect('，')" show="{{numFlag }}" />
+          <img style="position: absolute;top:84.07px;left:32.15px;" src="./assets/full/up.png" @click="onBtnClick('down')" show="{{downFlag==='down'}}" />
         </div>
       </div>
-      <!-- 方屏67 -->
-      <div if="{{screentype==='rect'}}" style="width: 100%;height: 255px;flex-direction: column">
-        <!-- 九键中文 -->
-        <div if="{{keyboardtype=='T9' && !numFlag}}" style="position:absolute;top:-11px;width:100%;height:276px;justify-content: center;">
-          <div style="top:77px;height:189px;width:100%;align-items: stretch;justify-content: space-between;flex-direction: column;padding:6px 3px">
-            <div class="keyboard-rows-rect-t9">
-              <text class="calbtnt9 calbtnt9-rect" @click="onSelect('select')">
-                选择
-                <span if="{{waitingList.length != 0}}" class="waiting-keys" style="color:rgb(13,132,255);" @click="onSelectWaiting(waitingIndex)">
-                  {{waitingList[waitingIndex].toUpperCase()}}
-                </span>
-              </text>
-              <text class="calbtnt9 calbtnt9-rect" for="{{item in keys['t9'][0]}}" @click="onSelect(item)">{{item.toUpperCase()}}</text>
-            </div>
-            <div class="keyboard-rows-rect-t9">
-              <text class="calbtnt9 calbtnt9-rect" for="{{item in keys['t9'][1]}}" @click="onSelect(item)">{{item.toUpperCase()}}</text>
-            </div>
-            <div class="keyboard-rows-rect-t9">
-              <text class="calbtnt9 calbtnt9-rect" for="{{item in keys['t9'][2]}}" @click="onSelect(item)">{{item.toUpperCase()}}</text>
-            </div>
-          </div>
-        </div>
-        <div else style="position:absolute;top:-11px;width:100%;height:276px;justify-content: center">
-          <progress percent="{{percent67}}" style="position:absolute;bottom: 12px;width:80px;color:#ffffff;stroke-width:6px;layer-color:#262626;"></progress>
-          <scroll id="keyboard67" scroll-x="{{true}}" onscroll="handelScroll">
-            <div if="{{!numFlag}}" style="left: 6px; flex-direction: column;">
-              <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
-                <text class="calbtn67" for="{{item in keys['full'][0]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-              <div static style="margin-left: 32px;margin-top: -5px;height: 60px;">
-                <text class="calbtn67" for="{{item in keys['full'][1]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-              <div static style="margin-left: 64px;margin-top: -5px;height: 60px;">
-                <text class="calbtn67" for="{{item in keys['full'][2]}}" @click="onSelect(item)">{{item}}</text>
-                <img static src="./assets/horizontal/space.png" style="width: 60px;height: 60px;" @click="onBtnClick('space')" />
-              </div>
-            </div>
-            <div if="{{numFlag && !numFlag_jp}}" style="left: 6px; flex-direction: column;">
-              <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
-                <text class="calbtn67" for="{{item in keys['sign'][0]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-              <div static style="margin-left: 32px;margin-top: -5px;height: 60px;">
-                <text class="calbtn67" for="{{item in keys['sign'][1]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-              <div static style="margin-left: 64px;margin-top: -5px;height: 60px;">
-                <text class="calbtn67" for="{{item in keys['sign'][2]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-            </div>
-            <div if="{{numFlag_jp}}" style="left: 6px; flex-direction: column;">
-              <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
-                <text class="calbtn67" for="{{item in keys['sign_jp'][0]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-              <div static style="margin-left: 32px;margin-top: -5px;height: 60px;">
-                <text class="calbtn67" for="{{item in keys['sign_jp'][1]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-              <div static style="margin-left: 64px;margin-top: -5px;height: 60px;">
-                <text class="calbtn67" for="{{item in keys['sign_jp'][2]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-            </div>
-          </scroll>
-        </div>
-        <div style="width: 100%; flex-direction: row; justify-content: center; top:6px; padding:0 6px;">
-          <img src="./assets/horizontal/cn.png" style="padding: 6px;width: 60px;height: 60px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang==='cn'}}" />
-          <img src="./assets/horizontal/jp.png" style="padding:6px;width:60px;height:60px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang==='jp'}}" />
-          <div if="{{(lang === 'cn' || lang === 'jp') && !numFlag}}" style="margin-left: 6px;flex: 1;height: 60px;background-color:#262626;border-color: #333333; border-width: 3px; border-radius: 100px;flex-direction: row;align-items:center">
-            <!-- 候选横滚行：整词在前、单字随后（拼音已在键盘上方独立小字行显示，这里不放 cval） -->
-            <scroll id="cvalWaiting" scroll-x="{{true}}" style="position:absolute;width: 85%;height: 42px;">
-              <div static style="position: absolute;left: 0px;height: 42px;padding-left:20px;padding-right:20px">
-                <text for="{{resultRow0}}" show="{{resultRow0.length > $idx}}" class="calbtn02" style="padding-right:10px" @click="onRsSelect(resultRow0[$idx])">{{resultRow0[$idx]}}</text>
-              </div>
-            </scroll>
-            <img if="{{resultRow0.length > 0}}" style="position:absolute;right: 5px; width: 60px;height: 40px;" src="./assets/horizontal/down2.png" @click="onBtnClick('down')" />
-          </div>
-          <!-- <img src="./assets/t9/123.png" style="margin-left:6px;padding:6px;width:60px;height:60px;" @click="onBtnClick('switchNum_jp')" if="{{downFlag==='' && !numFlag && lang==='jp'}}" /> -->
-        
-          <img src="./assets/horizontal/en.png" style="padding: 6px;width: 60px;height: 60px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang==='en'}}" />
-          <img src="./assets/horizontal/bigA.png" style="padding: 6px;margin-left: 6px;width:94px;height:60px;" @click="onBtnClick('switchLow')" if="{{downFlag==='' && upperFlag && lang==='en'&& !numFlag}}" />
-          <img src="./assets/horizontal/a.png" style="padding: 6px;margin-left: 6px;width:94px;height:60px;" @click="onBtnClick('switchUpper')" if="{{downFlag==='' && !upperFlag && lang==='en'&& !numFlag}}" />
-          <img src="./assets/horizontal/123.png" style="margin-left: 6px;padding: 6px;margin-left: 6px;width: 94px;height: 60px;" @click="onBtnClick('switchNum')" if="{{downFlag==='' && !numFlag && lang==='en'}}" />
-          <img src="./assets/horizontal/back2.png" style="margin-left: 6px;padding: 6px;width: 159px;height: 60px;" @click="onBtnClick('switchCn')" if="{{numFlag}}" />
-          <img if="{{!numFlag}}" src="./assets/horizontal/del.png" style="margin-left: 6px;padding: 6px;width: 60px;height: 60px;" @click="onBtnClick('D')" />
-          <img else src="./assets/horizontal/del2.png" style="margin-left: 6px;padding: 6px;" @click="onBtnClick('D')" />
-        </div>
-        <!-- 这里使用show会导致每次输入都会加载全部候选列表，很卡 -->
-        <div style="position: absolute;left: 0px;top: 0px;width: 100%;height: 252px;background-color: black; justify-content:center; flex-direction:column; align-items:center" if="{{downFlag==='down'}}">
-          <div static class="list67">
-            <scroll class="expanded-scroll" scroll-y="{{true}}" style="width:100%;height:100%;">
-              <div class="expanded-candidates">
-                <text class="calbtn-down-text" for="{{item in resultList2}}" @click="onRsSelect(item)">{{item}}</text>
-              </div>
-            </scroll>
-          </div>
-          <img static style="margin-top:5px" src="./assets/horizontal/up2.png" @click="onBtnClick('down')" />
-        </div>
-      </div>
-      <!-- 胶囊屏66 -->
-      <div if="{{screentype==='pill-shaped'}}" style="width: 100%;height: 305px">
-        <div static style="position:absolute;left:0px;top:34px;width:100%;height:276px;">
-          <progress percent="{{30+percent66}}" type="arc" style="start-angle:204deg;total-angle:-48deg;width:188px;height:188px;top:82px;left:2px;position:absolute;color:#ffffff;stroke-width:6px;layer-color:#262626;margin-left: {{(screenWidth - 192)/2}}px;"></progress>
-          <scroll id="keyboard66" scroll-x="{{true}}" onscroll="handelScroll" style="padding-left: {{(screenWidth - 192)/2}}px;padding-right: {{(screenWidth - 192)/2}}px;">
-            <div if="{{!numFlag}}" style="left: 3px; flex-direction: column;">
-              <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
-                <text class="calbtn66" for="{{item in keys['full'][0]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-              <div static style="margin-left: 32px;margin-top: -5px;height: 60px;">
-                <text class="calbtn66" for="{{item in keys['full'][1]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-              <div static style="margin-left: 64px;margin-top: -5px;height: 60px;">
-                <text class="calbtn66" for="{{item in keys['full'][2]}}" @click="onSelect(item)">{{item}}</text>
-                <img static src="./assets/arc/space.png" style="width: 60px;height: 60px;" @click="onBtnClick('space')" />
-              </div>
-            </div>
-            <div if="{{numFlag && !numFlag_jp}}" style="left: 3px; flex-direction: column;">
-              <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
-                <text class="calbtn66" for="{{item in keys['sign'][0]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-              <div static style="margin-left: 32px;margin-top: -5px;height: 60px;">
-                <text class="calbtn66" for="{{item in keys['sign'][1]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-              <div static style="margin-left: 64px;margin-top: -5px;height: 60px;">
-                <text class="calbtn66" for="{{item in keys['sign'][2]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-            </div>
-            <div if="{{numFlag_jp}}" style="left: 3px; flex-direction: column;">
-              <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
-                <text class="calbtn66" for="{{item in keys['sign_jp'][0]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-              <div static style="margin-left: 32px;margin-top: -5px;height: 60px;">
-                <text class="calbtn66" for="{{item in keys['sign_jp'][1]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-              <div static style="margin-left: 64px;margin-top: -5px;height: 60px;">
-                <text class="calbtn66" for="{{item in keys['sign_jp'][2]}}" @click="onSelect(item)">{{item}}</text>
-              </div>
-            </div>
-          </scroll>
-        </div>
-        <div static style="position: absolute;left: {{(screenWidth - 192)/2}}px;top: 0px;width: 192px;height: 110px;">
-          <img static style="position: absolute;left: 3px;top: 47px;width: 186px;height: 60px;" src="./assets/arc/search.png" />
-          <!-- 候选横滚行：整词在前、单字随后（拼音已在键盘上方独立小字行显示，这里不放 cval） -->
-          <scroll id="cvalWaiting" scroll-x="{{true}}" style="position: absolute;left: 15px;top: 56px;width: 144px;height: 42px;">
-            <div style="position: absolute;left: 0px;top: 0px;height: 42px;padding-right:20px">
-              <text for="{{resultRow0}}" show="{{resultRow0.length > $idx}}" class="calbtn02" style="padding-right:10px" @click="onRsSelect(resultRow0[$idx])">{{resultRow0[$idx]}}</text>
-            </div>
-          </scroll>
-          <img show="{{resultRow0.length > 0}}" style="position: absolute;left: 120px;top: 57px;width: 60px;height: 40px;" src="./assets/arc/down2.png" @click="onBtnClick('down')" />
-          <!-- 带变量的相对路径在 aiot-tookit 2.0.4 中修复 -->
-          <img src="./assets/arc/{{lang}}.png" style="position: absolute;top:0px;left:9px;width: 48px;height: 42px;" @click="onBtnClick('lang')" show="{{downFlag==='' && !numFlag && !numFlag_jp}}" />
-          <img src="./assets/arc/back2.png" style="position: absolute;top:0px;left:9px;width: 48px;height: 42px;" @click="onBtnClick('switchCn')" show="{{numFlag && lang==='cn' ||numFlag_jp && lang==='jp' }}" />
-          <img src="./assets/arc/123.png" style="position: absolute;left: 70px;top: 0px;width: 52px;height: 42px;" @click="onBtnClick('switchNum')" show="{{downFlag==='' && !numFlag && lang==='cn'}}" />
-          <img src="./assets/arc/123.png" style="position: absolute;left: 70px;top: 0px;width: 52px;height: 42px;" @click="onBtnClick('switchNum_jp')" show="{{downFlag==='' && !numFlag_jp && lang==='jp'}}" />
-          <img src="./assets/arc/bigA.png" style="position: absolute;top:0px;left:72px;width:48px;height:42px;" @click="onBtnClick('switchLow')" show="{{downFlag==='' && upperFlag && lang==='en' }}" />
-          <img src="./assets/arc/a.png" style="position: absolute;top:0px;left:72px;width:48px;height:42px;" @click="onBtnClick('switchUpper')" show="{{downFlag==='' && !upperFlag && lang==='en' }}" />
-          <img src="./assets/arc/del.png" style="position: absolute;left: 135px;top: 0px;width: 48px;height: 42px;" @click="onBtnClick('D')" />
-        </div>
-        <!-- 这里使用show会导致每次输入都会加载全部候选列表，很卡 -->
-        <div style="position: absolute;top: 47px;width: 100%;height: 263px;background-color: black;" if="{{downFlag==='down'}}">
-          <div style="position: absolute;left: {{(screenWidth - 192)/2}}px;width: 192px;height: 263px;"> 
-            <scroll scroll-y="{{true}}" class="list66 expanded-scroll">
-              <div class="expanded-candidates expanded-candidates66">
-                <text class="calbtn-down-text" for="{{item in resultList2}}" @click="onRsSelect(item)">{{item}}</text>
-              </div>
-            </scroll>
-            <img static style="position: absolute;top:196px;left:56px;width: 80px;height: 60px;" src="./assets/arc/up2.png" @click="onBtnClick('down')" />
-          </div>
-        </div>
-      </div>
-      </div>
+    </div>
+    <div class="hide-button-container" onclick="handleHide">
+      <image class="hide-button-icon" src="./assets/full/hide.png"></image>
     </div>
   </div>
 </template>
 
-<script>
-import vibrator from "@system.vibrator";
-import device from '@system.device'
-import { createDictionaryLoader } from "./assets/dictionaryLoader.js";
-
-function deleteLast(t) {
-  if (t) {
-    return t.substr(0, t.length - 1);
+<style>
+  .page { 
+    width:100%; 
+    position:absolute; 
+    left:0; 
+    bottom:0;
+    flex-direction: column;
+    align-items: flex-start;
   }
-  return "";
-}
-export default {
-  props: {
-    dictionarypath: {
-      default: "/components/InputMethod/assets/dictionary/",
-    },
-    hide: {
-      default: true,
-    },
-    keyboardtype: {
-      default: "QWERTY",
-    },
-    maxlength: {
-      default: 5,
-    },
-    vibratemode: {
-      default: "",
-    },
-    screentype: {
-      default: "circle",
-    },
-  },
-  data: {
-    cval: "",
-    // 拼音分词显示串（如 ni'hao），在 resetResultList 中随 cval 同步更新
-    cvalDisplay: "",
-    resultList: [],
-    resultList2: [],
-    // 多拼：整词候选（最前）及其与单字合并后的首页展示序列与对应整词标记
-    resultWordList: [],
-    resultRow0: [],
-    resultRow0IsWord: [],
-    // 当前已匹配的拼音前缀长度（用于逐字递进选择：选一个单字只消费对应长度）
-    matchedLen: 0,
-    // 每音节首字 + 累计拼音偏移（逐字递进选择：选哪个字就消费到哪个偏移位置）
-    sylTopChars: [],
-    waitingList: [],
-    waitingIndex: -1,
-    lastWaitingStr: "",
-    downFlag: "",
-    lang: "cn",
-    numFlag: false,
-    numFlag_jp: false,
-    upperFlag: false,
-    // 键盘子树是否已建入 DOM：首次弹出置 true 保活（之后 hide 只走 show 显隐，不重建）
-    keyboardCreated: false,
-    cvalList: [0, 1, 2, 3, 4],
-    percent67: 52,
-    percent66: 0,
-    // 针对screenShape为rect的设备，会自动获取screenWidth并绑定到根div
-    // 这样便能同时适配n67和o65甚至是后续设备，但实际效果可能受designWidth影响
-    screenWidth: 336,
-    keys: {
-      full: [
-        ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
-        ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
-        ["Z", "X", "C", "V", "B", "N", "M"],
-      ],
-      sign: [
-        ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
-        ["~", "!", "@", "#", "%", "“", "”", "*", "?", "/"],
-        ["(", ")", "-", "_", ":", ";", "，", "。", "."],
-      ],
-      sign_jp: [
-        ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"],
-        ["~", "•", "@", "#", "%", "「", "」", "*", "?", "/"],
-        ["(", ")", "-", "…", ":", ";", "、", "。", "!"],
-      ],
-      sign62: [
-        ["2", "3", "4", "5", "6", "7", "8", "9"],
-        ["!", "@", "#", "%", "“", "”", "*"],
-        [")", "-", "_", ":", ";"],
-      ],
-      sign62_jp: [
-        ["2", "3", "4", "5", "6", "7", "8", "9"],
-        ["•", "@", "#", "%", "「", "」", "*"],
-        [")", "-", "…", ":", ";"],
-      ],
-      full62: [
-        ["W", "E", "R", "T", "Y", "U", "I", "O"],
-        ["S", "D", "F", "G", "H", "J", "K"],
-        ["X", "C", "V", "B", "N"],
-      ],
-      t9: [
-        ["abc", "def"],
-        ["ghi", "jkl", "mno"],
-        ["pqrs", "tuv", "wxyz"],
-      ],
-    },
-  },
-  onInit() {
-    // Initialize the loader independently of hide watchers (unreliable on some devices).
-    // Dictionary data is loaded on input; failed reads can retry on the next query.
-    Object.defineProperty(this, "_dictionary", {
-      value: createDictionaryLoader(this.dictionarypath), configurable: true
-    });
-    if (this.maxlength) {
-      const tempCvalList = [];
-      for (let i = 0; i < this.maxlength; i++) {
-        tempCvalList.push(i);
-      }
-      this.cvalList = tempCvalList;
+  .item { height:21.43px; flex:1 }
+  .calbtn0 { color:#fff; font-size:11.54px; background-color:rgba(38,38,38,0); border-radius:0; height:21.43px; width:21.43px; text-align:center }
+  .calbtnfull { color:#fff; font-size:9.89px; font-weight:bold; background-color:#262626; border-radius:4.95px; margin-right:1.65px; height:21.43px; width:16.49px; text-align:center; border:1.24px solid rgba(255,255,255,0.06) }
+  .caltext { text-align:left; line-height:15.66px; lines:1; text-overflow:ellipsis; color:#0d84ff; height:18.55px; font-size:11.54px; text-align:left; font-weight:bold; padding-left:3.3px }
+  
+  .list3 { 
+    position:absolute; 
+    top:15.66px; 
+    left:32.15px; 
+    width:133.53px; 
+    height:65.94px; 
+    flex-direction:column; 
+    background-color:#262626; 
+    border-radius:4.95px;
+    z-index: 500;
+  }
+
+  .item3 { width:133.53px; height:21.43px }
+  .waiting-keys { width:14.84px; height:16.49px; text-align: center; }
+
+  .hide-button-container {
+    position: absolute;
+    top: 0px;
+    right: 0px; 
+    width: 24.73px;
+    height: 15.66px;
+    justify-content: center;
+    align-items: center;
+    background-color: rgba(50, 50, 50, 0.5);
+    border-radius: 0 0 0 6.18px;
+    z-index: 1000;
+  }
+  .hide-button-icon {
+    width: 17.31px;
+    height: 17.31px;
+  }
+</style>
+
+<script>
+  import vibrator from "@system.vibrator";
+  import { SimpleInputMethod } from "./assets/dicUtil.js";
+
+  function doSearchDic(word, cb) {
+    let hanzi = SimpleInputMethod.getHanzi(word);
+    if (hanzi && hanzi[0]) {
+      cb(hanzi[0]);
+    } else {
+      cb([]);
     }
-    if (this.screentype === "rect" || this.screentype === "pill-shaped") {
-      this.adjustScreenWidth();
+  }
+  function deleteLast(t) {
+    if (t) {
+      return t.substr(0, t.length - 1);
     }
-    if (!this.hide) this.keyboardCreated = true;
-    this.$watch("hide", "watchHidePropsChange");
-    this.$watch("maxlength", "watchMaxLengthPropsChange");
-    this.$watch("keyboardtype", "watchKeyboardTypePropsChange");
-  },
-  onDestroy() {
-    this._dictionary.destroy();
-  },
-  addAllTxt(txt) {
-    this.$emit("complete", { content: txt });
-  },
-  onRsSelect(txt) {
-    this.onVibrate();
-    // 检查是否为每音节首字 → 按偏移消费 cval 前缀
-    var consumed = false;
-    if (txt.length === 1 && this.sylTopChars.length > 0 && this.cval.length > 0) {
-      for (var si = 0; si < this.sylTopChars.length; si++) {
-        if (this.sylTopChars[si].char === txt && this.sylTopChars[si].offset > 0 && this.sylTopChars[si].offset <= this.cval.length) {
-          this.cval = this.cval.slice(this.sylTopChars[si].offset);
-          this.addAllTxt(txt);
-          this.clearWaiting();
-          this.resetResultList();
-          this.downFlag = "";   // 下展 list 在 Vela 中缓存不刷新，先收回用顶行展示新数据
-          consumed = true;
-          break;
+    return "";
+  }
+
+  export default {
+    props: {
+      hide: {
+        default: true,
+      },
+      maxlength: {
+        default: 5,
+      },
+      vibratemode: {
+        default: "",
+      },
+    },
+    data: {
+      cval: "",
+      resultList: [],
+      resultList2: [],
+      waitingList: [],
+      waitingIndex: -1,
+      lastWaitingStr: "",
+      downFlag: "",
+      lang: "cn",
+      numFlag: false,
+      upperFlag: false,
+      cvalList: [0, 1, 2, 3, 4],
+      keys: {
+        sign62: [
+          ["2", "3", "4", "5", "6", "7", "8", "9"],
+          ["!", "@", "#", "%", "“", "”", "*"],
+          [")", "-", "_", ":", ";"],
+        ],
+        full62: [
+          ["W", "E", "R", "T", "Y", "U", "I", "O"],
+          ["S", "D", "F", "G", "H", "J", "K"],
+          ["X", "C", "V", "B", "N"],
+        ],
+      },
+    },
+    onInit() {
+      if (this.maxlength) {
+        const tempCvalList = [];
+        for (let i = 0; i < this.maxlength; i++) {
+          tempCvalList.push(i);
         }
+        this.cvalList = tempCvalList;
       }
-    }
-    if (consumed) return;
-    // 单字兜底：只消费已匹配的拼音前缀长度（兼容 matchedLen）
-    if (txt.length === 1 && this.matchedLen > 0 && this.cval.length > this.matchedLen) {
-      this.cval = this.cval.slice(this.matchedLen);
+      this.$watch("hide", "watchHidePropsChange");
+      this.$watch("maxlength", "watchMaxLengthPropsChange");
+    },
+    addAllTxt(txt) {
+      this.$emit("complete", { content: txt });
+    },
+    onRsSelect(txt) {
+      this.onVibrate();
+      this.cval = "";
       this.addAllTxt(txt);
       this.clearWaiting();
-      this.resetResultList();
+      this.resetReslutList();
       this.downFlag = "";
-      return;
-    }
-    // 整词或多字：整体清空 cval 并一次输出
-    this.cval = "";
-    this.addAllTxt(txt);
-    this.clearWaiting();
-    this.resetResultList();
-    this.downFlag = "";
-  },
-  onBtnClick(sign) {
-    this.onVibrate();
-    switch (sign) {
-      case "AC":
-        this.cval = "";
-        this.clearWaiting();
-        this.resetResultList();
-        break;
-      case "lang":
-        if (this.keyboardtype === "T9") {
-          this.lang = this.lang === "cn" ? "en" : "cn";
-        } else {
+    },
+    onBtnClick(sign) {
+      this.onVibrate();
+      switch (sign) {
+        case "AC":
+          this.cval = "";
+          this.clearWaiting();
+          this.resetReslutList();
+          break;
+        case "lang":
           if (this.lang === "cn") {
             this.lang = "en";
-          } else if (this.lang === "en") {
-            this.lang = "jp";
           } else {
             this.lang = "cn";
           }
-        }
-        this.cval = "";
-        this.clearWaiting();
-        this.resetResultList();
-        break;
-      case "D":
-        if (this.waitingIndex >= 0) {
+          this.cval = "";
           this.clearWaiting();
-          this.resetResultList();
-        } else if (this.cval.length > 0) {
-          this.cval = deleteLast(this.cval);
-          this.resetResultList();
-        } else {
-          this.$emit("delete", {});
-        }
-        break;
-      case "space":
-        this.addAllTxt(" ");
-        break;
-      case "down":
-        this.downFlag = this.downFlag === "down" ? "" : "down";
-        break;
-      case "select":
-        if (this.lastWaitingStr != sign && this.lastWaitingStr) {
-          if (this.lang === "cn" || this.lang === 'jp') {
-            this.cval += this.waitingList[this.waitingIndex];
-          } else {
-            if (this.upperFlag) {
-              this.addAllTxt(this.waitingList[this.waitingIndex].toUpperCase());
-            } else {
-              this.addAllTxt(this.waitingList[this.waitingIndex].toLowerCase());
-            }
-          }
-          this.clearWaiting();
-          this.resetResultList();
-        }
-        break;
-      case "switchNum":
-        this.numFlag = true;
-        this.numFlag_jp = false;
-        this.cval = "";
-        this.clearWaiting();
-        this.resetResultList();
-        break;
-      case "switchNum_jp":
-        this.numFlag = true;
-        this.numFlag_jp = true;
-        this.cval = "";
-        this.clearWaiting();
-        this.resetResultList();
-        break;
-      case "switchCn":
-        this.numFlag = false;
-        this.numFlag_jp = false;
-        break;
-      case "switchUpper":
-        this.upperFlag = true;
-        break;
-      case "switchLow":
-        this.upperFlag = false;
-        break;
-      default:
-        if (sign.length === 1) {
-          this.addAllTxt(sign);
-        } else {
+          this.resetReslutList();
+          break;
+        case "D":
           if (this.waitingIndex >= 0) {
-            if (this.lastWaitingStr === sign) {
-              this.waitingIndex++;
-              if (this.waitingIndex >= this.lastWaitingStr.length) {
-                this.waitingIndex = 0;
-              }
-            } else {
-              if (this.lang === "cn" || this.lang === 'jp') {
-                this.cval += this.waitingList[this.waitingIndex];
-              } else {
-                if (this.upperFlag) {
-                  this.addAllTxt(
-                    this.waitingList[this.waitingIndex].toUpperCase(),
-                  );
-                } else {
-                  this.addAllTxt(
-                    this.waitingList[this.waitingIndex].toLowerCase(),
-                  );
-                }
-              }
-              this.lastWaitingStr = sign;
-              this.waitingIndex = 0;
-              this.waitingList = sign.split("");
-            }
+            this.clearWaiting();
+            this.resetReslutList();
+          } else if (this.cval.length > 0) {
+            this.cval = deleteLast(this.cval);
+            this.resetReslutList();
           } else {
-            this.lastWaitingStr = sign;
-            this.waitingIndex = 0;
-            this.waitingList = sign.split("");
+            this.$emit("delete", {});
           }
-          this.resetResultList();
+          break;
+        case "space":
+          this.addAllTxt(" ");
+          break;
+        case "down":
+          this.downFlag = this.downFlag === "down" ? "" : "down";
+          break;
+        case "switchNum":
+          this.numFlag = true;
+          this.cval = "";
+          this.clearWaiting();
+          this.resetReslutList();
+          break;
+        case "switchCn":
+          this.numFlag = false;
+          break;
+        case "switchUpper":
+          this.upperFlag = true;
+          break;
+        case "switchLow":
+          this.upperFlag = false;
+          break;
+      }
+    },
+    clearWaiting() {
+      this.waitingList = [];
+      this.waitingIndex = -1;
+      this.lastWaitingStr = "";
+    },
+    resetReslutList() {
+      let watingStr = "";
+      if (this.lastWaitingStr && this.lastWaitingStr[this.waitingIndex]) {
+        watingStr = this.lastWaitingStr[this.waitingIndex];
+      }
+      if (!(this.cval + watingStr) || this.lang != "cn") {
+        this.resultList = [];
+        this.setResultListAll();
+        return;
+      }
+      this.getResultByWord(this.cval + watingStr);
+    },
+    setResultListAll() {
+      this.resultList2 = [];
+      let array = [];
+      for (let i = 0; i < this.resultList.length; i++) {
+        array.push(this.resultList[i]);
+        if (array.length === parseInt(this.maxlength)) {
+          this.resultList2.push(array);
+          array = [];
         }
-        break;
-    }
-  },
-  clearWaiting() {
-    this.waitingList = [];
-    this.waitingIndex = -1;
-    this.lastWaitingStr = "";
-  },
-  resetResultList() {
-    let watingStr = "";
-    if (this.lastWaitingStr && this.lastWaitingStr[this.waitingIndex]) {
-      watingStr = this.lastWaitingStr[this.waitingIndex];
-    }
-    this.cvalDisplay = this.cval + watingStr;
-    if (!(this.cval + watingStr) || (this.lang !== "cn" && this.lang !== "jp")) {
-      this._dictionary.release();
-      this.clearCandidates();
-      return;
-    }
-    this.getResultByWord(this.cval + watingStr);
-  },
-  clearCandidates() {
-    this.resultList = [];
-    this.resultWordList = [];
-    this.matchedLen = 0;
-    this.sylTopChars = [];
-    this.setResultListAll();
-  },
-  setResultListAll() {
-    // 首页展示序列：整词在前，单字随后，截断到 maxlength
-    const cap = parseInt(this.maxlength);
-    let row0 = [];
-    let row0IsWord = [];
-    for (let i = 0; i < this.resultWordList.length && row0.length < cap; i++) {
-      row0.push(this.resultWordList[i]);
-      row0IsWord.push(true);
-    }
-    // 单字候选去重：同音单字串首字可能与整词/逐字首字重复（如 shishei 的「是」），跳过
-    for (let i = 0; i < this.resultList.length && row0.length < cap; i++) {
-      if (this.resultWordList.indexOf(this.resultList[i]) !== -1) continue;
-      row0.push(this.resultList[i]);
-      row0IsWord.push(false);
-    }
-    this.resultRow0 = row0;
-    this.resultRow0IsWord = row0IsWord;
-
-    // Expanded candidates flow by content width, independently of maxlength.
-    const expanded = this.resultWordList.slice();
-    for (let i = 0; i < this.resultList.length; i++) {
-      if (this.resultWordList.indexOf(this.resultList[i]) !== -1) continue;
-      expanded.push(this.resultList[i]);
-    }
-    this.resultList2 = expanded;
-  },
-  getResultByWord(val) {
-    const that = this;
-    let completed = false;
-    this._dictionary.search(val, that.lang, function (data, display) {
-      completed = true;
-      that.cvalDisplay = display;
-      that.resultList = data.chars;                       // 单字候选（沿用）
-      that.matchedLen = data.matched ? data.matched.length : 0;
-      const multi = data.multi || { words: [], composed: "", sylTopChars: [] };
-      that.sylTopChars = (multi.sylTopChars || []).filter(function(sc) { return sc.char && sc.offset > 0; });
-      let words = (multi.words || []).slice();
-      // 词库未命中但分词组合出多字串 → 也作为一条整词候选（排在整词区末尾，但在逐字首字之前）
-      if (words.length === 0 && multi.composed && multi.composed.length >= 2) {
-        words = [multi.composed];
-      } else if (multi.composed && multi.composed.length >= 2 && words.indexOf(multi.composed) === -1) {
-        words.push(multi.composed);
       }
-      // 每音节首字放在整词后面、同音单字前面
-      const sylOnlyChars = that.sylTopChars.map(function(sc) { return sc.char; });
-      // 去重：音节首字列表中可能重复，从前往后去重
-      const seen = {};
-      const uniqueSylChars = [];
-      for (var si = 0; si < sylOnlyChars.length; si++) {
-        if (!seen[sylOnlyChars[si]]) { seen[sylOnlyChars[si]] = 1; uniqueSylChars.push(sylOnlyChars[si]); }
+      if (array.length > 0 && array.length < parseInt(this.maxlength)) {
+        this.resultList2.push(array);
       }
-      for (var si = 0; si < uniqueSylChars.length; si++) {
-        if (words.indexOf(uniqueSylChars[si]) === -1) { words.push(uniqueSylChars[si]); }
-      }
-      that.resultWordList = words;
-      that.setResultListAll();
-    });
-    // Keep warm queries synchronous; clear stale candidates only during I/O.
-    if (!completed) this.clearCandidates();
-  },
-  onSelect(num) {
-    this.$emit("keyDown", { content: num });
-    if (this.keyboardtype === "T9" && this.screentype !== "pill-shaped") {
-      this.onBtnClick(num);
-      return;
-    }
-    this.onVibrate();
-    if ((this.lang === 'cn' || this.lang === 'jp')  && !this.numFlag) {
-      this.cval += num.toLowerCase();
-    } else if (this.lang === "en" && !this.numFlag) {
-      if (this.upperFlag) {
-        this.addAllTxt(num.toUpperCase());
+    },
+    getResultByWord(val) {
+      const that = this;
+      doSearchDic(val, function (data) {
+        that.resultList = data;
+        that.setResultListAll();
+      });
+    },
+    onSelect(num) {
+      this.$emit("keyDown", { content: num });
+      this.onVibrate();
+      if (this.lang === "cn" && !this.numFlag) {
+        this.cval += num.toLowerCase();
+      } else if (this.lang === "en" && !this.numFlag) {
+        if (this.upperFlag) {
+          this.addAllTxt(num.toUpperCase());
+        } else {
+          this.addAllTxt(num.toLowerCase());
+        }
       } else {
-        this.addAllTxt(num.toLowerCase());
+        this.addAllTxt(num);
       }
-    } else {
-      this.addAllTxt(num);
-    }
-    this.resetResultList();
-  },
-  onSelectWaiting(num) {
-    this.onVibrate();
-    if (this.lang === "cn") {
-      this.cval += this.waitingList[num].toString();
-    } else {
-      if (this.upperFlag) {
-        this.addAllTxt(this.waitingList[num].toUpperCase());
+      this.resetReslutList();
+    },
+    onSelectWaiting(num) {
+      this.onVibrate();
+      if (this.lang === "cn") {
+        this.cval += this.waitingList[num].toString();
       } else {
-        this.addAllTxt(this.waitingList[num].toLowerCase());
+        if (this.upperFlag) {
+          this.addAllTxt(this.waitingList[num].toUpperCase());
+        } else {
+          this.addAllTxt(this.waitingList[num].toLowerCase());
+        }
       }
-    }
-    this.clearWaiting();
-    this.resetResultList();
-  },
-  watchHidePropsChange(newV, oldV) {
-    this.$emit("visibilityChange", { visible: newV });
-    if (newV === false) {
-      this.keyboardCreated = true;
-      this.resetResultList();
-    } else {
-      this._dictionary.release();
-      this.clearCandidates();
-    }
-  },
-  watchMaxLengthPropsChange(newV, oldV) {
-    if (newV) {
-      const tempCvalList = [];
-      for (let i = 0; i < newV; i++) {
-        tempCvalList.push(i);
+      this.clearWaiting();
+      this.resetReslutList();
+    },
+    watchHidePropsChange(newV, oldV) {
+      this.$emit("visibilityChange", { visible: newV });
+    },
+    watchMaxLengthPropsChange(newV, oldV) {
+      if (newV) {
+        const tempCvalList = [];
+        for (let i = 0; i < newV; i++) {
+          tempCvalList.push(i);
+        }
+        this.cvalList = tempCvalList;
       }
-      this.cvalList = tempCvalList;
-    }
-  },
-  watchKeyboardTypePropsChange(newV, oldV) {
-    if (newV === "T9" && this.lang === "jp") {
-      this.lang = "cn";
+    },
+    onVibrate() {
+      if (this.vibratemode != "") {
+        vibrator.vibrate({ mode: this.vibratemode });
+      }
+    },
+    pushCval() {
+      this.onVibrate();
+      let temp = this.cval;
       this.cval = "";
       this.clearWaiting();
-      this.resetResultList();
-    }
-  },
-  onVibrate() {
-    if (this.vibratemode != "") {
-      vibrator.vibrate({ mode: this.vibratemode });
-    }
-  },
-  handelScroll(event) {
-    let percentTemp67 = (event.scrollX / 636) * 100 + 52.8;
-    this.percent67 = parseInt(percentTemp67 <= 100 ? percentTemp67 : 100);
-    let percentTemp66 = (event.scrollX / 633) * 100;
-    this.percent66 = parseInt(percentTemp66 <= 100 ? percentTemp66 : 100);
-  },
-  pushCval() {
-    this.onVibrate();
-    let temp = this.cval;
-    this.cval = "";
-    this.clearWaiting();
-    this.resetResultList();
-    this.addAllTxt(temp);
-  },
-  adjustScreenWidth(){
-    device.getInfo({
-      success: (data) => {
-        this.screenWidth = data.screenWidth;
-      }
-    })
-  }
-};
+      this.resetReslutList();
+      this.addAllTxt(temp);
+    },
+    handleHide() {
+      this.$emit("hide", {});
+    },
+  };
 </script>
-
-<style>
-.page {
-	width:100%;
-	position:absolute;
-	left:0;
-	bottom:0
-}
-.item {
-	height:52px;
-	flex:1
-}
-.calbtn0 {
-	color:#fff;
-	font-size:28px;
-	background-color:rgba(38,38,38,0);
-	border-radius:0;
-	height:52px;
-	width:52px;
-	text-align:center
-}
-.calbtn02 {
-	color:rgb(255,255,255);
-	background-color:rgba(38,38,38,0);
-	border-radius:0px;
-	font-size:32px;
-	text-align:center;
-	height:42px;
-}
-/* 下展分页候选按钮：宽度按文字自适应，不截断长词；覆盖各屏候选 class 的固定 width */
-.calbtn-down {
-	width:auto;
-	min-width:52px;
-	padding-left:14px;
-	padding-right:14px;
-	text-align:center;
-}
-.expanded-scroll {
-	flex-direction:column;
-	align-items:flex-start;
-}
-/* Keep wrapped content independent of the fixed scroll viewport height. */
-.expanded-candidates {
-	position:absolute;
-	left:0px;
-	top:0px;
-	width:100%;
-	flex-direction:row;
-	flex-wrap:wrap;
-	justify-content:center;
-	align-items:center;
-	align-content:flex-start;
-	flex-shrink:0;
-}
-.expanded-candidates66 {
-	padding:10px;
-}
-.calbtn-down-text {
-	color:#ffffff;
-	font-size:28px;
-	padding:8px 10px;
-	min-height:52px;
-	max-width:100%;
-	flex-shrink:0;
-	text-align:center;
-}
-.calbtnfull {
-	color:#fff;
-	font-size:24px;
-	font-weight:bold;
-	background-color:#262626;
-	border-radius:12px;
-	margin-right:4px;
-	height:52px;
-	width:40px;
-	text-align:center;
-	border:3px solid rgba(255,255,255,0.06)
-}
-.calbtnt9 {
-	color:#fff;
-	font-size:25px;
-	font-weight:bold;
-	background-color:#262626;
-	border-radius:999px;
-	margin-right:4px;
-	width:94px;
-	height:60px;
-	text-align:center;
-	border:3px solid rgba(255,255,255,0.06)
-}
-.caltext {
-	text-align:left;
-	line-height:38px;
-	lines:1;
-	text-overflow:ellipsis;
-	color:#0d84ff;
-	height:45px;
-	font-size:28px;
-	text-align:left;
-	font-weight:bold;
-	padding-left:8px
-}
-/* 拼音小字行：键盘框外上方单独一行显示 cval，单行裁剪、不可点 */
-.cvalrow-wrap {
-	width:100%;
-	height:28px;
-	background-color:transparent;
-}
-.cvalrow {
-	color:#0d84ff;
-	font-size:22px;
-	font-weight:bold;
-	lines:1;
-	text-overflow:ellipsis;
-	text-align:left;
-	padding-left:14px;
-	width:100%;
-}
-.list3 {
-	position:absolute;
-	top:38px;
-	left:78px;
-	width:324px;
-	height:160px;
-	flex-direction:column;
-	background-color:#262626;
-	border-radius:12px
-}
-.calbtn67 {
-	color:rgb(255,255,255);
-	font-size:32px;
-	font-weight:bold;
-	background-color:rgb(38,38,38);
-	margin-right:4px;
-	width:60px;
-	height:60px;
-	border-radius:30px;
-	text-align:center;
-	border:3px solid rgba(255,255,255,0.06);
-}
-#keyboard67 {
-	position:absolute;
-	left:0px;
-	top:82px;
-	width:100%;
-	height:170px;
-}
-#keyboard66 {
-	position:absolute;
-	left:0px;
-	top:82px;
-	width:100%;
-	height:170px;
-}
-.list67 {
-	top:0px;
-	width:96.4%;
-	height:170px;
-	border-radius:30px;
-	background-color:#262626;
-	border:3px solid rgba(255,255,255,0.06);
-	padding:0px 10px;
-}
-.calbtn66 {
-	color:rgb(255,255,255);
-	font-size:32px;
-	font-weight:bold;
-	background-color:rgb(38,38,38);
-	margin-right:3px;
-	width:60px;
-	height:60px;
-	border-radius:30px;
-	text-align:center;
-	border:3px solid rgba(255,255,255,0.06);
-}
-.list66 {
-	position:absolute;
-	left:3px;
-	top:0px;
-	width:186px;
-	height:186px;
-	border-radius:30px;
-	background-color:#262626;
-	border:3px solid rgba(255,255,255,0.06);
-}
-.waiting-keys {
-	width:36px;
-	height:40px;
-	text-align: center;
-}
-
-.keyboard-rows-rect-t9 {
-  align-items: center;
-  justify-content: space-between;
-  flex-direction: row;
-  flex-shrink: 0;
-  height: 55px;
-  width: 100%;
-}
-
-.calbtnt9-rect {
-  flex:1;
-  height:55px;
-  margin:0 3px;
-  width:unset;
-}
-
-@media (min-width: 230) and (max-width: 235) and (shape: circle) {
-  #full-keyboard {
-    transform:scale(0.96);
-    transform-origin:0 321px;
-    overflow:visible;
-  }
-}
-</style>

@@ -2,8 +2,8 @@
   "package": "com.example.bandqq",
   "name": "QQ助手",
   "icon": "/common/icon.png",
-  "versionName": "2.11.0",
-  "versionCode": 45,
+  "versionName": "2.11.0-s",
+  "versionCode": 48,
   "minAPILevel": 1,
   "deviceTypeList": [
     "watch"
@@ -71,7 +71,7 @@
   },
   "packageInfo": {
     "toolkit": "2.0.5",
-    "timeStamp": "2026-09-12T18:23:02.694Z",
+    "timeStamp": "2026-09-12T19:11:26.818Z",
     "node": "v24.19.0",
     "platform": "linux",
     "arch": "x64",
