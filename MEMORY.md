@@ -287,3 +287,18 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 - 附：tap 点击原语（hover/微移/长按/sendTouch/零位移滑动全变体）在快照污染态全灭而滑动正常，勿再误判「触摸通道死亡」；多 VM 并行 gRPC 端口派发不可靠，单机串行默认 18777 是唯一稳态。
 
 **四机验收结论**：Band11(Capsule)/S4·S5(QWERTY 弧形三行)/RW5(Cube 大键帽横滚) 渲染+键位触控+拼音组合+候选上屏全链路通过；实拍 download/bandqq-screenshots-vbranch/（11 张）。
+
+## v2.11.0-pro —— band-pro 分支（手环 9 Pro / 10 Pro，336×480）
+
+- **分支**：`band-pro` 自 unified-base(46ee250) 切出；manifest `designWidth: 336`（VM 物理 px 1:1，非 192 等比放大）；versionName `2.11.0-pro` / vc95；键盘 = skb 紧凑 QWERTY（自建，非 AetherZeng fork——其 Cube-For-Xiaomi-Band-Pro 分支只有 README 无代码）
+- **classify 四分**：`ar<0.55 → band`（0.39~0.41）/ `ar<0.78 → bandpro`（Pro 系 0.70）/ `ar>=0.95 → round` / `w>=380 → wide`（RW5 0.84）。DEVICE_STYLES.bandpro 定向表覆盖 index/chat/settings/about/compose 全键（列表项压矮至 70px 五会话全显、名字 max-width 170 不截断、气泡 210 宽）
+- **skb 键盘样式重建**：unified 2.11.0 重构时 compose.ux 的 `.skb*` 样式段整段丢失（模板有 class 无样式 → 引擎默认大字号 → 键盘溢出屏幕）。照 RW5 2.10.0 实拍重建基线 5 类 + DEVICE_STYLES 三档 ds.skbRow/skbKey/skbFn/skbSpace 键
+- **【基线致命 bug 已修】** chat.ux onInit `def.on('device_profile')` 的 `def` 未定义（onInit 后面才 `const def`，应为 `def0`）→ ReferenceError → entry 直达 chat 页数据绑定全空。band-pro 已修（def0）；**redmi-watch / xiaomi-watch-s / unified 分支同 bug 未修**，后续 cherry-pick
+- **【336×480 VVM 新坑入库】**
+  1. gRPC sendMouse/sendTouch 四种点击变体（含 8px 位移/双点采样/长按）全灭，截屏通道正常；`adb shell input/logcat` 挂死（376⑤ 应验）→ **代码路径导航是唯一 UI 验收手段**
+  2. onShow 阶段 router.push/replace（含裸 uri）被引擎静默丢弃 → **导航钩子必须在 onReady 之后**；onReady 后裸 uri push 可用
+  3. setTimeout 不触发（397② 应验）+ 带中文/编码 query 的导航失败 → 同步链 + 纯裸 uri + setLastTarget 预置 + 目标页 getLastTarget 兜底
+  4. VM 复用（redeploy closeApp+install）后 gRPC startApp 全灭；**fresh cold boot 后首次 startApp 成功率高** → 每个验收态冷启一次 deploy
+  5. 截图哈希对比判"部署未生效"不可靠：列表页无动画时帧间哈希天然相同；改用屏上打点（statusText/dcDebug 写 H1/H2/H3）定位执行进度
+- **entry 直达法**：manifest router.entry 改目标页 + 版本号自增，比 router 导航更可靠（router 全灭时的兜底验收通道）；发布前 entry 还原 pages/index
+- 验收钩子：index.ux `vvdShotHook()`（vs='' 发布态跳过；'list'/'chat'/'kb' 三态注入演示+导航）；chat.ux entry 兜底 `if(!targetId && 0)` 发布态关闭
