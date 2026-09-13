@@ -115,6 +115,35 @@
       this.loadConversations()
       this.loadVisibleContacts()
     },
+    /** onReady 钩子触发：onShow 阶段页面栈未完全建立，replace/push 会被引擎静默丢弃（336×480 VM 实证） */
+    onReady() {
+      this.vvdShotHook()
+    },
+    /** VVD 验收钩子（band-pro 分支专用，发布构建置 '' 跳过）：
+     *  触摸通道在 336×480 VM 上失效，改代码路径导航截图（worklog 397 同款手段） */
+    vvdShotHook() {
+      const vs = ''
+      if (!vs || this._vshotDone) return
+      this._vshotDone = true
+      const def = this.$app.$def
+      const store = def.store
+      // 注意：router 用顶层 import；钩子内 require system API 可能失败且被 catch 静默吞掉
+      this.statusText = 'H1'
+      store.injectDemo().then(() => {
+        this.statusText = 'H2'
+        this.loadConversations()
+        if (vs === 'list') return
+        // worklog 397②③：setTimeout 不触发 + 带 query/params 的导航静默失败 → 纯裸 uri，
+        // targetId/name 由 setLastTarget 预置、chat/compose 页 getLastTarget 兜底
+        store.setLastTarget && store.setLastTarget({ targetId: '20001', name: 'BandQQ 体验群' })
+        this.statusText = 'H3'
+        router.push({ uri: '/pages/chat' })
+      }).catch((e) => {
+        // 钩子错误必须屏上可见（VM 无 logcat 可观测）
+        this.statusText = 'HOOKERR ' + ((e && e.message) || '').slice(0, 16)
+        console.error('[VVD_SHOT]', e && e.message)
+      })
+    },
     onInit() {
       const def = this.$app.$def
       // v2.10.0 机型分档：读取全局 profile，异步到达后随事件刷新

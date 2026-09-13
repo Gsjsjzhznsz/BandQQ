@@ -2,14 +2,14 @@
   "package": "com.example.bandqq",
   "name": "QQ助手",
   "icon": "/common/icon.png",
-  "versionName": "2.11.0",
-  "versionCode": 45,
+  "versionName": "2.11.0-pro",
+  "versionCode": 95,
   "minAPILevel": 1,
   "deviceTypeList": [
     "watch"
   ],
   "config": {
-    "designWidth": 192,
+    "designWidth": 336,
     "logLevel": "log"
   },
   "features": [

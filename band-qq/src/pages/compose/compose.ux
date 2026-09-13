@@ -73,6 +73,14 @@
   .preview-scroll { width: 176px; flex: 1; }
   .preview-text { font-size: 24px; color: #0d84ff; line-height: 34px; text-align: left; word-break: break-all; }
   /* v2.10.0 键盘缩放包装：kb-wrap 占位视觉高度（kbSlotH），kb-inner 绝对定位锚底 + transform 等比缩放 */
+  /* v2.11.0-pro：skb 自建键盘基线样式（2.10.0 曾有、unified 重构时丢失，照 RW5 实拍形态重建；
+     几何尺寸可被 DEVICE_STYLES 各档 ds.skb* 覆盖） */
+  .skb { width: 100%; padding: 8px 4px 10px 4px; background-color: #1a1a1a; flex-direction: column; flex-shrink: 0; align-items: center; }
+  .skb-row { flex-direction: row; justify-content: center; align-items: center; margin: 3px 0; }
+  .skb-key { width: 26px; height: 30px; margin: 0 2px; background-color: #303030; border-radius: 7px; text-align: center; line-height: 30px; font-size: 15px; color: #e8e8e8; }
+  .skb-fn { width: 30px; height: 30px; margin: 0 2px; background-color: #3d3d3d; border-radius: 7px; text-align: center; line-height: 30px; font-size: 13px; color: #cfcfcf; }
+  .skb-space { width: 84px; height: 30px; margin: 0 2px; background-color: #303030; border-radius: 7px; text-align: center; line-height: 30px; font-size: 14px; color: #e8e8e8; }
+  .skb-ok { background-color: #07c160; color: #ffffff; }
   .kb-wrap { position: relative; width: 100%; flex-shrink: 0; }
   .kb-inner { position: absolute; bottom: 0; }
   .mask { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.65); align-items: center; justify-content: center; }
