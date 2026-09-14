@@ -24,6 +24,12 @@ function emit(event, data) {
   if (set) set.forEach((fn) => { try { fn(data) } catch (e) { console.error('emit error', event, e) } })
 }
 
+/** 闪退加固：fire-and-forget 上行帧必须自带 catch——互联未就绪/未配对时
+ *  send 会 reject，裸调用变成 unhandled rejection，部分真机固件会杀进程。 */
+function safeSend(payload) {
+  api.send(payload).catch((e) => { try { console.log('[BANDQQ] send dropped', e && e.code) } catch (x) {} })
+}
+
 function handleMessage(msg) {
   if (!msg || !msg.type) return
   try {
@@ -31,7 +37,7 @@ function handleMessage(msg) {
   } catch (e) {}
   switch (msg.type) {
     case 'ping':
-      api.send({ type: 'pong', seq: msg.seq || 0 })
+      safeSend({ type: 'pong', seq: msg.seq || 0 })
       break
 case 'push_message':
       // v2.5.0 新消息振动提醒：手表端核心提示通道（勿扰/群聊过滤已在手机端完成，
@@ -146,22 +152,22 @@ sendUpstream(payload) {
     // v2.10.0 机型分档：band/wide/round，pages 订阅 device_profile 事件刷新根类名
     deviceProfile.init((p) => emit('device_profile', p))
     const pullAll = () => {
-      api.send(protocol.getConnectState())
-      api.send(protocol.getVisibleContacts())
-      api.send(protocol.getConversations())
-      api.send(protocol.getSettings())
+      safeSend(protocol.getConnectState())
+      safeSend(protocol.getVisibleContacts())
+      safeSend(protocol.getConversations())
+      safeSend(protocol.getSettings())
     }
     api.init({
       onMessage: handleMessage,
       onOpen: () => {
-        api.send({ type: 'band_state', state: 'connected', seq: 0 })
+        safeSend({ type: 'band_state', state: 'connected', seq: 0 })
         pullAll()
       }
     })
-    api.send(protocol.getConnectState())
-    api.send(protocol.getVisibleContacts())
-    api.send(protocol.getConversations())
-    api.send(protocol.getSettings())
+    safeSend(protocol.getConnectState())
+    safeSend(protocol.getVisibleContacts())
+    safeSend(protocol.getConversations())
+    safeSend(protocol.getSettings())
   }
 }
 

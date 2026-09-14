@@ -203,7 +203,8 @@
       const list = await store.getConversations()
       this.applyConversations(list)
       const api = this.$app.$def.api
-      api.send({ type: 'get_conversations', seq: Date.now() % 100000 })
+      // 闪退加固：互联未就绪时 send reject 不能裸奔（unhandled rejection 真机杀进程）
+      api.send({ type: 'get_conversations', seq: Date.now() % 100000 }).catch((e) => console.log('[index] get_conversations dropped', e && e.code))
     },
     async refreshConversations() {
       const store = this.$app.$def.store
@@ -253,7 +254,7 @@
       try {
         const state = await store.toggleMute(item.id)
         this.menuMuted = state === 1
-        def.sendUpstream({ type: 'settings_update', seq: Date.now() % 100000, mute_list: store.getSettings().mute_list || '' })
+        def.sendUpstream({ type: 'settings_update', seq: Date.now() % 100000, mute_list: store.getSettings().mute_list || '' }).catch((e) => console.log('[index] settings_update dropped', e && e.code))
         this.closeMenu()
         this._lastSig = '' // 强制刷新列表（灰点立即生效）
         this.refreshConversations()

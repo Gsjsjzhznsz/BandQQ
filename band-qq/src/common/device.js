@@ -17,7 +17,8 @@ const profile = {
   shape: '',          // 官方 screenShape 原始值
   w: 0,               // 物理宽
   h: 0,               // 物理高
-  kbType: 'pill-shaped', // InputMethod screentype：band=pill-shaped / wide=rect / round=circle
+  kbType: 'pill-shaped', // InputMethod screentype：band=pill-shaped / wide=rect / round=circle / bandpro=rect
+  kbKeyboard: 'QWERTY',  // InputMethod keyboardtype：bandpro 走 T9 九键+拼音候选（NEORUAA rect 主打形态）
   kbScale: 1,            // 键盘缩放系数（band=1 不包装）
   kbW: 192,              // 键盘包装内层宽（design px）
   kbH: 305,              // 键盘包装内层高（design px）
@@ -317,10 +318,11 @@ function kbParams(cls, w) {
     return { kbType: 'circle', kbScale: 0.34, kbW: 480, kbH: 321, kbLeft: -144, kbOrigin: 'bottom center', kbSlotH: 109 }
   }
   if (cls === 'bandpro') {
-    // 手环 9/10 Pro：336 视口 = skb rect 变体设计基准，1:1 无缩放；kbH 实测校准
-    return { kbType: 'rect', kbScale: 1, kbW: 336, kbH: 255, kbLeft: 0, kbOrigin: 'bottom left', kbSlotH: 255 }
+    // 手环 9/10 Pro：336 视口 = NEORUAA rect 变体设计基准，1:1 无缩放；kbH 实测校准。
+    // v2.11.2-pro：T9 九键+拼音候选（上游 rect 主打形态），67 键滚动全键盘备选
+    return { kbType: 'rect', kbKeyboard: 'T9', kbScale: 1, kbW: 336, kbH: 255, kbLeft: 0, kbOrigin: 'bottom left', kbSlotH: 255 }
   }
-  return { kbType: 'pill-shaped', kbScale: 1, kbW: 192, kbH: 305, kbLeft: 0, kbOrigin: 'bottom left', kbSlotH: 305 }
+  return { kbType: 'pill-shaped', kbKeyboard: 'QWERTY', kbScale: 1, kbW: 192, kbH: 305, kbLeft: 0, kbOrigin: 'bottom left', kbSlotH: 305 }
 }
 
 export default {

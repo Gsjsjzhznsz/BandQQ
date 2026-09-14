@@ -10,14 +10,16 @@
         <text class="preview-text" style="{{ds.previewText}}">{{draft || '在这里输入内容，点击下方键盘按键'}}</text>
       </scroll>
     </div>
-    <!-- v2.10.0 机型分档：band 机直挂官方胶囊键盘（拼音引擎零回归）；
-         宽/圆屏自建紧凑键盘（官方 rect/circle 变体按 designWidth≈物理宽写死内尺寸，
-         缩放包装后触控命中坐标不随 transform 映射，实测点击无效 → 原生布局自建） -->
-    <div class="kb-wrap" if="{{dc === 'band'}}" style="height: {{kb.kbSlotH}}px;">
+    <!-- v2.11.2-pro 机型分档：band 直挂官方胶囊键盘（拼音引擎零回归）；
+         bandpro 挂 NEORUAA rect 变体（336 视口 1:1 无缩放，T9 九键+拼音候选）——
+         官方 rect/circle 变体在 192 视口大屏需缩放包装致触控失效，而 bandpro
+         designWidth=336=物理宽，scale=1 无 transform，触控原生直达 → 可直挂；
+         宽/圆屏仍自建紧凑键盘 -->
+    <div class="kb-wrap" if="{{dc === 'band' || dc === 'bandpro'}}" style="height: {{kb.kbSlotH}}px;">
       <div class="kb-inner" style="width: {{kb.kbW}}px; height: {{kb.kbH}}px; transform: scale({{kb.kbScale}}); transform-origin: {{kb.kbOrigin}}; left: {{kb.kbLeft}}px;">
         <input-method
           hide="{{false}}"
-          keyboardtype="QWERTY"
+          keyboardtype="{{kb.kbKeyboard || 'QWERTY'}}"
           maxlength="5"
           vibratemode="short"
           screentype="{{kb.kbType}}"
@@ -27,7 +29,7 @@
       </div>
     </div>
     <!-- 自建紧凑键盘（wide/round）：五行 QWERTY，纯 flex 原生命中 -->
-    <div class="skb" if="{{dc !== 'band'}}">
+    <div class="skb" if="{{dc !== 'band' && dc !== 'bandpro'}}">
       <div class="skb-row" style="{{ds.skbRow}}">
         <text class="skb-key" style="{{ds.skbKey}}" for="{{k in skbRows[skbMode][0]}}" @click="skbTap(k)">{{skbMode === 'abc' && skbAlpha ? k.toUpperCase() : k}}</text>
       </div>
@@ -108,7 +110,7 @@
       dc: 'band',
       dcReady: false,
       ds: {},
-      kb: { kbType: 'pill-shaped', kbScale: 1, kbW: 192, kbH: 305, kbLeft: 0, kbOrigin: 'bottom left', kbSlotH: 305 },
+      kb: { kbType: 'pill-shaped', kbKeyboard: 'QWERTY', kbScale: 1, kbW: 192, kbH: 305, kbLeft: 0, kbOrigin: 'bottom left', kbSlotH: 305 },
       skbMode: 'abc',
       skbAlpha: false,
       skbRows: {
@@ -140,7 +142,7 @@
         this.dc = p.cls
         this.ds = def.deviceProfile.stylesFor(p.cls)
         this.dcReady = true
-        this.kb = { kbType: p.kbType, kbScale: p.kbScale, kbW: p.kbW, kbH: p.kbH, kbLeft: p.kbLeft, kbOrigin: p.kbOrigin, kbSlotH: p.kbSlotH }
+        this.kb = { kbType: p.kbType, kbKeyboard: p.kbKeyboard, kbScale: p.kbScale, kbW: p.kbW, kbH: p.kbH, kbLeft: p.kbLeft, kbOrigin: p.kbOrigin, kbSlotH: p.kbSlotH }
       }
       applyProfile()
       def.on('device_profile', applyProfile)
