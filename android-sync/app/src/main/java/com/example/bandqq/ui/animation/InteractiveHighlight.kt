@@ -2,6 +2,7 @@ package com.example.bandqq.ui.animation
 
 import android.annotation.SuppressLint
 import android.graphics.RuntimeShader
+import android.os.Build
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.VectorConverter
 import androidx.compose.animation.core.VisibilityThreshold
@@ -40,21 +41,27 @@ class InteractiveHighlight(
     private var startPosition = Offset.Zero
     val offset: Offset get() = positionAnimation.value - startPosition
 
-    @Language("AGSL")
-    private val shader =
-        RuntimeShader(
-            """
+    companion object {
+        @Language("AGSL")
+        private const val SHADER_SRC = """
     uniform float2 size;
     layout(color) uniform half4 color;
     uniform float radius;
     uniform float2 position;
-    
+
     half4 main(float2 coord) {
         float dist = distance(coord, position);
         float intensity = smoothstep(radius, radius * 0.5, dist);
         return color * intensity;
     }"""
-        )
+    }
+
+    // RuntimeShader 是 API 33+ 的类。鸿蒙 4.2(SDK31) 的 framework 存在同名额类但构造签名不同，
+    // 直接属性初始化会在类实例化时抛 NoSuchMethodError（纯 Android 12 则是 NoClassDefFoundError），
+    // 导致首屏组合崩溃循环。必须 SDK 守卫：<33 返回 null，高光特效优雅降级为纯色叠加。
+    private val shader: RuntimeShader? by lazy {
+        if (Build.VERSION.SDK_INT >= 33) RuntimeShader(SHADER_SRC) else null
+    }
 
     val modifier: Modifier =
         Modifier.drawWithContent {
@@ -64,21 +71,24 @@ class InteractiveHighlight(
                     Color.White.copy(0.06f * progress),
                     blendMode = BlendMode.Plus
                 )
-                shader.apply {
-                    val position = position(size, positionAnimation.value)
-                    setFloatUniform("size", size.width, size.height)
-                    setColorUniform("color", Color.White.copy(0.12f * progress).toArgb())
-                    setFloatUniform("radius", size.minDimension * 1.2f)
-                    setFloatUniform(
-                        "position",
-                        position.x.fastCoerceIn(0f, size.width),
-                        position.y.fastCoerceIn(0f, size.height)
+                val s = shader
+                if (s != null) {
+                    s.apply {
+                        val position = position(size, positionAnimation.value)
+                        setFloatUniform("size", size.width, size.height)
+                        setColorUniform("color", Color.White.copy(0.12f * progress).toArgb())
+                        setFloatUniform("radius", size.minDimension * 1.2f)
+                        setFloatUniform(
+                            "position",
+                            position.x.fastCoerceIn(0f, size.width),
+                            position.y.fastCoerceIn(0f, size.height)
+                        )
+                    }
+                    drawRect(
+                        ShaderBrush(s),
+                        blendMode = BlendMode.Plus
                     )
                 }
-                drawRect(
-                    ShaderBrush(shader),
-                    blendMode = BlendMode.Plus
-                )
             }
 
             drawContent()
