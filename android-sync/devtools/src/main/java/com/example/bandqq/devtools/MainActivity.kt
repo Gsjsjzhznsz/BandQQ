@@ -101,7 +101,7 @@ class MainActivity : AppCompatActivity() {
         )
         column.addView(
             text(
-                "作者一秋 · QQ 2308534727 · github.com/Gsjsjzhznsz/BandQQ",
+                "作者一秋 · QQ群 885186458 · github.com/Gsjsjzhznsz/BandQQ",
                 12f, 0xFF5B9BFF.toInt()
             ).apply { setPadding(0, 0, 0, dp(8)) }
         )
