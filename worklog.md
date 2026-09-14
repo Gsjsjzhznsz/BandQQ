@@ -138,7 +138,7 @@ Work Log:
 - DevTools APK（新 module :devtools，独立签名同源）：WsServer.kt 手写 RFC6455（握手/掩码帧/扩展长度/分片/ping-pong，零依赖）+ HttpApiServer.kt 极简 HTTP（send_private_msg/send_group_msg 回 retcode 0+可选自动回推对方消息闭环、get_friend_list/get_group_list 模拟联系人）+ MsgBuilder 九场景 OneBot v11 数组段载荷 + MainActivity 纯代码 UI（快捷按钮/自定义发送/自动回推开关/事件日志/端口记忆）
 - 拉起震动：AutoLauncher pendingVibrate(AtomicBoolean+60s窗口)+launchAlertHook；SyncService bandAlert 发 band_alert 帧；RPK app.ux mode=1 短震×2/mode=2 长震；设置页三档（autoLaunchVibrate 0/1/2）
 - 双端互通：settings_state/settings_update 帧协议（msg_vibrate+emoji_native）；MessageBroker get_settings/settings_update 处理+settingsWriter hook；ConfigManager.applyBandSettings 变化才落盘；store.js band_settings 持久化；settings.ux 消息震动/表情渲染两行双向同步；push_message 震动判定加开关
-- 关于页：APP AboutScreen.kt（版本/作者一秋/QQ2308534727复制/仓库跳转/简介）+ BandQQApp showAbout 推入；RPK pages/about/about.ux + manifest 注册 + settings.ux 关于行；buildConfig=true 开启（AGP8）
+- 关于页：APP AboutScreen.kt（版本/作者一秋/QQ群 885186458复制/仓库跳转/简介）+ BandQQApp showAbout 推入；RPK pages/about/about.ux + manifest 注册 + settings.ux 关于行；buildConfig=true 开启（AGP8）
 - 构建：APK vc36/2.8.0 + devtools vc1/1.0.0 验签同源（af8819e2）+ RPK 2.8.0/vc34（包内验证新协议/页面齐全）；node 单测 49/49 过（protocol/store），api.test.js 与 GameProtocolDetectorTest 各 1 例存量环境失败（基线一致）
 - 交付 download/ 三件产物；README/MEMORY 更新
 
