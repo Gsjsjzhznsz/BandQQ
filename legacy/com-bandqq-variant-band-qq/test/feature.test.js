@@ -62,10 +62,10 @@ test('self-echo 合并：服务器回显并入乐观回显', () => {
 
 test('自消息 sender 修正：不使用会话ID（旧 bug）', () => {
   freshStore()
-  store.setMyProfile('2308534727', '一秋')
+  store.setMyProfile('885186458', '一秋')
   store.upsertMessage({ ...BASE, content: '6', time: Date.now(), isSelf: true })
   const msg = store.getMessages('802072961')[0]
-  assert.equal(msg.sender_id, '2308534727')
+  assert.equal(msg.sender_id, '885186458')
   assert.equal(msg.sender_name, '一秋')
   assert.notEqual(msg.sender_id, '802072961')
 })
