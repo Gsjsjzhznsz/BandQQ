@@ -54,7 +54,7 @@ import top.yukonga.miuix.kmp.theme.MiuixTheme
 
 /**
  * 关于页（v2.8.0）：应用信息、GitHub 仓库、作者与联系方式、项目简介。
- * 仓库 Gsjsjzhznsz/BandQQ（点击跳浏览器）、作者一秋、QQ 2308534727（点击复制）。
+ * 仓库 Gsjsjzhznsz/BandQQ（点击跳浏览器）、作者一秋、QQ群 885186458（点击复制）。
  */
 @Composable
 fun AboutScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
@@ -158,7 +158,7 @@ fun AboutScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                                 modifier = Modifier.width(76.dp),
                             )
                             Text(
-                                text = "QQ 2308534727（点击复制）",
+                                text = "QQ群 885186458（点击复制）",
                                 fontSize = 14.sp,
                                 color = colorScheme.primary,
                                 modifier = Modifier.weight(1f),
@@ -220,8 +220,8 @@ fun AboutScreen(onBack: () -> Unit, modifier: Modifier = Modifier) {
                     Button(
                         onClick = {
                             val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            cm.setPrimaryClip(ClipData.newPlainText("bandqq_qq", "2308534727"))
-                            toastMsg = "QQ 号已复制：2308534727"
+                            cm.setPrimaryClip(ClipData.newPlainText("bandqq_qq", "885186458"))
+                            toastMsg = "QQ 群号已复制：885186458"
                         },
                         colors = ButtonDefaults.buttonColors(),
                         modifier = Modifier.weight(1f),
