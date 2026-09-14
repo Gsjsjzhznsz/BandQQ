@@ -3,10 +3,10 @@
 > **📱 分支模型（每类设备独立 RPK，不再合一包）**：
 > | 分支 | 适配设备 | 键盘 | 当前版本 |
 > |---|---|---|---|
-> | [`main`](https://github.com/Gsjsjzhznsz/BandQQ) | 小米手环 9/10/11（胶囊/长条屏） | [AetherZeng1145/Vela-Input-Method-Revise](https://github.com/AetherZeng1145/Vela-Input-Method-Revise) `Capsule-For-Xiaomi-Band`（192×490 原生） | v2.9.2 (vc46) |
-> | [`redmi-watch`](https://github.com/Gsjsjzhznsz/BandQQ/tree/redmi-watch) | Redmi Watch 5/6（432×514 宽屏） | 同仓 `Cube-For-Redmi-Watch`（432×514 原生，常量整数化映射 designWidth 192） | v2.11.0-rw (vc62) |
-> | [`xiaomi-watch-s`](https://github.com/Gsjsjzhznsz/BandQQ/tree/xiaomi-watch-s) | 小米 Watch S3/S4/S5（466/480 圆屏） | 同仓 `QWERTY` 圆屏版（466×466 原生，同上映射） | v2.11.0-s (vc61) |
-> | [`band-pro`](https://github.com/Gsjsjzhznsz/BandQQ/tree/band-pro) | 小米手环 9 Pro / 10 Pro（336×480 方屏） | skb 紧凑 QWERTY（原生 flex，bandpro 档定向尺寸） | v2.11.0-pro (vc95) |
+> | [`main`](https://github.com/Gsjsjzhznsz/BandQQ) | 小米手环 9/10/11（胶囊/长条屏） | [AetherZeng1145/Vela-Input-Method-Revise](https://github.com/AetherZeng1145/Vela-Input-Method-Revise) `Capsule-For-Xiaomi-Band`（192×490 原生） | v2.9.3 (vc47) |
+> | [`redmi-watch`](https://github.com/Gsjsjzhznsz/BandQQ/tree/redmi-watch) | Redmi Watch 5/6（432×514 宽屏） | 同仓 `Cube-For-Redmi-Watch`（432×514 原生，常量整数化映射 designWidth 192） | v2.11.1-rw (vc63) |
+> | [`xiaomi-watch-s`](https://github.com/Gsjsjzhznsz/BandQQ/tree/xiaomi-watch-s) | 小米 Watch S3/S4/S5（466/480 圆屏） | 同仓 `QWERTY` 圆屏版（466×466 原生，同上映射） | v2.11.1-s (vc62) |
+> | [`band-pro`](https://github.com/Gsjsjzhznsz/BandQQ/tree/band-pro) | 小米手环 9 Pro / 10 Pro（336×480 方屏） | skb 紧凑 QWERTY（原生 flex，bandpro 档定向尺寸） | v2.11.1-pro (vc96) |
 | `unified-2.11.0`（归档） | 三形态合一运行时自适应 | 自建 skb 紧凑键盘 | v2.11.0 (vc45)，已被设备分支取代 |
 >
 > 宽/圆屏分支基于 v2.11.0 观感根治成果（内联 style 分档 + 几何机型判定）拆出，安装对应分支 RPK 即自动适配对应形态；键盘全部换装 AetherZeng1145 重构版（拼音候选回归宽/圆屏）。VVD 虚拟机四机验收：渲染 / 键位触控 / 拼音组合 / 候选上屏全链路通过（实拍见各分支提交）。
@@ -49,7 +49,7 @@
 
 ### 同步器文件日志系统（免 root 排查）
 有用户反馈「小米运动健康的设备授权管理里找不到 BandQQ」。为让远程排查不再靠猜，同步器 v2.9.1 把日志从内存/内存ring升级为**落盘文件日志**：
-- **日志位置**：`Android/data/com.example.bandqq/files/logs/bandqq-日期.log` —— 应用自身外部数据目录，**文件管理器或 USB(MTP) 直接可取，无需 root**；保留 7 天、单文件 8MB 自动滚动
+- **日志位置**：`Android/data/io.github.gsjsjzhznsz.bandqq/files/logs/bandqq-日期.log` —— 应用自身外部数据目录，**文件管理器或 USB(MTP) 直接可取，无需 root**；保留 7 天、单文件 8MB 自动滚动
 - **APP 内导出**：主页「实时日志」面板新增「导出」按钮，一键打包全部日志 + 崩溃记录成 zip 分享给开发者
 - **环境自检**：每次进程启动自动记录机型 / 系统与 HyperOS 版本 / **小米运动健康是否安装及版本** / 蓝牙与通知权限 / 电池优化白名单 / 无障碍保活状态
 - **互联授权全链路落盘**：发现手环节点 → `DEVICE_MANAGER` 授权判定结果 → 授权请求送达 → `launchWearApp` 结果 → 心跳，每一步都有日志，用户反馈时发回当天日志即可精确定位卡在哪一步
@@ -60,7 +60,7 @@
 1. **机型**：手环 9 / 10 / 11（Vela 快应用机型）才有第三方应用授权；手环 8 及更早、Redmi 手环系列不支持，属机型不适配
 2. **小米运动健康**：需已登录并**连接好手环**；版本过旧没有「设备授权管理」入口，先升级
 3. **触发授权**：手机安装 BandQQ 并打开 APP / 开启同步服务 —— SDK 会自动发起 `DEVICE_MANAGER` 授权请求，条目这时才出现（条目显示的是手机端应用名）
-4. 还不行：把 `Android/data/com.example.bandqq/files/logs/` 当天日志发回来，日志会明确写「未发现手环节点 / 授权被拒 / 拉起失败（手环端未安装）」中的哪一种
+4. 还不行：把 `Android/data/io.github.gsjsjzhznsz.bandqq/files/logs/` 当天日志发回来，日志会明确写「未发现手环节点 / 授权被拒 / 拉起失败（手环端未安装）」中的哪一种
 
 ## v2.9.0 更新日志
 
@@ -146,7 +146,7 @@ DevTools 日志特征（每条「已发送」后紧跟「客户端断开」，1~
 1. **BandQQ DevTools 开发者测试工具 APK（全新独立应用）**：模拟 OneBot 协议端（正向 WS 服务器 + HTTP API 服务器，零第三方依赖手写实现），没有 OneBot/SnowLuma 服务器的用户也能完整体验与调试全链路。启动后 BandQQ 同步器用默认地址（ws://127.0.0.1:3001 / http://127.0.0.1:3000）直连即可。支持：私聊/群聊 × 文本/@我/图片/表情/引用回复/语音/文件/长文本/撤回 一键模拟（真实 OneBot v11 数组段格式，走 APP 完整解析管线）；自定义消息（昵称+内容）；模拟好友/群列表（APP 连接后自动拉取出现在联系人页）；收到手环回复可自动回推一条对方消息（闭环演示：「手环回复 → 协议端收到 → 对方再回复」，手环上直接看到对话流）；全程事件日志；端口可配并记忆。
 2. **自动拉起后手环震动提示**：快应用被后台自动打开时手环震动一下（用户可能没注意到屏幕亮了），手动打开快应用不震动。设置页「快应用自动拉起」专区新增「拉起后手环震动」三档：不震 / 短震×2（默认，与消息单次短震区分）/ 长震。实现：launchWearApp 成功后置位待震标志，快应用真正连上（心跳 pong）时经 `band_alert` 帧下发，60s 时间窗口防拉起失败后残留误震。
 3. **双端设置互通**：「消息震动」（新消息手环振动）与「表情渲染」两项影响快应用的设置复制到手环端设置页，**双向实时互通**——手机端改动立即经 `settings_state` 快照帧下发（连接建立时也会下发）；手环端改动经 `settings_update` 帧回传手机端落盘（DataStore 持久化），变化才回推确认帧，防同步风暴；手环本地 storage 缓存加速启动，两端均即时生效无需重启。
-4. **双端关于页**：手机端设置页新增「关于 BandQQ」推入页（含应用图标、版本号、作者、联系方式、GitHub 仓库直达按钮、QQ 号一键复制、项目简介）；手环端设置页新增「关于」行跳转关于页面。作者一秋，联系方式 QQ 2308534727，仓库 Gsjsjzhznsz/BandQQ。
+4. **双端关于页**：手机端设置页新增「关于 BandQQ」推入页（含应用图标、版本号、作者、联系方式、GitHub 仓库直达按钮、QQ 号一键复制、项目简介）；手环端设置页新增「关于」行跳转关于页面。作者一秋，联系方式 QQ群 885186458，仓库 Gsjsjzhznsz/BandQQ。
 
 ### 保持不变
 - APK 签名同源（SHA-256 `af8819e2…b004`），可**直接覆盖安装**；DevTools 为独立应用（同签名）。

@@ -24,7 +24,7 @@
       </div>
       <div class="card col" style="{{ds.card}}">
         <text class="k" style="{{ds.k}}">联系方式</text>
-        <text class="v" style="{{ds.v}}">QQ 2308534727</text>
+        <text class="v" style="{{ds.v}}">QQ群 885186458</text>
       </div>
       <div class="card col" style="{{ds.card}}" @click="copyRepo">
         <text class="k" style="{{ds.k}}">GitHub（点击复制链接）</text>
