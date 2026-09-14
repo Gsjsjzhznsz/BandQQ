@@ -189,7 +189,7 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 - push_message 震动判定加 `store.getSettings().msg_vibrate !== false`；settings.ux 新增「消息震动/表情渲染」两行（点行切换 + toast），on('settings') 实时刷新文案
 
 **双端关于页**：
-- APP：ui/AboutScreen.kt（推入页同构 CrashLogScreen：Scaffold+BlurredBar+SmallTopAppBar；图标+版本 BuildConfig.VERSION_NAME（app buildFeatures 开 buildConfig=true，AGP8 默认关）+ 作者一秋/QQ 2308534727 点击复制/仓库 Gsjsjzhznsz/BandQQ 点击开浏览器/项目简介/双按钮）；BandQQApp showAbout rememberSaveable 推入 + PredictiveBackHandler 优先级链插入
+- APP：ui/AboutScreen.kt（推入页同构 CrashLogScreen：Scaffold+BlurredBar+SmallTopAppBar；图标+版本 BuildConfig.VERSION_NAME（app buildFeatures 开 buildConfig=true，AGP8 默认关）+ 作者一秋/QQ群 885186458 点击复制/仓库 Gsjsjzhznsz/BandQQ 点击开浏览器/项目简介/双按钮）；BandQQApp showAbout rememberSaveable 推入 + PredictiveBackHandler 优先级链插入
 - RPK：pages/about/about.ux（hero 区图标/版本 + 简介/作者/联系/仓库卡片；192px body 双屏通吃）+ manifest router 注册 + settings.ux「关于」行 goAbout
 
 **交付**：bandqq-sync-release-2.8.0.apk（12.2MB vc36）+ bandqq-devtools-release-1.0.0.apk（4.7MB vc1 同签名）+ bandqq-watch-release-2.8.0.rpk（256KB vc34，包内验证 about 页/band_alert/settings 协议齐全）；RPK node 单测 53/54+49/49（protocol/store 全过，api.test.js 1 例存量失败）；GameProtocolDetectorTest 1 例存量失败（与 v2.7.0 基线一致，容器环境限制）
