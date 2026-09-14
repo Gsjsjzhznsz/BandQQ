@@ -1,9 +1,9 @@
 {
-  "package": "com.example.bandqq",
+  "package": "io.github.gsjsjzhznsz.bandqq",
   "name": "QQ助手",
   "icon": "/common/icon.png",
-  "versionName": "2.11.0-rw",
-  "versionCode": 62,
+  "versionName": "2.11.1-rw",
+  "versionCode": 63,
   "minAPILevel": 1,
   "deviceTypeList": [
     "watch"
