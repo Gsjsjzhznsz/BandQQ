@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.bandqq.devtools"
+    namespace = "io.github.gsjsjzhznsz.bandqq.devtools"
     compileSdk = 37
 
     defaultConfig {
-        applicationId = "com.example.bandqq.devtools"
+        applicationId = "io.github.gsjsjzhznsz.bandqq.devtools"
         minSdk = 26
         targetSdk = 34
         versionCode = 6

@@ -34,7 +34,7 @@
 
 ## 签名要求
 
-- `applicationId` 必须为 `com.example.bandqq`（与手环端 manifest `package` 一致，互联硬性要求）。
+- `applicationId` 必须为 `io.github.gsjsjzhznsz.bandqq`（与手环端 manifest `package` 一致，互联硬性要求；v2.9.3 起启用反域名法规范包名）。
 - 调试包默认用 Android 调试签名；**如需安装到真手环，release 包需用 `.jks` 证书签名，且与手环 rpk 使用同一证书**（见 `../docs/signing.md` 与 `keystore.example.properties`）。
 - 本机无 Android SDK：请在装有 Android Studio 的机器上执行上述构建验证。
 
