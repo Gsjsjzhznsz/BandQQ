@@ -131,10 +131,14 @@
       console.log('[BANDQQ] v21 chat onInit')
       const def0 = this.$app.$def
       this.dcDebug = 'C1'
-      this.dc = def0.deviceProfile.cls()
-      this.ds = def0.deviceProfile.stylesFor(this.dc)
-      if (def0.deviceProfile.ready()) this.dcReady = true
-      def0.on('device_profile', () => { this.dc = def0.deviceProfile.cls(); this.ds = def0.deviceProfile.stylesFor(this.dc); this.dcReady = true })
+      // v2.11.3 加固：profile 链路异常不阻断 onInit；600ms 兜底强制放行，绝不白屏死机
+      try {
+        this.dc = def0.deviceProfile.cls()
+        this.ds = def0.deviceProfile.stylesFor(this.dc)
+        if (def0.deviceProfile.ready()) this.dcReady = true
+        def0.on('device_profile', () => { this.dc = def0.deviceProfile.cls(); this.ds = def0.deviceProfile.stylesFor(this.dc); this.dcReady = true })
+      } catch (e) { this.dcDebug = 'CF' + ((e && e.message) || '').slice(0, 6); try { console.error('[BANDQQ] profile init fail', e && e.message) } catch (x) {} }
+      setTimeout(() => { if (this.dcReady !== true) { this.dcReady = true; this.dcDebug = 'CB'; try { console.log('[BANDQQ] dcReady fallback fired') } catch (x) {} } }, 600)
       let targetId = (params && params.targetId) || ''
       let convName = (params && params.name) || ''
       if (!targetId && params && params.uri) {

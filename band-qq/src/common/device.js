@@ -329,10 +329,20 @@ export default {
   init(onChange) {
     if (inited) return
     inited = true
+    // v2.11.3 白屏死机兜底：部分固件 device.getInfo 既不回调 success 也不回调 fail，
+    // 800ms 后仍未就绪则强制按 band 基线放行（事件到达后页面自动刷新为真实档位）
+    const watchdog = setTimeout(() => {
+      if (profile.ok !== true) {
+        profile.ok = true
+        try { console.error('[BANDQQ] device profile watchdog fired') } catch (x) {}
+        if (typeof onChange === 'function') onChange(profile)
+      }
+    }, 800)
     try {
       const device = require('@system.device')
       device.getInfo({
         success: (d) => {
+          clearTimeout(watchdog)
           const w = d.screenWidth || 0
           const h = d.screenHeight || 0
           const cls = classify(d.screenShape || '', w, h)
@@ -342,13 +352,19 @@ export default {
           if (typeof onChange === 'function') onChange(profile)
         },
         fail: (e) => {
+          clearTimeout(watchdog)
           console.error('[BANDQQ] device.getInfo fail', e && e.message)
           profile.ok = true
           if (typeof onChange === 'function') onChange(profile)
         }
       })
     } catch (e) {
+      clearTimeout(watchdog)
       console.error('[BANDQQ] device init error', e && e.message)
+      // v2.11.3 白屏死机兜底：catch 路径必须同样判定就绪（band 基线），
+      // 否则 ready() 恒假 → 全部页面根节点 if 门控永不放行 → 整机白屏死机
+      profile.ok = true
+      if (typeof onChange === 'function') onChange(profile)
     }
   },
   get() {
