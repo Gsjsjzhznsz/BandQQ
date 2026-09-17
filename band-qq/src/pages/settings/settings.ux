@@ -82,6 +82,8 @@
   import router from '@system.router'
   import prompt from '@system.prompt'
   import protocol from '../../common/protocol'
+  // v2.11.5 根治：页面直引 device 模块，data() 阶段即可拿到完整安全样式表
+  import deviceProfile from '../../common/device'
 
   export default {
     private: {
@@ -92,7 +94,9 @@
       confirmShow: false,
       dc: 'band',
       dcReady: false,
-      ds: {}
+      // v2.11.5 根治：data() 阶段即初始化为完整安全样式表（band 全空串=class 基线），
+      // 杜绝 onInit 异常时 ds 空对象 → undefined 样式绑定 → Vela 整棵子树渲染失败（黑屏）
+      ds: deviceProfile.stylesFor('band')
     },
     onShow() {
       this.refreshStatus()
@@ -100,7 +104,22 @@
       this.pullConnectState()
     },
     onInit() {
-      const def = this.$app.$def
+      // v2.11.5 根治：兜底先行——注册在任何可能抛错代码之前，且兜底同时修复 ds
+      setTimeout(() => {
+        if (this.dcReady !== true) {
+          this.dcReady = true
+          try {
+            const d1 = (this.$app && this.$app.$def) || {}
+            if (d1.deviceProfile) {
+              this.dc = d1.deviceProfile.cls() || 'band'
+              const s1 = d1.deviceProfile.stylesFor(this.dc)
+              if (s1) this.ds = s1
+            }
+          } catch (x) {}
+          try { console.log('[BANDQQ] dcReady fallback fired') } catch (x) {}
+        }
+      }, 600)
+      const def = (this.$app && this.$app.$def) || {}
       // v2.11.3 加固：profile 链路异常不阻断 onInit；600ms 兜底强制放行，绝不白屏死机
       try {
         this.dc = def.deviceProfile.cls()
@@ -108,7 +127,6 @@
         if (def.deviceProfile.ready()) this.dcReady = true
         def.on('device_profile', () => { this.dc = def.deviceProfile.cls(); this.ds = def.deviceProfile.stylesFor(this.dc); this.dcReady = true })
       } catch (e) { try { console.error('[BANDQQ] profile init fail', e && e.message) } catch (x) {} }
-      setTimeout(() => { if (this.dcReady !== true) { this.dcReady = true; try { console.log('[BANDQQ] dcReady fallback fired') } catch (x) {} } }, 600)
       this.$app.$def.on('state', () => this.refreshStatus())
       // v2.8.0 双端互通：手机端改了设置 → 快照到达 → 刷新行文案
       this.$app.$def.on('settings', () => this.refreshSettings())
