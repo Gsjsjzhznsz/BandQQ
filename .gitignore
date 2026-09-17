@@ -20,3 +20,6 @@ band-qq/dist/
 .temp_*/
 band-qq/sign/debug/
 band-qq/build/
+
+# 构建产物不再入库，分发走 GitHub Releases
+/dist/
