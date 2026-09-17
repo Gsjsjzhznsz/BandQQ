@@ -102,7 +102,12 @@ const DEVICE_STYLES = {
     card: 'margin:3px 6px;padding:7px 10px;border-radius:10px',
     line: 'font-size:10px;line-height:14px',
     k: 'font-size:8px',
-    v: 'font-size:11px;margin-top:1px'
+    v: 'font-size:11px;margin-top:1px',
+    // v2.11.4 黑屏根修：about/settings 的 scroll 主体与 chat 的发送状态文本引用本表，
+    // 键缺失时 style 绑定为 undefined → Vela 渲染层整棵子树渲染失败（页面只剩纯黑背景）；
+    // 空串 = 完全走 class 基线，与 main 2.9.3 渲染一致
+    body: '',
+    sendStatusText: ''
   },
   round: {
     topRow: 'height:20px',
@@ -171,7 +176,92 @@ const DEVICE_STYLES = {
     card: 'margin:3px 2px;padding:6px 10px;border-radius:9px',
     line: 'font-size:9px;line-height:13px',
     k: 'font-size:8px',
+<<<<<<< HEAD
     v: 'font-size:10px;margin-top:1px'
+=======
+    v: 'font-size:10px;margin-top:1px',
+    // v2.11.4 黑屏根修：同 wide 段，round 直接引用本对象，缺键必须单独补
+    body: '',
+    sendStatusText: ''
+  },
+  /**
+   * v2.11.0-pro bandpro 档（手环 9/10 Pro 专用分支）：336×480 视口定向设计。
+   * 分支 manifest designWidth=336 → design px = VM 物理 px 1:1。
+   * 相对 192 基线的取舍：屏幕宽 +75% 高 -2% → 列表项压矮多显一行、
+   * 名字/气泡加宽吃满横向空间、顶部按钮与状态栏收缩还空间给内容。
+   */
+  bandpro: {
+    skbRow: 'margin:4px 0',
+    skbKey: 'width:29px;height:40px;margin:0 2px;border-radius:9px;line-height:40px;font-size:17px',
+    skbFn: 'width:36px;height:40px;margin:0 2px;border-radius:9px;line-height:40px;font-size:14px',
+    skbSpace: 'width:100px;height:40px;border-radius:9px;line-height:40px;font-size:15px',
+    topRow: 'height:46px;padding-top:4px',
+    btn: 'width:60px;height:42px',
+    list: 'padding:4px 10px 0 10px',
+    item: 'height:70px;margin-bottom:4px;border-radius:14px',
+    avatar: 'width:40px;height:40px;border-radius:20px;margin-left:10px;margin-right:8px',
+    avatarText: 'font-size:18px',
+    itemName: 'font-size:18px;max-width:170px',
+    itemTag: 'font-size:11px;border-radius:5px;padding:0 4px;margin-left:5px',
+    itemAt: 'font-size:11px;border-radius:5px;padding:1px 5px;margin-left:5px',
+    itemPrev: 'font-size:14px;margin-top:3px;max-width:190px',
+    right: 'width:56px;height:70px;padding:8px 10px 0 0',
+    itemTime: 'font-size:12px',
+    badge: 'min-width:22px;height:20px;border-radius:10px;right:6px;bottom:10px',
+    badgeText: 'font-size:12px;padding:0 4px',
+    emptyIcon: 'width:64px;height:64px',
+    emptyText: 'font-size:15px;margin-top:8px',
+    statusBar: 'height:44px',
+    statusText: 'font-size:17px',
+    menu: 'padding:12px 14px 16px 14px',
+    menuTitle: 'font-size:15px;margin-bottom:6px',
+    menuRow: 'font-size:17px;padding:11px 0',
+    btnBack: 'width:60px;height:42px',
+    titleBar: 'height:26px',
+    pageTitle: 'font-size:19px;max-width:220px',
+    sendStatus: 'height:18px',
+    olderWrap: 'height:28px',
+    olderBtn: 'font-size:13px;padding:3px 10px',
+    msgItem: 'width:316px;padding:0 10px;margin-top:7px',
+    msgCol: 'max-width:230px',
+    msgName: 'font-size:12px;margin-bottom:2px',
+    atBadge: 'font-size:11px;line-height:15px;border-radius:5px;padding:1px 5px;margin-bottom:2px',
+    bubble: 'max-width:210px;padding:6px 9px;border-radius:10px;font-size:16px;line-height:22px',
+    bubbleRc: 'font-size:13px',
+    pokeWrap: 'width:316px;margin:4px 0',
+    pokeBubble: 'font-size:14px;line-height:19px;border-radius:12px;padding:4px 10px',
+    quickArea: 'height:46px',
+    quickRow: 'height:46px;padding:0 5px',
+    quickBtn: 'height:34px;border-radius:17px;margin:0 3px;padding:0 10px',
+    quickText: 'font-size:14px',
+    inputBar: 'height:56px',
+    sendToast: 'bottom:60px',
+    doneBtn: 'width:64px;height:24px;line-height:24px;font-size:14px;border-radius:12px',
+    previewBox: 'padding:4px 16px',
+    previewScroll: 'width:100%',
+    previewText: 'font-size:14px;line-height:20px',
+    confirmBox: 'width:210px;padding:11px;border-radius:12px',
+    confirmTitle: 'font-size:14px;margin-bottom:5px',
+    confirmDescScroll: 'width:180px;height:110px',
+    confirmDesc: 'font-size:13px;line-height:18px',
+    confirmBtns: 'margin-top:9px',
+    confirmCancel: 'padding:7px 0;font-size:13px;border-radius:9px;margin-right:8px',
+    confirmOk: 'padding:7px 0;font-size:13px;border-radius:9px',
+    row: 'height:44px;margin:3px 0;padding:0 12px;border-radius:10px',
+    rowLabel: 'font-size:16px',
+    rowValue: 'font-size:16px',
+    section: 'font-size:12px;padding:9px 12px 0 12px',
+    tailSpace: 'height:10px',
+    hero: 'margin:5px 10px 0 10px',
+    icon: 'width:52px;height:52px;border-radius:12px',
+    appName: 'font-size:20px;margin-top:4px',
+    ver: 'font-size:12px;margin-top:2px',
+    demoHint: 'font-size:12px;margin-top:3px',
+    card: 'margin:4px 4px;padding:8px 12px;border-radius:11px',
+    line: 'font-size:13px;line-height:18px',
+    k: 'font-size:12px',
+    v: 'font-size:14px;margin-top:1px'
+>>>>>>> 81cc920 (v2.11.4-pro(vc99): 黑屏根修——DEVICE_STYLES 补 body/sendStatusText 缺失键(style 绑定 undefined 致 Vela 整棵子树渲染失败→纯黑背景)，wide+round 双段补齐，band/bandpro 自动继承)
   }
 }
 
