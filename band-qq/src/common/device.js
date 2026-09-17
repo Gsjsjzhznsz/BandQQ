@@ -17,7 +17,8 @@ const profile = {
   shape: '',          // 官方 screenShape 原始值
   w: 0,               // 物理宽
   h: 0,               // 物理高
-  kbType: 'pill-shaped', // InputMethod screentype：band=pill-shaped / wide=rect / round=circle
+  kbType: 'pill-shaped', // InputMethod screentype：band=pill-shaped / wide=rect / round=circle / bandpro=rect
+  kbKeyboard: 'QWERTY',  // InputMethod keyboardtype：bandpro 走 T9 九键+拼音候选（NEORUAA rect 主打形态）
   kbScale: 1,            // 键盘缩放系数（band=1 不包装）
   kbW: 192,              // 键盘包装内层宽（design px）
   kbH: 305,              // 键盘包装内层高（design px）
@@ -36,6 +37,10 @@ const profile = {
  */
 const DEVICE_STYLES = {
   wide: {
+    skbRow: '',
+    skbKey: '',
+    skbFn: '',
+    skbSpace: '',
     topRow: 'height:22px',
     btn: 'width:30px;height:21px',
     list: 'padding:3px 6px 0 6px',
@@ -110,6 +115,10 @@ const DEVICE_STYLES = {
     sendStatusText: ''
   },
   round: {
+    skbRow: '',
+    skbKey: '',
+    skbFn: '',
+    skbSpace: '',
     topRow: 'height:20px',
     btn: 'width:28px;height:20px',
     list: 'padding:3px 16px 0 16px',
@@ -176,9 +185,6 @@ const DEVICE_STYLES = {
     card: 'margin:3px 2px;padding:6px 10px;border-radius:9px',
     line: 'font-size:9px;line-height:13px',
     k: 'font-size:8px',
-<<<<<<< HEAD
-    v: 'font-size:10px;margin-top:1px'
-=======
     v: 'font-size:10px;margin-top:1px',
     // v2.11.4 黑屏根修：同 wide 段，round 直接引用本对象，缺键必须单独补
     body: '',
@@ -261,15 +267,23 @@ const DEVICE_STYLES = {
     line: 'font-size:13px;line-height:18px',
     k: 'font-size:12px',
     v: 'font-size:14px;margin-top:1px'
->>>>>>> 81cc920 (v2.11.4-pro(vc99): 黑屏根修——DEVICE_STYLES 补 body/sendStatusText 缺失键(style 绑定 undefined 致 Vela 整棵子树渲染失败→纯黑背景)，wide+round 双段补齐，band/bandpro 自动继承)
   }
 }
 
 function stylesFor(cls) {
   const wide = DEVICE_STYLES.wide
   const round = DEVICE_STYLES.round
+  const bandpro = DEVICE_STYLES.bandpro || {}
   if (cls === 'wide') return wide
   if (cls === 'round') return round
+  if (cls === 'bandpro') {
+    // band-pro（手环 9/10 Pro，336×480 视口）：首版走 class 基线（192 设计值），
+    // designWidth 已随分支提升至 336 —— 基线值在 336 视口下偏精致，
+    // 后续按 VVD 实测观感在本表逐键覆盖
+    const bp = {}
+    Object.keys(wide).forEach((k) => { bp[k] = bandpro[k] !== undefined ? bandpro[k] : '' })
+    return bp
+  }
   // band：全键空串（模板统一 style="{{ds.xxx}}"，空串=完全走 class 基线）
   const band = {}
   Object.keys(wide).forEach((k) => { band[k] = '' })
@@ -292,7 +306,8 @@ function classify(shape, w, h) {
    */
   if (!w || !h) return shape === 'circle' ? 'round' : 'band'
   const ar = w / h
-  if (ar < 0.75) return 'band'
+  if (ar < 0.55) return 'band'
+  if (ar < 0.78) return 'bandpro'
   if (ar >= 0.95) return 'round'
   if (w >= 380) return 'wide'
   if (shape === 'circle') return 'round'
@@ -310,7 +325,12 @@ function kbParams(cls, w) {
   if (cls === 'round') {
     return { kbType: 'circle', kbScale: 0.34, kbW: 480, kbH: 321, kbLeft: -144, kbOrigin: 'bottom center', kbSlotH: 109 }
   }
-  return { kbType: 'pill-shaped', kbScale: 1, kbW: 192, kbH: 305, kbLeft: 0, kbOrigin: 'bottom left', kbSlotH: 305 }
+  if (cls === 'bandpro') {
+    // 手环 9/10 Pro：336 视口 = NEORUAA rect 变体设计基准，1:1 无缩放；kbH 实测校准。
+    // v2.11.2-pro：T9 九键+拼音候选（上游 rect 主打形态），67 键滚动全键盘备选
+    return { kbType: 'rect', kbKeyboard: 'T9', kbScale: 1, kbW: 336, kbH: 255, kbLeft: 0, kbOrigin: 'bottom left', kbSlotH: 255 }
+  }
+  return { kbType: 'pill-shaped', kbKeyboard: 'QWERTY', kbScale: 1, kbW: 192, kbH: 305, kbLeft: 0, kbOrigin: 'bottom left', kbSlotH: 305 }
 }
 
 export default {
