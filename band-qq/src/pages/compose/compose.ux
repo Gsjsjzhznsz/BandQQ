@@ -86,8 +86,10 @@
         this.ds = def.deviceProfile.stylesFor(p.cls)
         this.dcReady = true
       }
-      applyProfile()
+      // v2.11.3 加固：profile 异常不阻断 onInit；600ms 兜底强制放行
+      try { applyProfile() } catch (e) { try { console.error('[BANDQQ] profile init fail', e && e.message) } catch (x) {} }
       def.on('device_profile', applyProfile)
+      setTimeout(() => { if (this.dcReady !== true) { this.dcReady = true; try { console.log('[BANDQQ] dcReady fallback fired') } catch (x) {} } }, 600)
       this.targetId = (params && params.targetId) || ''
       this.name = (params && params.name) || '聊天'
       if (!this.targetId) {

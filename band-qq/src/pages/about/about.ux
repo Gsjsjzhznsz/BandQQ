@@ -12,7 +12,7 @@
         <text class="app-name" style="{{ds.appName}}">BandQQ</text>
         <!-- v2.9.0：连点版本区 7 次开启演示模式（注入演示会话，无手机也可体验界面）；
              点击区挂在整个 hero（小 text 点击区在部分固件上不响应） -->
-        <text class="ver" style="{{ds.ver}}">v2.11.0 · 快应用端</text>
+        <text class="ver" style="{{ds.ver}}">v2.11.3 · 快应用端</text>
         <text class="demo-hint" style="{{ds.demoHint}}" if="{{demoHint}}">{{demoHint}}</text>
       </div>
       <div class="card col" style="{{ds.card}}">
@@ -71,10 +71,14 @@
     _tapTimer: null,
     onInit() {
       const def = this.$app.$def
-      this.dc = def.deviceProfile.cls()
-      this.ds = def.deviceProfile.stylesFor(this.dc)
-      if (def.deviceProfile.ready()) this.dcReady = true
-      def.on('device_profile', () => { this.dc = def.deviceProfile.cls(); this.ds = def.deviceProfile.stylesFor(this.dc); this.dcReady = true })
+      // v2.11.3 加固：profile 链路异常不阻断 onInit；600ms 兜底强制放行，绝不白屏死机
+      try {
+        this.dc = def.deviceProfile.cls()
+        this.ds = def.deviceProfile.stylesFor(this.dc)
+        if (def.deviceProfile.ready()) this.dcReady = true
+        def.on('device_profile', () => { this.dc = def.deviceProfile.cls(); this.ds = def.deviceProfile.stylesFor(this.dc); this.dcReady = true })
+      } catch (e) { try { console.error('[BANDQQ] profile init fail', e && e.message) } catch (x) {} }
+      setTimeout(() => { if (this.dcReady !== true) { this.dcReady = true; try { console.log('[BANDQQ] dcReady fallback fired') } catch (x) {} } }, 600)
     },
     goBack() {
       router.back()

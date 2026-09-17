@@ -101,10 +101,14 @@
     },
     onInit() {
       const def = this.$app.$def
-      this.dc = def.deviceProfile.cls()
-      this.ds = def.deviceProfile.stylesFor(this.dc)
-      if (def.deviceProfile.ready()) this.dcReady = true
-      def.on('device_profile', () => { this.dc = def.deviceProfile.cls(); this.ds = def.deviceProfile.stylesFor(this.dc); this.dcReady = true })
+      // v2.11.3 加固：profile 链路异常不阻断 onInit；600ms 兜底强制放行，绝不白屏死机
+      try {
+        this.dc = def.deviceProfile.cls()
+        this.ds = def.deviceProfile.stylesFor(this.dc)
+        if (def.deviceProfile.ready()) this.dcReady = true
+        def.on('device_profile', () => { this.dc = def.deviceProfile.cls(); this.ds = def.deviceProfile.stylesFor(this.dc); this.dcReady = true })
+      } catch (e) { try { console.error('[BANDQQ] profile init fail', e && e.message) } catch (x) {} }
+      setTimeout(() => { if (this.dcReady !== true) { this.dcReady = true; try { console.log('[BANDQQ] dcReady fallback fired') } catch (x) {} } }, 600)
       this.$app.$def.on('state', () => this.refreshStatus())
       // v2.8.0 双端互通：手机端改了设置 → 快照到达 → 刷新行文案
       this.$app.$def.on('settings', () => this.refreshSettings())

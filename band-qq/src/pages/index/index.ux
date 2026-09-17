@@ -118,10 +118,14 @@
     onInit() {
       const def = this.$app.$def
       // v2.10.0 机型分档：读取全局 profile，异步到达后随事件刷新
-      this.dc = def.deviceProfile.cls()
-      this.ds = def.deviceProfile.stylesFor(this.dc)
-      if (def.deviceProfile.ready()) this.dcReady = true
-      def.on('device_profile', () => { this.dc = def.deviceProfile.cls(); this.ds = def.deviceProfile.stylesFor(this.dc); this.dcReady = true })
+      // v2.11.3 加固：profile 链路异常不阻断 onInit；600ms 兜底强制放行，绝不白屏死机
+      try {
+        this.dc = def.deviceProfile.cls()
+        this.ds = def.deviceProfile.stylesFor(this.dc)
+        if (def.deviceProfile.ready()) this.dcReady = true
+        def.on('device_profile', () => { this.dc = def.deviceProfile.cls(); this.ds = def.deviceProfile.stylesFor(this.dc); this.dcReady = true })
+      } catch (e) { try { console.error('[BANDQQ] profile init fail', e && e.message) } catch (x) {} }
+      setTimeout(() => { if (this.dcReady !== true) { this.dcReady = true; try { console.log('[BANDQQ] dcReady fallback fired') } catch (x) {} } }, 600)
       // 抖动根治：所有数据事件统一走 120ms 尾沿防抖 + 签名比对，
       // 消息风暴时每 120ms 至多渲染一次，内容未变不触发任何渲染
       this._scheduleRefresh = () => {
