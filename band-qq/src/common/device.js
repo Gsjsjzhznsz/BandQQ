@@ -107,7 +107,12 @@ const DEVICE_STYLES = {
     card: 'margin:3px 6px;padding:7px 10px;border-radius:10px',
     line: 'font-size:10px;line-height:14px',
     k: 'font-size:8px',
-    v: 'font-size:11px;margin-top:1px'
+    v: 'font-size:11px;margin-top:1px',
+    // v2.11.4 黑屏根修：about/settings 的 scroll 主体与 chat 的发送状态文本引用本表，
+    // 键缺失时 style 绑定为 undefined → Vela 渲染层整棵子树渲染失败（页面只剩纯黑背景）；
+    // 空串 = 完全走 class 基线，与 main 2.9.3 渲染一致
+    body: '',
+    sendStatusText: ''
   },
   round: {
     skbRow: '',
@@ -180,7 +185,10 @@ const DEVICE_STYLES = {
     card: 'margin:3px 2px;padding:6px 10px;border-radius:9px',
     line: 'font-size:9px;line-height:13px',
     k: 'font-size:8px',
-    v: 'font-size:10px;margin-top:1px'
+    v: 'font-size:10px;margin-top:1px',
+    // v2.11.4 黑屏根修：同 wide 段，round 直接引用本对象，缺键必须单独补
+    body: '',
+    sendStatusText: ''
   },
   /**
    * v2.11.0-pro bandpro 档（手环 9/10 Pro 专用分支）：336×480 视口定向设计。
