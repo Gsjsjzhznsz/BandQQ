@@ -12,7 +12,7 @@
         <text class="app-name" style="{{ds.appName}}">BandQQ</text>
         <!-- v2.9.0：连点版本区 7 次开启演示模式（注入演示会话，无手机也可体验界面）；
              点击区挂在整个 hero（小 text 点击区在部分固件上不响应） -->
-        <text class="ver" style="{{ds.ver}}">v2.11.4 · 快应用端</text>
+        <text class="ver" style="{{ds.ver}}">v2.11.5 · 快应用端</text>
         <text class="demo-hint" style="{{ds.demoHint}}" if="{{demoHint}}">{{demoHint}}</text>
       </div>
       <div class="card col" style="{{ds.card}}">
@@ -57,6 +57,8 @@
   import router from '@system.router'
   import prompt from '@system.prompt'
   import clipboard from '@system.clipboard'
+  // v2.11.5 根治：页面直引 device 模块，data() 阶段即可拿到完整安全样式表
+  import deviceProfile from '../../common/device'
 
   const REPO_URL = 'https://github.com/Gsjsjzhznsz/BandQQ'
 
@@ -65,12 +67,29 @@
       demoHint: '',
       dc: 'band',
       dcReady: false,
-      ds: {}
+      // v2.11.5 根治：data() 阶段即初始化为完整安全样式表（band 全空串=class 基线），
+      // 杜绝 onInit 异常时 ds 空对象 → undefined 样式绑定 → Vela 整棵子树渲染失败（黑屏）
+      ds: deviceProfile.stylesFor('band')
     },
     _tapCount: 0,
     _tapTimer: null,
     onInit() {
-      const def = this.$app.$def
+      // v2.11.5 根治：兜底先行——注册在任何可能抛错代码之前，且兜底同时修复 ds
+      setTimeout(() => {
+        if (this.dcReady !== true) {
+          this.dcReady = true
+          try {
+            const d1 = (this.$app && this.$app.$def) || {}
+            if (d1.deviceProfile) {
+              this.dc = d1.deviceProfile.cls() || 'band'
+              const s1 = d1.deviceProfile.stylesFor(this.dc)
+              if (s1) this.ds = s1
+            }
+          } catch (x) {}
+          try { console.log('[BANDQQ] dcReady fallback fired') } catch (x) {}
+        }
+      }, 600)
+      const def = (this.$app && this.$app.$def) || {}
       // v2.11.3 加固：profile 链路异常不阻断 onInit；600ms 兜底强制放行，绝不白屏死机
       try {
         this.dc = def.deviceProfile.cls()
@@ -78,7 +97,6 @@
         if (def.deviceProfile.ready()) this.dcReady = true
         def.on('device_profile', () => { this.dc = def.deviceProfile.cls(); this.ds = def.deviceProfile.stylesFor(this.dc); this.dcReady = true })
       } catch (e) { try { console.error('[BANDQQ] profile init fail', e && e.message) } catch (x) {} }
-      setTimeout(() => { if (this.dcReady !== true) { this.dcReady = true; try { console.log('[BANDQQ] dcReady fallback fired') } catch (x) {} } }, 600)
     },
     goBack() {
       router.back()

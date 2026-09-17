@@ -64,6 +64,8 @@
 <script>
   import router from '@system.router'
   import protocol from '../../common/protocol'
+  // v2.11.5 根治：页面直引 device 模块，data() 阶段即可拿到完整安全样式表
+  import deviceProfile from '../../common/device'
 
   export default {
     protected: {
@@ -75,21 +77,37 @@
       confirmShow: false,
       dc: 'wide',
       dcReady: false,
-      ds: {}
+      // v2.11.5 根治：data() 阶段即初始化为完整安全样式表（band 全空串=class 基线），
+      // 杜绝 onInit 异常时 ds 空对象 → undefined 样式绑定 → Vela 整棵子树渲染失败（黑屏）
+      ds: deviceProfile.stylesFor('band')
     },
     onInit(params) {
-      const def = this.$app.$def
+      // v2.11.5 根治：兜底先行——注册在任何可能抛错代码之前，且兜底同时修复 ds
+      setTimeout(() => {
+        if (this.dcReady !== true) {
+          this.dcReady = true
+          try {
+            const d1 = (this.$app && this.$app.$def) || {}
+            if (d1.deviceProfile) {
+              this.dc = d1.deviceProfile.cls() || 'band'
+              const s1 = d1.deviceProfile.stylesFor(this.dc)
+              if (s1) this.ds = s1
+            }
+          } catch (x) {}
+          try { console.log('[BANDQQ] dcReady fallback fired') } catch (x) {}
+        }
+      }, 600)
+      const def = (this.$app && this.$app.$def) || {}
       // v2.10.0 机型分档：键盘参数随 device_profile 事件刷新（shallow copy 保证响应式）
       const applyProfile = () => {
         const p = def.deviceProfile.get()
-        this.dc = p.cls
-        this.ds = def.deviceProfile.stylesFor(p.cls)
+        this.dc = p.cls || 'band'
+        this.ds = def.deviceProfile.stylesFor(this.dc)
         this.dcReady = true
       }
       // v2.11.3 加固：profile 异常不阻断 onInit；600ms 兜底强制放行
       try { applyProfile() } catch (e) { try { console.error('[BANDQQ] profile init fail', e && e.message) } catch (x) {} }
       def.on('device_profile', applyProfile)
-      setTimeout(() => { if (this.dcReady !== true) { this.dcReady = true; try { console.log('[BANDQQ] dcReady fallback fired') } catch (x) {} } }, 600)
       this.targetId = (params && params.targetId) || ''
       this.name = (params && params.name) || '聊天'
       if (!this.targetId) {

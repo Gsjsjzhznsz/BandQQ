@@ -41,8 +41,9 @@
       <text class="menu-row" style="{{ds.menuRow}}" onclick="toggleMute">{{menuMuted ? '关闭消息免打扰' : '消息免打扰'}}</text>
       <text class="menu-row menu-cancel" style="{{ds.menuRow}}" onclick="closeMenu">取消</text>
     </div>
+    <!-- v2.11.5：屏显版本号（零布局风险的纯文本追加），安装验证不再依赖 AstroBox 包信息 -->
     <div class="status-bar" style="{{ds.statusBar}}">
-      <text class="status-text" style="{{ds.statusText}}">{{statusText}}</text>
+      <text class="status-text" style="{{ds.statusText}}">{{statusText}} v2.11.5</text>
     </div>
   </div>
 </template>
@@ -95,6 +96,8 @@
 <script>
   import router from '@system.router'
   import protocol from '../../common/protocol'
+  // v2.11.5 根治：页面直引 device 模块，data() 阶段即可拿到完整安全样式表
+  import deviceProfile from '../../common/device'
 
   const REFRESH_DEBOUNCE_MS = 120
 
@@ -106,7 +109,10 @@
       menuMuted: false,
       dc: 'band',
       dcReady: false,
-      ds: {}
+      // v2.11.5 根治：data() 阶段即初始化为完整安全样式表（band 全空串=class 基线）。
+      // 此前 ds:{} 空对象——onInit 若在任何一步抛错，所有 ds.* 绑定全 undefined
+      // （undefined 样式绑定 = Vela 整棵子树渲染失败 = 黑屏实锤根因）
+      ds: deviceProfile.stylesFor('band')
     },
     onShow() {
       console.log('[BANDQQ] v21 index onShow')
@@ -116,16 +122,31 @@
       this.loadVisibleContacts()
     },
     onInit() {
-      const def = this.$app.$def
+      // v2.11.5 根治：兜底先行——注册在任何可能抛错代码之前，且兜底同时修复 ds。
+      // v2.11.3 的兜底只放行 dcReady 不修 ds，onInit 若在 ds 赋值前抛错则黑屏照旧
+      setTimeout(() => {
+        if (this.dcReady !== true) {
+          this.dcReady = true
+          try {
+            const d1 = (this.$app && this.$app.$def) || {}
+            if (d1.deviceProfile) {
+              this.dc = d1.deviceProfile.cls() || 'band'
+              const s1 = d1.deviceProfile.stylesFor(this.dc)
+              if (s1) this.ds = s1
+            }
+          } catch (x) {}
+          try { console.log('[BANDQQ] dcReady fallback fired') } catch (x) {}
+        }
+      }, 600)
+      const def = (this.$app && this.$app.$def) || {}
       // v2.10.0 机型分档：读取全局 profile，异步到达后随事件刷新
-      // v2.11.3 加固：profile 链路异常不阻断 onInit；600ms 兜底强制放行，绝不白屏死机
+      // v2.11.3 加固：profile 链路异常不阻断 onInit
       try {
         this.dc = def.deviceProfile.cls()
         this.ds = def.deviceProfile.stylesFor(this.dc)
         if (def.deviceProfile.ready()) this.dcReady = true
         def.on('device_profile', () => { this.dc = def.deviceProfile.cls(); this.ds = def.deviceProfile.stylesFor(this.dc); this.dcReady = true })
       } catch (e) { try { console.error('[BANDQQ] profile init fail', e && e.message) } catch (x) {} }
-      setTimeout(() => { if (this.dcReady !== true) { this.dcReady = true; try { console.log('[BANDQQ] dcReady fallback fired') } catch (x) {} } }, 600)
       // 抖动根治：所有数据事件统一走 120ms 尾沿防抖 + 签名比对，
       // 消息风暴时每 120ms 至多渲染一次，内容未变不触发任何渲染
       this._scheduleRefresh = () => {
