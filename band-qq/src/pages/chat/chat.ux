@@ -127,7 +127,7 @@
       this.dc = def0.deviceProfile.cls()
       this.ds = def0.deviceProfile.stylesFor(this.dc)
       if (def0.deviceProfile.ready()) this.dcReady = true
-      def.on('device_profile', () => { this.dc = def0.deviceProfile.cls(); this.ds = def0.deviceProfile.stylesFor(this.dc); this.dcReady = true })
+      def0.on('device_profile', () => { this.dc = def0.deviceProfile.cls(); this.ds = def0.deviceProfile.stylesFor(this.dc); this.dcReady = true })
       let targetId = (params && params.targetId) || ''
       let convName = (params && params.name) || ''
       if (!targetId && params && params.uri) {
