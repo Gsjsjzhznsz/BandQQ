@@ -1,6 +1,7 @@
 <template>
   <div class="root">
-    <text class="dbg" if="{{!dcReady}}">{{dcDebug}}</text>
+    <!-- v2.11.6 诊断信标（取代 v2.11.3 dbg）：R=已就绪渲染/W=门控未放行/无信标=模块未加载；dcDebug=C1 onInit已跑·CB 兕底·CF 拋错 -->
+    <text style="position:absolute;top:2px;left:4px;color:#00ff00;font-size:13px">C{{dcReady ? 'R' : 'W'}}·{{dcDebug}}{{navStat ? ' ' + navStat : ''}} v2.11.6</text>
     <div class="page {{dc === 'round' ? 'page-round' : ''}} {{dc === 'wide' ? 'page-wide' : ''}}" if="{{dcReady}}">
     <div class="top-row" style="{{ds.topRow}}">
       <image class="btn-back" style="{{ds.btnBack}}" src="../../common/ui/back.png" onclick="goBack"></image>
@@ -47,7 +48,7 @@
 </template>
 
 <style>
-  .root { width: 100%; height: 100%; }
+  .root { width: 100%; height: 100%; background-color: #000000; position: relative; }
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
   .dbg { position: absolute; left: 12px; top: 8px; font-size: 14px; color: #12B7F5; }
   .top-row { height: 78px; flex-direction: row; align-items: flex-start; justify-content: center; padding-top: 6px; }
@@ -126,6 +127,7 @@
       loadingOlder: false,
       dc: 'band',
       dcReady: false,
+      navStat: '',
       dcDebug: 'BOOT',
       // v2.11.5 根治：data() 阶段即初始化为完整安全样式表（band 全空串=class 基线），
       // 杜绝 onInit 异常时 ds 空对象 → undefined 样式绑定 → Vela 整棵子树渲染失败（黑屏）
@@ -266,10 +268,15 @@
       router.back()
     },
     openCompose() {
-      router.push({
-        uri: '/compose',
-        params: { targetId: this.targetId, name: this.name }
-      })
+      // v2.11.6 导航诊断：fail/success 回调写 navStat（返回后信标可见）
+      this._nav('/compose', { targetId: this.targetId, name: this.name })
+    },
+    _nav(uri, params) {
+      const opts = { uri }
+      if (params) opts.params = params
+      opts.fail = (e) => { this.navStat = 'F:' + ((((e && e.message) || (typeof e === 'string' ? e : '')) || '?') + '').slice(0, 24) }
+      opts.success = () => { this.navStat = 'OK' }
+      try { router.push(opts) } catch (e) { this.navStat = 'T:' + ((e && e.message) || '?').slice(0, 24) }
     },
     /**
      * 拉取历史。before=0 拉最新一页；>0 为翻页锚点（拉取更早消息）。

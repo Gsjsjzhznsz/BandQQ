@@ -9,6 +9,7 @@
     "test": "node --test"
   },
   "devDependencies": {
+    "@aiot-toolkit/emulator": "^2.0.5",
     "aiot-toolkit": "^2.0.5"
   }
 }

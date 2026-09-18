@@ -43,7 +43,7 @@
     </div>
     <!-- v2.11.5：屏显版本号（零布局风险的纯文本追加），安装验证不再依赖 AstroBox 包信息 -->
     <div class="status-bar" style="{{ds.statusBar}}">
-      <text class="status-text" style="{{ds.statusText}}">{{statusText}} v2.11.5</text>
+      <text class="status-text" style="{{ds.statusText}}">{{statusText}} v2.11.6{{navStat ? ' ' + navStat : ''}}</text>
     </div>
   </div>
 </template>
@@ -109,6 +109,7 @@
       menuMuted: false,
       dc: 'band',
       dcReady: false,
+      navStat: '',
       // v2.11.5 根治：data() 阶段即初始化为完整安全样式表（band 全空串=class 基线）。
       // 此前 ds:{} 空对象——onInit 若在任何一步抛错，所有 ds.* 绑定全 undefined
       // （undefined 样式绑定 = Vela 整棵子树渲染失败 = 黑屏实锤根因）
@@ -225,10 +226,15 @@
       if (!item.id) return
       const store = this.$app.$def.store
       store.setLastTarget({ targetId: item.id, name: item.name })
-      router.push({
-        uri: '/chat?targetId=' + encodeURIComponent(item.id) + '&name=' + encodeURIComponent(item.name || ''),
-        params: { targetId: item.id, name: item.name }
-      })
+      // v2.11.6 导航诊断：fail/success 回调写 navStat（底部状态栏可见）
+      this._nav('/chat?targetId=' + encodeURIComponent(item.id) + '&name=' + encodeURIComponent(item.name || ''), { targetId: item.id, name: item.name })
+    },
+    _nav(uri, params) {
+      const opts = { uri }
+      if (params) opts.params = params
+      opts.fail = (e) => { this.navStat = 'F:' + ((((e && e.message) || (typeof e === 'string' ? e : '')) || '?') + '').slice(0, 24) }
+      opts.success = () => { this.navStat = 'OK' }
+      try { router.push(opts) } catch (e) { this.navStat = 'T:' + ((e && e.message) || '?').slice(0, 24) }
     },
     /** v2.9.0 长按会话：弹出免打扰开关菜单 */
     showMenu(item) {
@@ -267,7 +273,8 @@
       }
     },
     goSettings() {
-      router.push({ uri: '/settings' })
+      // v2.11.6 导航诊断：同 _nav 通道
+      this._nav('/settings')
     }
   }
 </script>
