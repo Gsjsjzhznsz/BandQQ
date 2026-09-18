@@ -1,4 +1,7 @@
 <template>
+  <div class="pg">
+    <!-- v2.11.6 诊断信标：门控外常显，R=已就绪渲染 / W=门控未放行；无信标=页面模块未加载（内联样式不依赖 class 表与 ds） -->
+    <text style="position:absolute;top:2px;left:4px;color:#00ff00;font-size:13px">A{{dcReady ? 'R' : 'W'}} v2.11.6</text>
   <div class="page {{dc === 'round' ? 'page-round' : ''}} {{dc === 'wide' ? 'page-wide' : ''}}" if="{{dcReady}}">
     <div class="top-row" style="{{ds.topRow}}">
       <image class="btn" style="{{ds.btn}}" src="../../common/ui/back.png" onclick="goBack"></image>
@@ -12,7 +15,7 @@
         <text class="app-name" style="{{ds.appName}}">BandQQ</text>
         <!-- v2.9.0：连点版本区 7 次开启演示模式（注入演示会话，无手机也可体验界面）；
              点击区挂在整个 hero（小 text 点击区在部分固件上不响应） -->
-        <text class="ver" style="{{ds.ver}}">v2.11.5 · 快应用端</text>
+        <text class="ver" style="{{ds.ver}}">v2.11.6 · 快应用端</text>
         <text class="demo-hint" style="{{ds.demoHint}}" if="{{demoHint}}">{{demoHint}}</text>
       </div>
       <div class="card col" style="{{ds.card}}">
@@ -32,9 +35,11 @@
       </div>
     </scroll>
   </div>
+  </div>
 </template>
 
 <style>
+  .pg { width:100%;height:100%;background-color:#000000;position:relative; }
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
   .top-row { height: 78px; align-items: flex-start; justify-content: center; padding-top: 6px; }
   .btn { width: 102px; height: 72px; }

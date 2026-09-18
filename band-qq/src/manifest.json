@@ -34,9 +34,6 @@
     },
     {
       "name": "system.clipboard"
-    },
-    {
-      "name": "system.file"
     }
   ],
   "display": {
@@ -67,6 +64,6 @@
       }
     }
   },
-  "versionName": "2.11.5-s",
-  "versionCode": 66
+  "versionName": "2.11.6-s",
+  "versionCode": 67
 }

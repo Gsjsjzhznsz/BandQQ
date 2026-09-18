@@ -1,4 +1,7 @@
 <template>
+  <div class="pg">
+    <!-- v2.11.6 诊断信标：门控外常显，R/W/无信标三分诊断；navStat 回传导航失败原因 -->
+    <text style="position:absolute;top:2px;left:4px;color:#00ff00;font-size:13px">S{{dcReady ? 'R' : 'W'}}{{navStat ? ' ' + navStat : ''}} v2.11.6</text>
   <div class="page {{dc === 'round' ? 'page-round' : ''}} {{dc === 'wide' ? 'page-wide' : ''}}" if="{{dcReady}}">
     <div class="top-row" style="{{ds.topRow}}">
       <image class="btn" style="{{ds.btn}}" src="../../common/ui/back.png" onclick="goBack"></image>
@@ -48,9 +51,11 @@
       </div>
     </div>
   </div>
+  </div>
 </template>
 
 <style>
+  .pg { width:100%;height:100%;background-color:#000000;position:relative; }
   .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
   .top-row { height: 78px; align-items: flex-start; justify-content: center; padding-top: 6px; }
   .btn { width: 102px; height: 72px; }
@@ -94,6 +99,7 @@
       confirmShow: false,
       dc: 'band',
       dcReady: false,
+      navStat: '',
       // v2.11.5 根治：data() 阶段即初始化为完整安全样式表（band 全空串=class 基线），
       // 杜绝 onInit 异常时 ds 空对象 → undefined 样式绑定 → Vela 整棵子树渲染失败（黑屏）
       ds: deviceProfile.stylesFor('band')
@@ -142,7 +148,15 @@
      *  旧写法 uri:'/pages/about/about' 是无效路由，router.push 静默失败无反应。
      *  对照工作正常的 /settings、/chat、/compose 统一用 path 形式 */
     goAbout() {
-      router.push({ uri: '/about' })
+      // v2.11.6 导航诊断：fail/success 回调写 navStat（返回后信标可见），同步拋错写 T:
+      this._nav('/about')
+    },
+    _nav(uri, params) {
+      const opts = { uri }
+      if (params) opts.params = params
+      opts.fail = (e) => { this.navStat = 'F:' + ((((e && e.message) || (typeof e === 'string' ? e : '')) || '?') + '').slice(0, 24) }
+      opts.success = () => { this.navStat = 'OK' }
+      try { router.push(opts) } catch (e) { this.navStat = 'T:' + ((e && e.message) || '?').slice(0, 24) }
     },
     async pullConnectState() {
       const api = this.$app.$def.api
