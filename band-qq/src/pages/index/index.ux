@@ -43,7 +43,7 @@
     </div>
     <!-- v2.11.5：屏显版本号（零布局风险的纯文本追加），安装验证不再依赖 AstroBox 包信息 -->
     <div class="status-bar" style="{{ds.statusBar}}">
-      <text class="status-text" style="{{ds.statusText}}">{{statusText}} v2.11.6{{navStat ? ' ' + navStat : ''}}</text>
+      <text class="status-text" style="{{ds.statusText}}">{{statusText}} v2.11.7{{navStat ? ' ' + navStat : ''}}</text>
     </div>
   </div>
 </template>
