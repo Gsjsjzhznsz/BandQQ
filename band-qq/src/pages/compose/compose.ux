@@ -183,6 +183,24 @@
       }
       console.log('[BANDQQ] v13 compose target=', this.targetId, 'name=', this.name)
     },
+    onReady() {
+      // v2.11.7 门控释放引擎级保障：onReady 由框架在首次渲染完成后触发（非定时器，
+      // 不受 Vela 系引擎 setTimeout 缺陷影响）。若 profile 链路异常致门控未放行，
+      // 首帧仅渲染外层信标，此处强制放行并补齐真实档位样式——黑屏最后一条路径封死
+      if (this.dcReady !== true) {
+        this.dcReady = true
+        try {
+          const d2 = (this.$app && this.$app.$def) || {}
+          if (d2.deviceProfile) {
+            this.dc = d2.deviceProfile.cls() || 'band'
+            const s2 = d2.deviceProfile.stylesFor(this.dc)
+            if (s2) this.ds = s2
+          }
+        } catch (x) {}
+        try { console.log('[BANDQQ] dcReady released via onReady') } catch (x) {}
+      }
+    },
+
     goBack() {
       router.back()
     },
