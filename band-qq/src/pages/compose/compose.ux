@@ -2,7 +2,6 @@
 <template>
   <div class="pg">
     <!-- v2.11.6 诊断信标：门控外常显，R/W/无信标三分诊断 -->
-    <text style="position:absolute;top:2px;left:4px;color:#00ff00;font-size:13px">P{{dcReady ? 'R' : 'W'}} v2.11.6</text>
   <div class="page {{dc === 'round' ? 'page-round' : ''}} {{dc === 'wide' ? 'page-wide' : ''}}" if="{{dcReady}}">
     <div class="top-bar" style="{{ds.topBar}}">
       <image class="btn" style="{{ds.btn}}" src="../../common/ui/back.png" onclick="goBack"></image>
@@ -40,7 +39,11 @@
         </div>
       </div>
     </div>
+      <!-- v2.11.7 内侧信标：门控内文档序靠后=绘制在内容上层，页面渲染成功即可见（P=撰写） -->
+      <div style="position:absolute;top:2px;left:4px"><text style="color:#00ff00;font-size:13px">P{{dcReady ? 'R' : 'W'}} v2.11.7</text></div>
   </div>
+    <!-- v2.11.7 诊断信标：门控外常显，R/W/无信标三分诊断 -->
+        <div style="position:absolute;top:2px;left:4px"><text style="color:#00ff00;font-size:13px">P{{dcReady ? 'R' : 'W'}} v2.11.7</text></div>
   </div>
 </template>
 

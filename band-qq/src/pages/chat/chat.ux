@@ -1,7 +1,6 @@
 <template>
   <div class="root">
     <!-- v2.11.6 诊断信标（取代 v2.11.3 dbg）：R=已就绪渲染/W=门控未放行/无信标=模块未加载；dcDebug=C1 onInit已跑·CB 兕底·CF 拋错 -->
-    <text style="position:absolute;top:2px;left:4px;color:#00ff00;font-size:13px">C{{dcReady ? 'R' : 'W'}}·{{dcDebug}}{{navStat ? ' ' + navStat : ''}} v2.11.6</text>
     <div class="page {{dc === 'round' ? 'page-round' : ''}} {{dc === 'wide' ? 'page-wide' : ''}}" if="{{dcReady}}">
     <div class="top-row" style="{{ds.topRow}}">
       <image class="btn-back" style="{{ds.btnBack}}" src="../../common/ui/back.png" onclick="goBack"></image>
@@ -43,7 +42,11 @@
     <div class="send-toast" style="{{ds.sendToast}}" show="{{sendStatus && dc !== 'band'}}">
       <text class="send-toast-text">{{sendStatus}}</text>
     </div>
+      <!-- v2.11.7 内侧信标：门控内文档序靠后=绘制在内容上层，页面渲染成功即可见（C=聊天） -->
+      <div style="position:absolute;top:2px;left:4px"><text style="color:#00ff00;font-size:13px">C{{dcReady ? 'R' : 'W'}}·{{dcDebug}}{{navStat ? ' ' + navStat : ''}} v2.11.7</text></div>
   </div>
+    <!-- v2.11.7 诊断信标（取代 v2.11.3 dbg）：R=已就绪渲染/W=门控未放行/无信标=模块未加载；dcDebug=C1 onInit已跑·CB 兕底·CF 拋错 -->
+        <div style="position:absolute;top:2px;left:4px"><text style="color:#00ff00;font-size:13px">C{{dcReady ? 'R' : 'W'}}·{{dcDebug}}{{navStat ? ' ' + navStat : ''}} v2.11.7</text></div>
   </div>
 </template>
 
