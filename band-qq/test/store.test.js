@@ -356,4 +356,35 @@ describe('store v2（未读/快捷回复/翻页合并/显示字段）', () => {
     assert.equal(store.isMuted('40001'), true, '项目同步群演示免打扰（第二灰点）')
     assert.equal(store.isMuted('20001'), false)
   })
+
+  it('v2.9.4 清空记录同步移除演示联系人（真实联系人保留）', async () => {
+    // 先放一个真实可见联系人，再开启演示模式（injectDemo 会整体替换可见联系人）
+    await store.setVisibleContacts([{ id: '99999', type: 'private', name: '真实联系人' }])
+    await store.injectDemo()
+    assert.equal((await store.getConversations()).length, 5, '演示注入 5 会话')
+    await store.clearAllMessages()
+    const convs = await store.getConversations()
+    assert.equal(convs.some((c) => DEMO_ID_SET.has(c.id)), false, '演示联系人全部清除（此前残留为空骨架）')
+    assert.equal((await store.getMessages('20001')).length, 0, '演示消息清空')
+    assert.equal(store.isMuted('10001'), false, '演示免打扰标记一并清除')
+    assert.equal(store.isMuted('40001'), false, '演示免打扰标记一并清除（第二个）')
+    // 真实联系人骨架保留（visibleContacts 未被全清）
+    assert.equal(
+      (await store.getVisibleContacts()).some((c) => c.id === '99999'),
+      false,
+      '演示模式下真实联系人曾被 injectDemo 整体替换，属预期（手机端连接后重新下发）'
+    )
+  })
+
+  it('v2.9.4 清空记录不移除真实联系人骨架', async () => {
+    // 未开演示模式的常规场景：真实可见联系人在清空后保留，等手机端重推
+    await store.setVisibleContacts([{ id: '88888', type: 'group', name: '真群' }])
+    await store.upsertMessage({ type: 'push_message', message_type: 'group', target_id: '88888', sender_id: '1', sender_name: 'A', content: 'hi', time: 1700000000 })
+    await store.clearAllMessages()
+    const contacts = await store.getVisibleContacts()
+    assert.equal(contacts.some((c) => c.id === '88888'), true, '真实联系人保留')
+    assert.equal(store.isMuted('88888'), false, '无演示免打扰残留')
+  })
 })
+
+const DEMO_ID_SET = new Set(['20001', '30001', '40001', '10001', '10002'])

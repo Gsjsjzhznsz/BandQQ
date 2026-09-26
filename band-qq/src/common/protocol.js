@@ -168,8 +168,11 @@ function convSignature(list) {
   let sig = ''
   for (let i = 0; i < list.length; i++) {
     const c = list[i]
+    // v2.9.4：签名纳入 type（群/私聊）—— 列表新增「群」徽章后类型参与渲染，
+    // 类型变化必须触发重渲染
     sig += (c.id || '') + '|' + (c.name || '') + '|' + (c.prev || c.last_msg || '') + '|' +
-      (c.unread || 0) + '|' + (c.tstr || '') + '|' + (c.is_temporary ? 'T' : 'f') +
+      (c.unread || 0) + '|' + (c.tstr || '') + '|' + (c.type === 'group' ? 'G' : 'P') +
+      (c.is_temporary ? 'T' : 'f') +
       (c.cat ? 'A' : '') + (c.muted ? 'M' : '')
     if (i < list.length - 1) sig += ';'
   }

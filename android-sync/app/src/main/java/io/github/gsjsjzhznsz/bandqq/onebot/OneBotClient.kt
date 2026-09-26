@@ -35,6 +35,12 @@ interface OneBotListener {
 class OneBotClient(private val parser: OneBotParser) : MessageSender {
 
     companion object {
+        /** v2.9.4：WS API 调用的 echo 前缀（与握手 identify 的 bandqq-<ver> 区分开） */
+        private const val WS_API_ECHO_PREFIX = "bandqq-api-"
+
+        /** v2.9.4：WS API 调用超时（协议端繁忙时兜底，超时后回调 null 走失败路径） */
+        private const val WS_API_TIMEOUT_MS = 8000L
+
         /**
          * 全局共享 OkHttp 客户端：连接池/线程池复用。
          * 联系人页「刷新」每次点击都会临时 new 一个 OneBotClient，
@@ -55,6 +61,14 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
     private var config: EndpointConfig = EndpointConfig("ws://127.0.0.1:3001", "", "http://127.0.0.1:3000", "")
     private var listener: OneBotListener? = null
     @Volatile private var connected = false
+
+    /**
+     * v2.9.4：经 WS 下发的 API 请求（echo → 回调）。
+     * 真实 NapCat 部署常只开 WS 服务（HTTP API 是独立开关），
+     * 联系人拉取（get_friend_list/get_group_list）必须有 WS 通道兜底。
+     */
+    private val pendingWsApi = java.util.concurrent.ConcurrentHashMap<String, (String?) -> Unit>()
+    private val wsApiSeq = java.util.concurrent.atomic.AtomicLong(0)
 
     fun start(config: EndpointConfig, listener: OneBotListener) {
         this.config = config
@@ -105,6 +119,9 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
         // v2.8.1：重连前先主动关闭旧 ws（若有），防止旧连接残留形成双连接
         runCatching { ws?.close(1000, "reconnect") }
         ws = null
+        // v2.9.4：旧连接上未应答的 WS API 请求全部失败回调，防调用方永久挂起
+        pendingWsApi.forEach { (_, cb) -> runCatching { cb(null) } }
+        pendingWsApi.clear()
         val builder = Request.Builder().url(config.wsUrl)
         if (config.wsToken.isNotBlank()) {
             builder.header("Authorization", "Bearer ${config.wsToken}")
@@ -136,6 +153,9 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
                 // 一条消息 APP 就断连重连、消息丢失）。整体兜底后单条消息处理异常只记日志不断连。
                 try {
                     LogBus.log("OneBotClient", LogLevel.DEBUG, "WS recv: ${text.take(300)}")
+                    // v2.9.4：本端经 WS 下发的 API 应答（echo=bandqq-api-*）优先路由，
+                    // 不进入事件解析管线
+                    if (routeWsApiResponse(text)) return
                     // 撤回通知优先（post_type=notice 事件，普通消息 parse 为 null 不再报 warn）
                     val recall = parser.parseRecallEvent(text)
                     if (recall != null) {
@@ -230,36 +250,100 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
     }
 
     /**
-     * 调用 OneBot HTTP 通用接口（如 get_friend_list/get_group_list）。
+     * 调用 OneBot 通用接口（如 get_friend_list/get_group_list）。
      * SnowLuma 默认 path='/' 且 action 从路径解析，优先 {httpUrl}/{action}，
      * 失败时回退 {httpUrl}/api/{action}（兼容 NapCat 等实现）。
+     * v2.9.4：HTTP 两路均失败后自动回退 WS API（真实 NapCat 常只开 WS 服务）。
      * 成功回传原始响应体，失败回传 null。
      */
     fun requestApi(action: String, baseUrl: String = config.httpUrl, callback: (String?) -> Unit) {
+        requestApiAction(action, "{}", callback)
+    }
+
+    /** v2.9.4：带参数的通用 API（MessageSender 接口实现；HTTP 优先，失败回退 WS） */
+    override fun requestApiAction(action: String, paramsJson: String, callback: (String?) -> Unit) {
+        val body = "{\"action\":\"$action\",\"params\":$paramsJson}"
         fun doRequest(url: String, onFail: () -> Unit) {
             val request = Request.Builder()
                 .url(url)
-                .post("{}".toRequestBody("application/json".toMediaType()))
+                .post(body.toRequestBody("application/json".toMediaType()))
                 .apply { if (config.httpToken.isNotBlank()) header("Authorization", "Bearer ${config.httpToken}") }
                 .build()
             client.newCall(request).enqueue(object : okhttp3.Callback {
                 override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {
+                    try { LogBus.log("OneBotClient", LogLevel.DEBUG, "api $action http fail: $url") } catch (t: Throwable) {}
                     onFail()
                 }
 
                 override fun onResponse(call: okhttp3.Call, response: Response) {
                     response.use {
-                        val body = it.body?.string() ?: ""
-                        if (it.isSuccessful) callback(body) else onFail()
+                        val resp = it.body?.string() ?: ""
+                        if (it.isSuccessful) {
+                            try { LogBus.log("OneBotClient", LogLevel.DEBUG, "api $action http ok") } catch (t: Throwable) {}
+                            callback(resp)
+                        } else {
+                            try { LogBus.log("OneBotClient", LogLevel.DEBUG, "api $action http ${it.code}") } catch (t: Throwable) {}
+                            onFail()
+                        }
                     }
                 }
             })
         }
-        val root = baseUrl.trimEnd('/')
+        val root = config.httpUrl.trimEnd('/')
         doRequest("$root/$action") {
             doRequest("$root/api/$action") {
-                callback(null)
+                // v2.9.4：HTTP 不可达（NapCat 只开 WS 是最常见部署）→ 经 WS 通道调用
+                requestViaWs(action, paramsJson, callback)
             }
+        }
+    }
+
+    /** v2.9.4：经 WS 下发 OneBot action，按 echo 路由应答；超时/未连接回传 null */
+    private fun requestViaWs(action: String, paramsJson: String, callback: (String?) -> Unit) {
+        val socket = ws
+        if (socket == null || !connected) {
+            try { LogBus.log("OneBotClient", LogLevel.WARN, "api $action ws fallback: ws not connected") } catch (t: Throwable) {}
+            callback(null)
+            return
+        }
+        val echo = "$WS_API_ECHO_PREFIX${wsApiSeq.incrementAndGet()}-$action"
+        pendingWsApi[echo] = callback
+        val sent = runCatching {
+            socket.send("{\"action\":\"$action\",\"params\":$paramsJson,\"echo\":\"$echo\"}")
+        }.getOrDefault(false)
+        if (!sent) {
+            pendingWsApi.remove(echo)
+            try { LogBus.log("OneBotClient", LogLevel.WARN, "api $action ws send fail") } catch (t: Throwable) {}
+            callback(null)
+            return
+        }
+        try { LogBus.log("OneBotClient", LogLevel.DEBUG, "api $action via ws (echo=$echo)") } catch (t: Throwable) {}
+        // 超时兜底：NapCat 繁忙/掉线时防调用方永久等待
+        scope.launch {
+            delay(WS_API_TIMEOUT_MS)
+            val cb = pendingWsApi.remove(echo)
+            if (cb != null) {
+                try { LogBus.log("OneBotClient", LogLevel.WARN, "api $action ws timeout") } catch (t: Throwable) {}
+                runCatching { cb(null) }
+            }
+        }
+    }
+
+    /** v2.9.4：识别并路由本端 WS API 应答（echo=bandqq-api-* 前缀）；命中返回 true */
+    private fun routeWsApiResponse(text: String): Boolean {
+        if (!text.contains("\"echo\":\"$WS_API_ECHO_PREFIX")) return false
+        return try {
+            val obj = com.google.gson.JsonParser.parseString(text).asJsonObject
+            val echo = obj.get("echo")?.takeIf { it.isJsonPrimitive }?.asString ?: return false
+            if (!echo.startsWith(WS_API_ECHO_PREFIX)) return false
+            val cb = pendingWsApi.remove(echo)
+            if (cb != null) {
+                try { LogBus.log("OneBotClient", LogLevel.DEBUG, "ws api response ($echo)") } catch (t: Throwable) {}
+                runCatching { cb(text) }
+            }
+            true
+        } catch (t: Throwable) {
+            false
         }
     }
 }

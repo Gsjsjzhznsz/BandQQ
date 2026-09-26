@@ -12,8 +12,8 @@ android {
         applicationId = "io.github.gsjsjzhznsz.bandqq"
         minSdk = 26
         targetSdk = 34
-        versionCode = 42
-        versionName = "2.9.3"
+        versionCode = 43
+        versionName = "2.9.4"
     }
 
     signingConfigs {

@@ -3,7 +3,7 @@
 > **📱 分支模型（每类设备独立 RPK，不再合一包）**：
 > | 分支 | 适配设备 | 键盘 | 当前版本 |
 > |---|---|---|---|
-> | [`main`](https://github.com/Gsjsjzhznsz/BandQQ) | 小米手环 9/10/11（胶囊/长条屏） | [AetherZeng1145/Vela-Input-Method-Revise](https://github.com/AetherZeng1145/Vela-Input-Method-Revise) `Capsule-For-Xiaomi-Band`（192×490 原生） | v2.9.3 (vc47) |
+> | [`main`](https://github.com/Gsjsjzhznsz/BandQQ) | 小米手环 9/10/11（胶囊/长条屏） | [AetherZeng1145/Vela-Input-Method-Revise](https://github.com/AetherZeng1145/Vela-Input-Method-Revise) `Capsule-For-Xiaomi-Band`（192×490 原生） | v2.9.4 (vc48) |
 > | [`redmi-watch`](https://github.com/Gsjsjzhznsz/BandQQ/tree/redmi-watch) | Redmi Watch 5/6（432×514 宽屏） | 同仓 `Cube-For-Redmi-Watch`（432×514 原生，常量整数化映射 designWidth 192） | v2.11.1-rw (vc63) |
 > | [`xiaomi-watch-s`](https://github.com/Gsjsjzhznsz/BandQQ/tree/xiaomi-watch-s) | 小米 Watch S3/S4/S5（466/480 圆屏） | 同仓 `QWERTY` 圆屏版（466×466 原生，同上映射） | v2.11.1-s (vc62) |
 > | [`band-pro`](https://github.com/Gsjsjzhznsz/BandQQ/tree/band-pro) | 小米手环 9 Pro / 10 Pro（336×480 方屏） | skb 紧凑 QWERTY（原生 flex，bandpro 档定向尺寸） | v2.11.1-pro (vc96) |
@@ -39,7 +39,35 @@
 
 > 关键词：小米手环9 / Mi Band 9 / 小米手环10 / 小米手环11 / Mi Band 11 / 小米手环QQ / 小米手环9 Pro / Redmi Watch / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / Stapxs-QQ-Lite-X / wearable QQ / smartband chat / Mi Band QQ client
 
-## v2.9.1 更新日志（当前版本）
+## v2.9.4 更新日志（当前版本）
+
+> 用户接入真实 NapCat 服务器后的实测反馈五连修（此前联调一直用 DevTools 模拟端，协议形态差异全部暴露）：
+> 群聊被识别成个人联系人 / 联系人不自动添加 / 快捷回复无确认 / 演示模式清理残留 / 主页日志面板被压扁。
+
+### ① 群聊不再被识别成个人联系人（RPK + APK 双端）
+群名解析链根治：OneBot v11 群消息事件只带群号不带群名，此前群名缓存缺失时手机端会退回「最后一位发送者昵称」当会话名 —— 群会话顶着一个私人昵称出现在列表里，与私聊无差别，用户误认成个人联系人。
+- **手机端**：群名缓存缺失时回退「QQ群 <群号>」（可辨识，不再冒充个人）；收到未知群的消息时按需调 `get_group_info` 拉取真名，拉到即固化进联系人缓存并补推权威会话帧（手环列表立即纠正）；测试推送会话名同样固化
+- **手环端**：会话列表新增蓝色「群」徽章（与 @我 / 临时徽章同构），群/私聊一眼区分；会话签名纳入 type，类型变化触发重渲染
+
+### ② 联系人自动添加（真实 NapCat WS-only 部署兑底）
+此前联系人名单只在连接建立时经 **HTTP** 拉取一次 —— 真实 NapCat 部署常只开 WS 服务（HTTP 是独立开关），拉取静默失败，联系人页永远空白、手环显示「请在手机端添加联系人」。
+- **WS API 兑底**：HTTP 两路均失败后自动经 WS 下发 OneBot action（echo=bandqq-api-* 路由应答，8s 超时兑底）——WS 能连就能拉联系人
+- **重试直到拉到**：连接后名单仍空（NapCat 扫码登录中/接口未就绪）时每 30s 重试，最多 10 次，拉到即停；此前只试一次，登录完成前连接的会话永远拿不到联系人
+- 全链路日志：HTTP 失败 → WS 回退 → 拉取成功/超时，主页日志面板可直接看到
+
+### ③ 快捷回复二次确认（RPK）
+快捷按钮紧凑且消息不可撤回，此前点击即发，误触即误发。现在点击先弹确认框（展示目标会话与完整发送内容，CQ 码原文可见可核对），确认后才发送；点遮罩或取消即撤。
+
+### ④ 清空记录同步清理演示模式联系人（RPK）
+演示模式（关于页连点版本号 7 次）注入的 5 个联系人在「清空记录」后残留为空骨架。现在清空时同步移除演示联系人及其免打扰标记；真实联系人骨架不动（手机端连接后自动重推）。新增 2 例单测覆盖。
+
+### ⑤ 主页实时日志面板不再被压成一条线（APK）
+日志风暴（WS 调试日志高频到达）时面板可能被压成底部一条线。重构：LazyColumn 懒组合 + seq 唯一 key（同毫秒同内容日志撞 key 的隐患一并根除）+ 即时滚动（不再动画互抢）+ 高度 `heightIn(min=140dp)` 兜底（物理上不可坍缩）；用户上滑翻旧日志时暂停自动跟随，拖回底部恢复。
+
+- 版本：RPK 2.9.4（vc48）+ 同步器 2.9.4（vc43，签名同源 af8819e2）；DevTools 无改动不重发；手环侧单测 61 测 60 过（api 门控 1 例为存量环境失败，基线一致）
+- 用户当天日志（bandqq-2026-09-26.log）已随本版修复从仓库移除（隐私）
+
+## v2.9.1 更新日志（历史版本）
 
 ### 主页面列表铺满整屏（布局修复）
 用户指出主页面只能显示半页联系人（虚拟机实拍同样暴露此问题）：像素级排查确认 Vela 引擎 scroll 组件的 `background-color` **只绘制内容高度区域、不铺满 flex:1 拉伸后的视口** —— 列表视觉在内容结束处「断裂」，数据少时下半屏全黑，观感如同只能显示半页。

@@ -9,7 +9,7 @@
 
 ## 版本线
 - v1.1.x：旧 lineage（stapxs 移植版，源码已失传，legacy/ 有 7z 分卷）
-- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.9.1**（RPK vc39 + app vc40 文件日志）+ DevTools 1.3.0（vc6）
+- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.9.4**（RPK vc48 + app vc43，真实 NapCat 五连修）+ DevTools 1.3.0（vc6）
 - 签名一致性：rpk 与 APK 同源证书，APK SHA-256 = af8819e27a6ec8d84537ec86937cf016e780376305328abaa4eb79e8c626b004
 
 ## v2.1.0 已完成（2026-09-09）
@@ -302,3 +302,16 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
   5. 截图哈希对比判"部署未生效"不可靠：列表页无动画时帧间哈希天然相同；改用屏上打点（statusText/dcDebug 写 H1/H2/H3）定位执行进度
 - **entry 直达法**：manifest router.entry 改目标页 + 版本号自增，比 router 导航更可靠（router 全灭时的兜底验收通道）；发布前 entry 还原 pages/index
 - 验收钩子：index.ux `vvdShotHook()`（vs='' 发布态跳过；'list'/'chat'/'kb' 三态注入演示+导航）；chat.ux entry 兜底 `if(!targetId && 0)` 发布态关闭
+
+## v2.9.4（2026-09-26，RPK vc48 + app vc43）—— 真实 NapCat 五连修
+
+**背景**：用户从 DevTools 模拟协议端切换到真实 NapCat 服务器（4.18.28）后实测暴露五个问题（当天日志 bandqq-2026-09-26.log 已随修复从仓库删除）。
+
+1. **群聊被识别成个人联系人**：OneBot v11 群事件只带群号不带群名；群名缓存缺失（HTTP 名单拉取失败）时 conversationName 回退「最后发送者昵称」→ 群会话顶着私人昵称。修复三件套：①conversationName 群缺名回退「QQ群 <群号>」②MessageBroker 收未知群消息按需 get_group_info 补名（in-flight 去重，拉到固化 rememberContactName + 补推会话帧）③手环 index.ux 列表加蓝色「群」徽章 + convSignature 纳入 type。
+2. **联系人不自动添加**：名单拉取只走 HTTP 且只在连接时试一次；真实 NapCat 常只开 WS。修复：OneBotClient 新增 WS API 通道（echo=bandqq-api-* 路由 + 8s 超时 + 重连清 pending），requestApi HTTP 两路失败自动回退 WS；MessageBroker.onState 名单未拉到时 30s×10 重试；全链路日志。MessageSender 接口加 requestApiAction 默认实现（带参数 API，get_group_info 用）。
+3. **快捷回复无二次确认**：chat.ux 点击先弹确认框（目标+完整内容，80 字截断展示），确认才发；stopBubble 阻断冒泡。
+4. **演示模式清理残留**：clearAllMessages 此前只清消息+会话，演示联系人作为可见联系人骨架残留。现在按 DEMO_CONTACT_IDS（20001/30001/40001/10001/10002）同步移除 + 清其免打扰标记；真实联系人骨架保留。新增 2 例单测。
+5. **主页日志面板压成一条线**：LogPanel 重构 —— LazyColumn（seq 唯一 key，根除同毫秒同内容撞 key）+ scrollToItem 即时滚动（去 animateScrollTo 风暴互抢）+ weight 外 heightIn(min=140dp) 坍缩兜底 + DragInteraction 上滑暂停自动跟随/拖回底部恢复 + 单行 400 字截断。LogEntry 加 seq 自增（默认 0 兼容）。
+
+**构建环境**：容器重置后 tools/SDK 全失；scripts/setup-buildenv.sh 按新配方重建（JDK17 + Gradle 8.13 + SDK android-37.0 → **cp -r 保留双目录** + 副本三处元数据去 .0：package.xml path/api-level、source.properties ApiLevel、build.prop sdk_full）；脚本存 /home/z/my-project/scripts/bandqq-setup-env-v2.sh。系统 Java21 是 JRE 无 javac（老坑复验）。
+**验证**：RPK 包内 2.9.4/vc48 + item-grp/confirmReply/confirmQuickSend/demo id 全入包；APK 2.9.4/vc43 签名 af8819e2 同源 + dex 六标记（bandqq-api-/group name resolved/autoFetch retry/get_group_info/ws fallback/QQ群）；手环单测 61 测 60 过（api 门控 1 例存量失败基线一致）。

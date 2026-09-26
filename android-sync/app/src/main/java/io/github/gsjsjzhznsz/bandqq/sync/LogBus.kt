@@ -11,7 +11,8 @@ data class LogEntry(
     val time: Long,
     val tag: String,
     val level: LogLevel,
-    val message: String
+    val message: String,
+    val seq: Long = 0  // v2.9.4：唯一自增序号，作列表 key（同毫秒同内容日志不再撞 key 崩渲染）
 )
 
 object LogBus {
@@ -20,6 +21,9 @@ object LogBus {
     private val _logs = MutableStateFlow<List<LogEntry>>(emptyList())
     val logs: StateFlow<List<LogEntry>> = _logs
 
+    /** v2.9.4：日志唯一序号发生器 */
+    private val seqCounter = java.util.concurrent.atomic.AtomicLong(0)
+
     /**
      * 落盘 sink（v2.9.1）：FileLogger.install 时注入，每条日志同步转发到文件层
      * （文件层内部单线程异步写）。JVM 单测不注入则为 null。
@@ -27,7 +31,7 @@ object LogBus {
     var sink: ((LogEntry) -> Unit)? = null
 
     fun log(tag: String, level: LogLevel, message: String) {
-        val entry = LogEntry(System.currentTimeMillis(), tag, level, message)
+        val entry = LogEntry(System.currentTimeMillis(), tag, level, message, seqCounter.incrementAndGet())
         _logs.update { (it + entry).takeLast(MAX_LOGS) }
         try {
             sink?.invoke(entry)

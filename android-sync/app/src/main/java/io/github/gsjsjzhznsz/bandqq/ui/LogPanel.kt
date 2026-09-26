@@ -2,21 +2,23 @@ package io.github.gsjsjzhznsz.bandqq.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.DragInteraction
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -31,6 +33,7 @@ import io.github.gsjsjzhznsz.bandqq.sync.LogBus
 import io.github.gsjsjzhznsz.bandqq.sync.LogEntry
 import io.github.gsjsjzhznsz.bandqq.sync.LogLevel
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.distinctUntilChanged
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.theme.MiuixTheme
 import java.text.SimpleDateFormat
@@ -39,6 +42,18 @@ import java.util.Locale
 
 private val logTimeFmt = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
 
+/** 单行日志展示上限：超长协议帧截断（行高有界，列表不因单条巨帧撑爆） */
+private const val MAX_LOG_LINE = 400
+
+/**
+ * v2.9.4 重写：修复「新日志刷新时日志区被压成底部一条线」。
+ * 根因组合拳：
+ * 1) 旧实现用 scroll Column + key(time,tag,message)，同毫秒同内容日志会撞 key；
+ * 2) 自动滚动用 animateScrollTo，日志风暴时动画不断重启互相打断；
+ * 3) 日志盒高度依赖 weight(1f) 单一路径，任何一次异常测量都会塌成 0 高。
+ * 新实现：LazyColumn（懒组合 + seq 唯一 key）+ 即时滚动（无动画争抢）+
+ * weight 之外再加 heightIn(min) 兜底（高度永远 >= 140dp，坍缩在物理上不可能）。
+ */
 @Composable
 fun LogPanel(modifier: Modifier = Modifier) {
     val context = LocalContext.current
@@ -50,34 +65,36 @@ fun LogPanel(modifier: Modifier = Modifier) {
     val filtered = remember(logs, filter) {
         if (filter == null) logs else logs.filter { it.tag == filter }
     }
-    val scrollState = rememberScrollState()
+    val listState = rememberLazyListState()
     var userScrolledAway by remember { mutableStateOf(false) }
-    var autoScrolling by remember { mutableStateOf(false) }
 
-    LaunchedEffect(scrollState) {
-        snapshotFlow { scrollState.value }
-            .collect { value ->
-                val maxValue = scrollState.maxValue
-                if (maxValue > 0) {
-                    val nearBottom = value >= maxValue - 200
-                    if (nearBottom) {
-                        userScrolledAway = false
-                    } else if (scrollState.isScrollInProgress && !autoScrolling) {
-                        userScrolledAway = true
-                    }
+    // 用户手动上滑翻旧日志时暂停自动跟随；拖回底部（倒数 2 条内）恢复
+    LaunchedEffect(listState) {
+        listState.interactionSource.interactions.collect { interaction ->
+            if (interaction is DragInteraction.Start) {
+                if (listState.layoutInfo.totalItemsCount > 0 &&
+                    listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0 < listState.layoutInfo.totalItemsCount - 2
+                ) {
+                    userScrolledAway = true
+                }
+            }
+        }
+    }
+    LaunchedEffect(listState) {
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index }
+            .distinctUntilChanged()
+            .collect { last ->
+                if (last != null) {
+                    val total = listState.layoutInfo.totalItemsCount
+                    if (total > 0 && last >= total - 2) userScrolledAway = false
                 }
             }
     }
 
-    LaunchedEffect(filtered.size) {
+    // 新日志到达：即时滚到底（scrollToItem 无动画，风暴时不叠加、不打断、不漂移）
+    LaunchedEffect(filtered.size, filter) {
         if (filtered.isNotEmpty() && !userScrolledAway) {
-            autoScrolling = true
-            try {
-                scrollState.animateScrollTo(scrollState.maxValue)
-            } finally {
-                autoScrolling = false
-                userScrolledAway = false
-            }
+            runCatching { listState.scrollToItem(filtered.size - 1) }
         }
     }
 
@@ -146,21 +163,22 @@ fun LogPanel(modifier: Modifier = Modifier) {
             modifier = Modifier
                 .fillMaxWidth()
                 .weight(1f)
+                // v2.9.4 坍缩兜底：即便异常测量路径让 weight 算出 ~0，
+                // 日志盒也不得低于 140dp（宁可向下多占，不可压成一条线）
+                .heightIn(min = 140.dp)
                 .background(MiuixTheme.colorScheme.surfaceContainer, RoundedCornerShape(12.dp))
                 .padding(8.dp),
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .verticalScroll(scrollState),
-            ) {
-                // 性能：日志上限 200 条且增长快（WS 调试日志），
-                // 不再逐条包 AnimatedVisibility（纯组合开销，可见时动画价值低）
-                filtered.forEach { entry ->
-                    key(entry.time, entry.tag, entry.message) { LogLine(entry) }
-                }
-                if (filtered.isEmpty()) {
-                    Text(text = "暂无日志", color = MiuixTheme.colorScheme.onSurfaceSecondary)
+            if (filtered.isEmpty()) {
+                Text(text = "暂无日志", color = MiuixTheme.colorScheme.onSurfaceSecondary)
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    itemsIndexed(filtered, key = { _, entry -> entry.seq }) { _, entry ->
+                        LogLine(entry)
+                    }
                 }
             }
         }
@@ -182,6 +200,9 @@ private fun LogLine(entry: LogEntry) {
                 else -> MiuixTheme.colorScheme.primary
             },
         )
-        Text(text = entry.message, modifier = Modifier.weight(1f))
+        Text(
+            text = entry.message.take(MAX_LOG_LINE),
+            modifier = Modifier.weight(1f),
+        )
     }
 }

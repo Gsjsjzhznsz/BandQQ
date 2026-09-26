@@ -9,6 +9,7 @@ import com.google.gson.JsonParser
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 object HistoryDedup {
@@ -31,6 +32,15 @@ interface MessageSender {
         httpUrlOverride: String? = null,
         callback: (Boolean) -> Unit = {}
     )
+
+    /**
+     * v2.9.4：带参数的 OneBot 通用 API 调用（get_group_info 等）。
+     * OneBotClient 实现 = HTTP 优先、失败自动回退 WS（真实 NapCat 常只开 WS）。
+     * 默认空实现保持旧测试桩/旧实现兼容（直接回调 null）。
+     */
+    fun requestApiAction(action: String, paramsJson: String, callback: (String?) -> Unit) {
+        callback(null)
+    }
 }
 
 class MessageBroker(
@@ -188,6 +198,9 @@ class MessageBroker(
         // 在手机端用联系人缓存把「@10086」解析为「@昵称」（解析不到保持原样）。
         // 用户规则：@判定靠协议 QQ 号在手机端完成，显示名称也统一在手机端解析。
         val display = msg.copy(content = decorateAtNames(msg.content))
+        // v2.9.4：群名缓存缺失时按需拉取群资料（HTTP 优先失败回退 WS），
+        // 防止群会话退化为「发送者昵称」被误认成个人联系人
+        if (display.messageType == "group") fetchGroupNameIfNeeded(display.targetId)
         store.addMessage(
             display.targetId,
             StoredMessage(
@@ -357,6 +370,9 @@ class MessageBroker(
                 atMe = parsed.atMe,
             )
         )
+        // v2.9.4：固化测试会话名进联系人缓存 —— 会话名解析优先走缓存，
+        // 不再受名单拉取状态影响（此前缓存缺名时群测试会话会被解析成「QQ群 20001」）
+        store.rememberContactName(parsed.targetId, parsed.messageType, targetName)
         MessageBus.notify(parsed.targetId)
         if (isRecall) {
             val first = parsed.copy(content = storedContent)
@@ -450,6 +466,42 @@ class MessageBroker(
         }
     }
 
+    /**
+     * v2.9.4：群名按需补齐。名单拉取（get_group_list）只发生在连接建立时，
+     * 新加入的群/拉取失败的群会缺名 —— 这里在收到该群消息时单独调 get_group_info，
+     * 拉到群名即固化进联系人缓存并补推一帧权威会话列表（手环列表名同步纠正）。
+     * in-flight 去重：同一群同时只发一个请求，失败后下一条群消息再试。
+     */
+    private val groupInfoInFlight =
+        java.util.Collections.newSetFromMap(java.util.concurrent.ConcurrentHashMap<String, Boolean>())
+
+    private fun fetchGroupNameIfNeeded(targetId: String) {
+        if (store.hasContactName(targetId)) return
+        if (!groupInfoInFlight.add(targetId)) return
+        val gid = targetId.toLongOrNull()
+        if (gid == null || gid <= 0L) {
+            groupInfoInFlight.remove(targetId)
+            return
+        }
+        oneBot.requestApiAction("get_group_info", "{\"group_id\":$gid}") { raw ->
+            groupInfoInFlight.remove(targetId)
+            if (raw == null) return@requestApiAction
+            try {
+                val data = JsonParser.parseString(raw).asJsonObject.get("data")
+                    ?.takeIf { it.isJsonObject }?.asJsonObject ?: return@requestApiAction
+                val name = data.get("group_name")?.takeIf { it.isJsonPrimitive }?.asString ?: return@requestApiAction
+                if (name.isNotBlank()) {
+                    store.rememberContactName(targetId, "group", OneBotParser.stripEmoji(name))
+                    log("group name resolved: $targetId -> $name")
+                    // 群名补齐后补推权威会话帧，手环列表立即从「发送者昵称/QQ群号」纠正为真名
+                    bandSender(store.buildConversationFrame(0))
+                }
+            } catch (t: Throwable) {
+                log("get_group_info parse fail: $t")
+            }
+        }
+    }
+
     private val AT_QQ_REF = Regex("@(\\d{5,})")
 
     /** 撤回同步帧（type=push_message + recall=1）：手环按 time 原位替换为撤回文案 */
@@ -477,11 +529,39 @@ class MessageBroker(
             OneBotStateBus.notify(connected)
             bandSender(SyncStatePush.buildFrame())
             if (connected && !autoFetchDone) {
+                // v2.9.4：连接建立即拉取联系人名单；若名单仍空（NapCat 登录中/接口未就绪），
+                // 每 30s 重试直到拉到（此前只试一次，QQ 扫码登录完成前连接的会话永远拿不到联系人）
                 tryAutoFetch()
+                scheduleAutoFetchRetry()
+            } else if (!connected) {
+                autoFetchRetryJob?.cancel()
             }
         } catch (t: Throwable) {
             log("onState exception: $t")
         }
+    }
+
+    /** v2.9.4：名单拉取重试（30s 间隔，最多 10 次；拉到即停，断连即取消） */
+    private var autoFetchRetryJob: kotlinx.coroutines.Job? = null
+
+    private fun scheduleAutoFetchRetry() {
+        autoFetchRetryJob?.cancel()
+        autoFetchRetryJob = settingsScope.launch {
+            var attempt = 0
+            while (!autoFetchDone && attempt < 10) {
+                delay(30_000)
+                if (autoFetchDone) break
+                attempt++
+                log("autoFetch retry #$attempt (contact lists still incomplete)")
+                tryAutoFetch()
+            }
+        }
+    }
+
+    /** v2.9.4：服务销毁时取消重试任务（防协程泄漏） */
+    fun cancelAutoFetchRetry() {
+        autoFetchRetryJob?.cancel()
+        autoFetchRetryJob = null
     }
 
     private fun tryAutoFetch() {

@@ -18,6 +18,13 @@ const SETTINGS_KEY = 'band_settings'
  */
 const DEFAULT_SETTINGS = { msg_vibrate: true, emoji_native: true, mute_list: '' }
 
+/**
+ * v2.9.0 演示模式注入的联系人 ID（与 injectDemo 同源，清空记录时按此清单移除）。
+ * v2.9.4：清空聊天记录时同步移除演示联系人 —— 此前 clearAllMessages 只清消息与会话，
+ * 演示联系人作为可见联系人骨架残留（清空后仍显示五个空会话）。
+ */
+const DEMO_CONTACT_IDS = ['20001', '30001', '40001', '10001', '10002']
+
 /** 内置默认快捷回复（手机端 v2 协议会下发覆盖） */
 const DEFAULT_QUICK_REPLIES = [
   { label: '收到', content: '收到' },
@@ -509,6 +516,16 @@ export function createStore(storageImpl) {
     async clearAllMessages() {
       const keys = Object.keys(messagesByTarget)
       keys.forEach((k) => { delete messagesByTarget[k] })
+      // v2.9.4：清空记录时同步移除演示模式注入的联系人（及其免打扰标记），
+      // 真实联系人不动 —— 手机端连接后会重新下发 visible_contacts 保持骨架
+      const hadDemo = visibleContacts.some((c) => DEMO_CONTACT_IDS.indexOf(c.id) >= 0)
+      if (hadDemo) {
+        visibleContacts = visibleContacts.filter((c) => DEMO_CONTACT_IDS.indexOf(c.id) < 0)
+        const muteLeft = mutedIds(settings).filter((id) => DEMO_CONTACT_IDS.indexOf(id) < 0)
+        settings.mute_list = muteLeft.join(',')
+        await cache.set(VISIBLE_KEY, JSON.stringify(visibleContacts))
+        await cache.set(SETTINGS_KEY, JSON.stringify(settings))
+      }
       conversations = []
       await cache.set(CONV_KEY, JSON.stringify([]))
       for (const k of keys) await cache.set(MSG_PREFIX + k, JSON.stringify([]))

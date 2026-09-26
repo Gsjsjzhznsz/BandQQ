@@ -285,11 +285,16 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
 
     /**
      * 解析会话显示名：群会话优先用缓存的群名，找不到才用发送者名；私聊用发送者名。
+     * v2.9.4 修复「群聊被识别成个人联系人」：群会话在群名缓存缺失时，
+     * 不再回退到最后一位发送者的昵称（那会让群会话顶着一个私人昵称出现在
+     * 会话列表里，用户误以为某个联系人私聊），改为回退可辨识的「QQ群 <群号>」。
+     * 真实群名由 WS/HTTP 名单拉取或 get_group_info 按需补齐后自动纠正。
      */
     fun conversationName(targetId: String, messageType: String, fallback: String): String {
         if (messageType == "group") {
             val cached = cachedContacts.firstOrNull { it.type == "group" && it.id == targetId }
             if (cached != null && cached.name.isNotBlank()) return cached.name
+            return "QQ群 $targetId"
         }
         // 历史数据中 self 消息 senderName 可能为"我"，此时会话名不应显示"我"，
         // 优先用联系人缓存名，其次是回退 targetId
@@ -395,6 +400,28 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
         cachedContacts = list.distinctBy { it.id }.toMutableList()
         persistCachedContacts()
     }
+
+    /**
+     * v2.9.4：固化单个联系人/群显示名（按需补群名、测试会话名），写入缓存并持久化。
+     * 同 id 已存在时仅更新名称，不打乱既有顺序；名称未变化时跳过（防写盘风暴）。
+     */
+    @Synchronized
+    fun rememberContactName(id: String, type: String, name: String) {
+        if (id.isBlank() || name.isBlank()) return
+        val existing = cachedContacts.indexOfFirst { it.id == id }
+        if (existing >= 0) {
+            if (cachedContacts[existing].name == name) return
+            cachedContacts[existing] = VisibleContact(id, type, name)
+        } else {
+            cachedContacts.add(VisibleContact(id, type, name))
+        }
+        persistCachedContacts()
+    }
+
+    /** v2.9.4：该 id 是否已有非空显示名（可见联系人或缓存联系人命中） */
+    fun hasContactName(id: String): Boolean =
+        (visibleContacts.asIterable() + cachedContacts.asIterable())
+            .any { it.id == id && it.name.isNotBlank() }
 
     fun setVisibleContacts(list: List<VisibleContact>) {
         visibleContacts = list.distinctBy { it.id }.toMutableList()

@@ -231,6 +231,7 @@ class SyncService : Service() {
         pushSettingsNow = null
         AutoLauncher.cancelPending("service destroyed")
         oneBot.stop()
+        broker.cancelAutoFetchRetry()
         InterconnectBridge.unregister(broker)
         scope.cancel()
         super.onDestroy()
