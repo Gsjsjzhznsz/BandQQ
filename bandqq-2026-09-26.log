@@ -1,0 +1,399 @@
+
+===== BandQQ 2.9.3(vc42) 会话开始 09-26 14:32:22.369 =====
+09-26 14:32:22.367 I/FileLogger: 设备: Xiaomi 22041216C (xaga)
+09-26 14:32:22.367 I/FileLogger: 系统: Android 15 (SDK 35) HyperOS OS2.0
+09-26 14:32:22.368 I/FileLogger: 应用: BandQQ 2.9.3(vc42)  日志目录: /storage/emulated/0/Android/data/io.github.gsjsjzhznsz.bandqq/files/logs
+09-26 14:32:22.368 W/FileLogger: 小米运动健康: 未安装（互联通道必需，未安装则发现不了手环节点）
+09-26 14:32:22.368 I/FileLogger: 权限-蓝牙连接: 已授权
+09-26 14:32:22.368 I/FileLogger: 权限-通知: 已授权
+09-26 14:32:22.375 I/FileLogger: 电池优化白名单: 未加入
+09-26 14:32:22.377 I/FileLogger: 无障碍保活: 未开启
+09-26 14:32:22.377 I/FileLogger: 提示: 运动健康「设备授权管理」条目在 APP 发起 DEVICE_MANAGER 授权请求后才生成，开启同步服务并连接一次即会触发
+09-26 14:32:26.538 I/SyncService: BandQQ 同步器 v2.9.3 (vc42) 启动
+09-26 14:32:26.555 W/InterconnectBridge: reconnect: no node, retry connect (no launch)
+09-26 14:32:26.555 E/InterconnectBridge: connect: not initialized
+09-26 14:32:26.666 D/InterconnectBridge: connect: found device 小米手环9 陶瓷特别版   
+09-26 14:32:26.708 I/InterconnectBridge: auth: DEVICE_MANAGER granted[0]=true
+09-26 14:32:26.772 D/OneBotClient: WS onOpen, connected=true
+09-26 14:32:26.773 D/OneBotClient: WS identify sent (echo=bandqq-2.9.3)
+09-26 14:32:26.776 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":false,"protocol":t
+09-26 14:32:26.779 D/OneBotClient: WS recv: {"time":1790404347,"self_id":3836305211,"post_type":"meta_event","meta_event_type":"lifecycle","sub_type":"connect"}
+09-26 14:32:26.780 D/OneBotClient: WS non-message frame (meta/action response)
+09-26 14:32:26.845 D/OneBotClient: WS recv: {"status":"ok","retcode":0,"data":{"app_name":"NapCat.Onebot","protocol_version":"v11","app_version":"4.18.28"},"message":"","wording":"","echo":"bandqq-2.9.3","stream":"normal-action"}
+09-26 14:32:26.845 D/OneBotClient: WS non-message frame (meta/action response)
+09-26 14:32:27.095 D/InterconnectBridge: openApp: 已在手环上拉起应用
+09-26 14:32:27.096 D/InterconnectBridge: sendToBand ok (84B)
+09-26 14:32:27.128 D/InterconnectBridge: registerListener ok
+09-26 14:32:27.129 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 14:32:27.199 D/InterconnectBridge: sendToBand ok (23B)
+09-26 14:32:28.095 D/InterconnectBridge: onBandMessage: {"type":"band_state","state":"connected","seq":0}
+09-26 14:32:28.096 D/InterconnectBridge: sendToBand frame bytes=80: {"type":"connect_state","seq":0,"state":"connected","band":true,"protocol":true}
+09-26 14:32:28.097 D/InterconnectBridge: sendToBand frame bytes=49: {"type":"visible_contacts","seq":0,"contacts":[]}
+09-26 14:32:28.097 D/MessageBroker: pushVisibleContacts -> 0 contacts
+09-26 14:32:28.097 D/InterconnectBridge: sendToBand frame bytes=279: {"type":"quick_replies","seq":0,"list":[{"label":"收到","content":"收到"},{"label":"
+09-26 14:32:28.097 D/MessageBroker: pushQuickReplies -> 6 items
+09-26 14:32:28.097 D/InterconnectBridge: sendToBand frame bytes=87: {"type":"settings_state","seq":0,"emoji_native":true,"msg_vibrate":true,"mute_li
+09-26 14:32:28.098 D/MessageBroker: pushSettingsState -> emoji=true vibrate=true
+09-26 14:32:28.099 D/InterconnectBridge: onBandMessage: {"type":"get_connect_state","seq":5}
+09-26 14:32:28.099 D/InterconnectBridge: sendToBand frame bytes=80: {"type":"connect_state","seq":0,"state":"connected","band":true,"protocol":true}
+09-26 14:32:28.100 D/InterconnectBridge: onBandMessage: {"type":"get_visible_contacts","seq":6}
+09-26 14:32:28.100 D/MessageBroker: get_visible_contacts -> 0 contacts
+09-26 14:32:28.100 D/InterconnectBridge: sendToBand frame bytes=49: {"type":"visible_contacts","seq":6,"contacts":[]}
+09-26 14:32:28.103 D/InterconnectBridge: onBandMessage: {"type":"get_conversations","seq":7}
+09-26 14:32:28.105 D/InterconnectBridge: sendToBand frame bytes=520: {"type":"conversation_list","seq":7,"list":[{"id":"194636275","type":"group","na
+09-26 14:32:28.108 D/InterconnectBridge: onBandMessage: {"type":"get_settings","seq":8}
+09-26 14:32:28.108 D/InterconnectBridge: sendToBand frame bytes=87: {"type":"settings_state","seq":0,"emoji_native":true,"msg_vibrate":true,"mute_li
+09-26 14:32:28.143 D/InterconnectBridge: sendToBand ok (87B)
+09-26 14:32:28.143 D/InterconnectBridge: sendToBand ok (520B)
+09-26 14:32:28.147 D/InterconnectBridge: sendToBand ok (49B)
+09-26 14:32:28.147 D/InterconnectBridge: sendToBand ok (87B)
+09-26 14:32:28.147 D/InterconnectBridge: sendToBand ok (49B)
+09-26 14:32:28.182 D/InterconnectBridge: sendToBand ok (279B)
+09-26 14:32:28.182 D/InterconnectBridge: sendToBand ok (80B)
+09-26 14:32:28.182 D/InterconnectBridge: sendToBand ok (80B)
+09-26 14:32:30.133 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 14:32:30.345 D/InterconnectBridge: sendToBand ok (23B)
+09-26 14:32:30.398 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+
+===== BandQQ 2.9.3(vc42) 会话开始 09-26 14:37:42.066 =====
+09-26 14:37:42.065 I/FileLogger: 设备: Xiaomi 22041216C (xaga)
+09-26 14:37:42.068 I/FileLogger: 系统: Android 15 (SDK 35) HyperOS OS2.0
+09-26 14:37:42.068 I/FileLogger: 应用: BandQQ 2.9.3(vc42)  日志目录: /storage/emulated/0/Android/data/io.github.gsjsjzhznsz.bandqq/files/logs
+09-26 14:37:42.069 W/FileLogger: 小米运动健康: 未安装（互联通道必需，未安装则发现不了手环节点）
+09-26 14:37:42.069 I/FileLogger: 权限-蓝牙连接: 已授权
+09-26 14:37:42.069 I/FileLogger: 权限-通知: 已授权
+09-26 14:37:42.072 I/FileLogger: 电池优化白名单: 未加入
+09-26 14:37:42.073 I/FileLogger: 无障碍保活: 未开启
+09-26 14:37:42.073 I/FileLogger: 提示: 运动健康「设备授权管理」条目在 APP 发起 DEVICE_MANAGER 授权请求后才生成，开启同步服务并连接一次即会触发
+
+===== BandQQ 2.9.4(vc43) 会话开始 09-26 16:09:37.338 =====
+09-26 16:09:37.337 I/FileLogger: 设备: Xiaomi 22041216C (xaga)
+09-26 16:09:37.338 I/FileLogger: 系统: Android 15 (SDK 35) HyperOS OS2.0
+09-26 16:09:37.338 I/FileLogger: 应用: BandQQ 2.9.4(vc43)  日志目录: /storage/emulated/0/Android/data/io.github.gsjsjzhznsz.bandqq/files/logs
+09-26 16:09:37.338 W/FileLogger: 小米运动健康: 未安装（互联通道必需，未安装则发现不了手环节点）
+09-26 16:09:37.339 I/FileLogger: 权限-蓝牙连接: 已授权
+09-26 16:09:37.340 I/FileLogger: 权限-通知: 已授权
+09-26 16:09:37.341 I/FileLogger: 电池优化白名单: 未加入
+09-26 16:09:37.342 I/FileLogger: 无障碍保活: 未开启
+09-26 16:09:37.342 I/FileLogger: 提示: 运动健康「设备授权管理」条目在 APP 发起 DEVICE_MANAGER 授权请求后才生成，开启同步服务并连接一次即会触发
+09-26 16:11:16.070 I/SyncService: BandQQ 同步器 v2.9.4 (vc43) 启动
+09-26 16:11:16.086 W/InterconnectBridge: reconnect: no node, retry connect (no launch)
+09-26 16:11:16.086 E/InterconnectBridge: connect: not initialized
+09-26 16:11:16.121 D/InterconnectBridge: connect: found device 小米手环9 陶瓷特别版   
+09-26 16:11:16.136 I/InterconnectBridge: auth: DEVICE_MANAGER granted[0]=true
+09-26 16:11:16.180 D/InterconnectBridge: openApp: 已在手环上拉起应用
+09-26 16:11:16.182 D/InterconnectBridge: registerListener ok
+09-26 16:11:16.182 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:11:16.227 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:11:16.277 D/OneBotClient: WS onOpen, connected=true
+09-26 16:11:16.278 D/OneBotClient: WS identify sent (echo=bandqq-2.9.4)
+09-26 16:11:16.279 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":false,"protocol":t
+09-26 16:11:16.281 D/OneBotClient: WS recv: {"time":1790410276,"self_id":3836305211,"post_type":"meta_event","meta_event_type":"lifecycle","sub_type":"connect"}
+09-26 16:11:16.281 D/OneBotClient: WS non-message frame (meta/action response)
+09-26 16:11:16.282 D/OneBotClient: api get_friend_list http fail: http://127.0.0.1:3000/get_friend_list
+09-26 16:11:16.282 D/OneBotClient: api get_group_list http fail: http://127.0.0.1:3000/get_group_list
+09-26 16:11:16.288 D/OneBotClient: api get_friend_list http fail: http://127.0.0.1:3000/api/get_friend_list
+09-26 16:11:16.288 D/OneBotClient: api get_friend_list via ws (echo=bandqq-api-1-get_friend_list)
+09-26 16:11:16.289 D/OneBotClient: api get_group_list http fail: http://127.0.0.1:3000/api/get_group_list
+09-26 16:11:16.289 D/OneBotClient: api get_group_list via ws (echo=bandqq-api-2-get_group_list)
+09-26 16:11:16.339 D/InterconnectBridge: sendToBand ok (84B)
+09-26 16:11:16.367 D/OneBotClient: WS recv: {"status":"ok","retcode":0,"data":{"app_name":"NapCat.Onebot","protocol_version":"v11","app_version":"4.18.28"},"message":"","wording":"","echo":"bandqq-2.9.4","stream":"normal-action"}
+09-26 16:11:16.367 D/OneBotClient: WS non-message frame (meta/action response)
+09-26 16:11:16.447 D/OneBotClient: WS recv: {"status":"ok","retcode":0,"data":[{"group_all_shut":0,"group_remark":"","group_id":1124665323,"group_name":"小米Vela交流群②","member_count":43,"max_member_count":200},{"group_all_shut":0,"group_remark":"","group_id":1031894167,"group_name":"华强北安卓手表交流极客联盟","member_count":1630,"max_member_count":2000},{"g
+09-26 16:11:16.448 D/OneBotClient: ws api response (bandqq-api-2-get_group_list)
+09-26 16:11:16.546 D/OneBotClient: WS recv: {"status":"ok","retcode":0,"data":[{"birthday_year":2011,"birthday_month":8,"birthday_day":15,"user_id":3836305211,"age":15,"phone_num":"8613266494232","email":"3836305211@qq.com","category_id":0,"nickname":"一秋呀(小号)大号2308534727","remark":"","sex":"male","level":18},{"birthday_year":1903,"birthday_mo
+09-26 16:11:16.546 D/OneBotClient: ws api response (bandqq-api-1-get_friend_list)
+09-26 16:11:17.473 D/InterconnectBridge: onBandMessage: {"type":"band_state","state":"connected","seq":0}
+09-26 16:11:17.475 D/InterconnectBridge: sendToBand frame bytes=80: {"type":"connect_state","seq":0,"state":"connected","band":true,"protocol":true}
+09-26 16:11:17.475 D/InterconnectBridge: sendToBand frame bytes=49: {"type":"visible_contacts","seq":0,"contacts":[]}
+09-26 16:11:17.475 D/MessageBroker: pushVisibleContacts -> 0 contacts
+09-26 16:11:17.476 D/InterconnectBridge: sendToBand frame bytes=279: {"type":"quick_replies","seq":0,"list":[{"label":"收到","content":"收到"},{"label":"
+09-26 16:11:17.476 D/MessageBroker: pushQuickReplies -> 6 items
+09-26 16:11:17.476 D/InterconnectBridge: sendToBand frame bytes=87: {"type":"settings_state","seq":0,"emoji_native":true,"msg_vibrate":true,"mute_li
+09-26 16:11:17.477 D/MessageBroker: pushSettingsState -> emoji=true vibrate=true
+09-26 16:11:17.483 D/InterconnectBridge: onBandMessage: {"type":"get_connect_state","seq":5}
+09-26 16:11:17.483 D/InterconnectBridge: sendToBand frame bytes=80: {"type":"connect_state","seq":0,"state":"connected","band":true,"protocol":true}
+09-26 16:11:17.484 D/InterconnectBridge: onBandMessage: {"type":"get_visible_contacts","seq":6}
+09-26 16:11:17.484 D/MessageBroker: get_visible_contacts -> 0 contacts
+09-26 16:11:17.484 D/InterconnectBridge: sendToBand frame bytes=49: {"type":"visible_contacts","seq":6,"contacts":[]}
+09-26 16:11:17.487 D/InterconnectBridge: onBandMessage: {"type":"get_conversations","seq":7}
+09-26 16:11:17.489 D/InterconnectBridge: sendToBand frame bytes=607: {"type":"conversation_list","seq":7,"list":[{"id":"194636275","type":"group","na
+09-26 16:11:17.494 D/InterconnectBridge: onBandMessage: {"type":"get_settings","seq":8}
+09-26 16:11:17.494 D/InterconnectBridge: sendToBand frame bytes=87: {"type":"settings_state","seq":0,"emoji_native":true,"msg_vibrate":true,"mute_li
+09-26 16:11:17.510 D/InterconnectBridge: sendToBand ok (80B)
+09-26 16:11:17.510 D/InterconnectBridge: sendToBand ok (49B)
+09-26 16:11:17.510 D/InterconnectBridge: sendToBand ok (279B)
+09-26 16:11:17.511 D/InterconnectBridge: sendToBand ok (49B)
+09-26 16:11:17.518 D/InterconnectBridge: sendToBand ok (87B)
+09-26 16:11:17.520 D/InterconnectBridge: sendToBand ok (80B)
+09-26 16:11:17.522 D/InterconnectBridge: sendToBand ok (87B)
+09-26 16:11:17.526 D/InterconnectBridge: sendToBand ok (607B)
+09-26 16:11:19.183 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:11:19.381 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:11:19.394 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:11:20.028 D/InterconnectBridge: onBandMessage: {"type":"get_connect_state","seq":1}
+09-26 16:11:20.029 D/InterconnectBridge: sendToBand frame bytes=80: {"type":"connect_state","seq":0,"state":"connected","band":true,"protocol":true}
+09-26 16:11:20.084 D/InterconnectBridge: sendToBand ok (80B)
+09-26 16:11:22.186 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:11:22.369 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:11:22.384 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:11:22.699 D/InterconnectBridge: onBandMessage: {"type":"clear_all_history","seq":2}
+09-26 16:11:22.702 D/MessageBroker: clear_all_history from band -> cleared, reply empty conversation frame as ack
+09-26 16:11:22.703 D/InterconnectBridge: sendToBand frame bytes=46: {"type":"conversation_list","seq":2,"list":[]}
+09-26 16:11:22.753 D/InterconnectBridge: sendToBand ok (46B)
+09-26 16:11:23.506 D/InterconnectBridge: onBandMessage: {"type":"get_conversations","seq":3}
+09-26 16:11:23.509 D/InterconnectBridge: sendToBand frame bytes=46: {"type":"conversation_list","seq":3,"list":[]}
+09-26 16:11:23.560 D/InterconnectBridge: sendToBand ok (46B)
+09-26 16:11:24.096 D/InterconnectBridge: onBandMessage: {"type":"get_connect_state","seq":3}
+09-26 16:11:24.098 D/InterconnectBridge: sendToBand frame bytes=80: {"type":"connect_state","seq":0,"state":"connected","band":true,"protocol":true}
+09-26 16:11:24.114 D/InterconnectBridge: onBandMessage: {"type":"get_visible_contacts","seq":4}
+09-26 16:11:24.116 D/MessageBroker: get_visible_contacts -> 0 contacts
+09-26 16:11:24.116 D/InterconnectBridge: sendToBand frame bytes=49: {"type":"visible_contacts","seq":4,"contacts":[]}
+09-26 16:11:24.120 D/InterconnectBridge: onBandMessage: {"type":"get_conversations","seq":83859}
+09-26 16:11:24.121 D/InterconnectBridge: sendToBand frame bytes=50: {"type":"conversation_list","seq":83859,"list":[]}
+09-26 16:11:24.145 D/InterconnectBridge: sendToBand ok (80B)
+09-26 16:11:24.149 D/InterconnectBridge: sendToBand ok (49B)
+09-26 16:11:24.160 D/InterconnectBridge: sendToBand ok (50B)
+09-26 16:11:25.188 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:11:25.280 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:11:25.301 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:11:28.188 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:11:28.363 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:11:28.439 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:11:31.189 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:11:31.374 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:11:31.408 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:11:33.735 D/OneBotClient: WS recv: {"self_id":3836305211,"user_id":3988199,"time":1790410293,"message_id":574236583,"message_seq":574236583,"real_id":574236583,"real_seq":"324","message_type":"group","sender":{"user_id":3988199,"nickname":"Astroptis","card":"","role":"admin"},"raw_message":"[CQ:at,qq=2308534727] 一般都是我写","font":14,"su
+09-26 16:11:33.738 D/InterconnectBridge: sendToBand frame bytes=275: {"type":"push_message","seq":0,"message_type":"group","target_id":"1124665323","
+09-26 16:11:33.863 D/InterconnectBridge: sendToBand ok (275B)
+09-26 16:11:34.191 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:11:34.247 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:11:34.362 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:11:34.450 D/InterconnectBridge: sendToBand frame bytes=169: {"type":"visible_contacts","seq":0,"contacts":[{"id":"1124665323","type":"group"
+09-26 16:11:34.513 D/InterconnectBridge: sendToBand ok (169B)
+09-26 16:11:37.193 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:11:37.363 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:11:37.379 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:11:37.852 D/InterconnectBridge: onBandMessage: {"type":"get_connect_state","seq":5}
+09-26 16:11:37.852 D/InterconnectBridge: sendToBand frame bytes=80: {"type":"connect_state","seq":0,"state":"connected","band":true,"protocol":true}
+09-26 16:11:37.882 D/InterconnectBridge: onBandMessage: {"type":"get_visible_contacts","seq":6}
+09-26 16:11:37.883 D/MessageBroker: get_visible_contacts -> 1 contacts
+09-26 16:11:37.883 D/InterconnectBridge: sendToBand frame bytes=169: {"type":"visible_contacts","seq":6,"contacts":[{"id":"1124665323","type":"group"
+09-26 16:11:37.887 D/InterconnectBridge: onBandMessage: {"type":"get_conversations","seq":97559}
+09-26 16:11:37.888 D/InterconnectBridge: sendToBand frame bytes=333: {"type":"conversation_list","seq":97559,"list":[{"id":"1124665323","type":"group
+09-26 16:11:37.901 D/InterconnectBridge: sendToBand ok (80B)
+09-26 16:11:37.936 D/InterconnectBridge: sendToBand ok (169B)
+09-26 16:11:37.936 D/InterconnectBridge: sendToBand ok (333B)
+09-26 16:11:38.826 D/InterconnectBridge: onBandMessage: {"type":"get_connect_state","seq":7}
+09-26 16:11:38.826 D/InterconnectBridge: sendToBand frame bytes=80: {"type":"connect_state","seq":0,"state":"connected","band":true,"protocol":true}
+09-26 16:11:38.827 D/InterconnectBridge: onBandMessage: {"type":"get_visible_contacts","seq":8}
+09-26 16:11:38.827 D/MessageBroker: get_visible_contacts -> 1 contacts
+09-26 16:11:38.827 D/InterconnectBridge: sendToBand frame bytes=169: {"type":"visible_contacts","seq":8,"contacts":[{"id":"1124665323","type":"group"
+09-26 16:11:38.847 D/InterconnectBridge: onBandMessage: {"type":"get_conversations","seq":98623}
+09-26 16:11:38.847 D/InterconnectBridge: sendToBand frame bytes=333: {"type":"conversation_list","seq":98623,"list":[{"id":"1124665323","type":"group
+09-26 16:11:38.870 D/InterconnectBridge: sendToBand ok (169B)
+09-26 16:11:38.870 D/InterconnectBridge: sendToBand ok (80B)
+09-26 16:11:38.890 D/InterconnectBridge: sendToBand ok (333B)
+09-26 16:11:39.686 D/InterconnectBridge: onBandMessage: {"type":"get_history","seq":1,"target_id":"1124665323","limit":30}
+09-26 16:11:39.688 D/InterconnectBridge: sendToBand frame bytes=259: {"type":"history_list","seq":1,"target_id":"1124665323","before":0,"has_more":fa
+09-26 16:11:39.696 D/InterconnectBridge: onBandMessage: {"type":"read_chat","seq":2,"target_id":"1124665323"}
+09-26 16:11:39.697 D/InterconnectBridge: sendToBand frame bytes=329: {"type":"conversation_list","seq":2,"list":[{"id":"1124665323","type":"group","n
+09-26 16:11:39.724 D/InterconnectBridge: sendToBand ok (259B)
+09-26 16:11:39.724 D/InterconnectBridge: sendToBand ok (329B)
+09-26 16:11:39.816 D/OneBotClient: WS recv: {"self_id":3836305211,"user_id":748404042,"time":1790410300,"message_id":963016118,"message_seq":963016118,"real_id":963016118,"real_seq":"1424152","message_type":"group","sender":{"user_id":748404042,"nickname":"……","card":"","role":"member"},"raw_message":"[CQ:image,summary=&#91;动画表情&#93;,file=D96
+09-26 16:11:39.818 D/InterconnectBridge: sendToBand frame bytes=256: {"type":"push_message","seq":0,"message_type":"group","target_id":"1031894167","
+09-26 16:11:39.872 D/InterconnectBridge: sendToBand ok (256B)
+09-26 16:11:40.194 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:11:40.251 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:11:40.269 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:11:43.196 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:11:43.375 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:11:43.395 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:11:46.200 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:11:46.278 D/OneBotClient: WS recv: {"time":1790410306,"self_id":3836305211,"post_type":"meta_event","meta_event_type":"heartbeat","status":{"online":true,"good":true},"interval":30000}
+09-26 16:11:46.278 D/OneBotClient: WS non-message frame (meta/action response)
+09-26 16:11:46.384 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:11:46.391 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:11:49.203 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:11:49.367 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:11:49.583 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:11:52.206 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:11:52.369 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:11:53.334 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:11:55.208 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:11:55.283 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:11:55.299 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:11:58.213 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:11:58.368 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:11:58.465 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:12:01.215 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:12:01.380 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:12:01.437 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:12:01.835 D/InterconnectBridge: onBandMessage: {"type":"send_message","seq":1,"message_type":"private","target_id":"1124665323","content":"测适","time":1790410321531}
+09-26 16:12:01.839 D/InterconnectBridge: sendToBand frame bytes=254: {"type":"push_message","seq":0,"message_type":"private","target_id":"1124665323"
+09-26 16:12:01.840 E/OneBotClient: send failed: http://127.0.0.1:3000/send_private_msg: java.net.ConnectException: Failed to connect to /127.0.0.1:3000
+09-26 16:12:01.844 E/OneBotClient: send failed: http://127.0.0.1:3000/api/send_private_msg: java.net.ConnectException: Failed to connect to /127.0.0.1:3000
+09-26 16:12:01.863 D/InterconnectBridge: onBandMessage: {"type":"send_message","seq":2,"message_type":"group","target_id":"1124665323","content":"测适","time":1790410321602}
+09-26 16:12:01.866 D/InterconnectBridge: sendToBand frame bytes=252: {"type":"push_message","seq":0,"message_type":"group","target_id":"1124665323","
+09-26 16:12:01.868 E/OneBotClient: send failed: http://127.0.0.1:3000/send_group_msg: java.net.ConnectException: Failed to connect to /127.0.0.1:3000
+09-26 16:12:01.871 E/OneBotClient: send failed: http://127.0.0.1:3000/api/send_group_msg: java.net.ConnectException: Failed to connect to /127.0.0.1:3000
+09-26 16:12:01.889 D/InterconnectBridge: sendToBand ok (254B)
+09-26 16:12:01.925 D/InterconnectBridge: sendToBand ok (252B)
+09-26 16:12:02.222 D/InterconnectBridge: onBandMessage: {"type":"read_chat","seq":3,"target_id":"1124665323"}
+09-26 16:12:02.223 D/InterconnectBridge: sendToBand frame bytes=523: {"type":"conversation_list","seq":3,"list":[{"id":"1124665323","type":"group","n
+09-26 16:12:02.287 D/InterconnectBridge: sendToBand ok (523B)
+09-26 16:12:04.218 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:12:04.389 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:12:04.423 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:12:07.219 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:12:07.270 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:12:07.307 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:12:08.833 D/InterconnectBridge: onBandMessage: {"type":"read_chat","seq":4,"target_id":"1124665323"}
+09-26 16:12:08.835 D/InterconnectBridge: sendToBand frame bytes=523: {"type":"conversation_list","seq":4,"list":[{"id":"1124665323","type":"group","n
+09-26 16:12:09.371 D/InterconnectBridge: sendToBand ok (523B)
+09-26 16:12:10.222 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:12:10.279 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:12:10.347 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:12:11.175 D/InterconnectBridge: onBandMessage: {"type":"read_chat","seq":5,"target_id":"1124665323"}
+09-26 16:12:11.176 D/InterconnectBridge: sendToBand frame bytes=523: {"type":"conversation_list","seq":5,"list":[{"id":"1124665323","type":"group","n
+09-26 16:12:11.241 D/InterconnectBridge: sendToBand ok (523B)
+09-26 16:12:12.841 D/InterconnectBridge: onBandMessage: {"type":"send_message","seq":6,"message_type":"group","target_id":"1124665323","content":"好的","time":1790410332345}
+09-26 16:12:12.843 D/InterconnectBridge: sendToBand frame bytes=252: {"type":"push_message","seq":0,"message_type":"group","target_id":"1124665323","
+09-26 16:12:12.847 E/OneBotClient: send failed: http://127.0.0.1:3000/send_group_msg: java.net.ConnectException: Failed to connect to /127.0.0.1:3000
+09-26 16:12:12.852 E/OneBotClient: send failed: http://127.0.0.1:3000/api/send_group_msg: java.net.ConnectException: Failed to connect to /127.0.0.1:3000
+09-26 16:12:12.914 D/InterconnectBridge: sendToBand ok (252B)
+09-26 16:12:13.226 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:12:13.327 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:12:13.475 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:12:15.357 D/InterconnectBridge: onBandMessage: {"type":"read_chat","seq":7,"target_id":"1124665323"}
+09-26 16:12:15.359 D/InterconnectBridge: sendToBand frame bytes=523: {"type":"conversation_list","seq":7,"list":[{"id":"1124665323","type":"group","n
+09-26 16:12:15.453 D/InterconnectBridge: sendToBand ok (523B)
+09-26 16:12:16.229 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:12:16.295 D/OneBotClient: WS recv: {"time":1790410336,"self_id":3836305211,"post_type":"meta_event","meta_event_type":"heartbeat","status":{"online":true,"good":true},"interval":30000}
+09-26 16:12:16.296 D/OneBotClient: WS non-message frame (meta/action response)
+09-26 16:12:16.325 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:12:16.334 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:12:19.231 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:12:19.367 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:12:19.370 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:12:22.233 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:12:22.397 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:12:22.432 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:12:24.859 D/InterconnectBridge: onBandMessage: {"type":"read_chat","seq":8,"target_id":"1124665323"}
+09-26 16:12:24.865 D/InterconnectBridge: sendToBand frame bytes=523: {"type":"conversation_list","seq":8,"list":[{"id":"1124665323","type":"group","n
+09-26 16:12:24.924 D/InterconnectBridge: sendToBand ok (523B)
+09-26 16:12:25.236 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:12:25.315 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:12:25.327 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:12:26.466 D/InterconnectBridge: onBandMessage: {"type":"read_chat","seq":9,"target_id":"1124665323"}
+09-26 16:12:26.471 D/InterconnectBridge: sendToBand frame bytes=523: {"type":"conversation_list","seq":9,"list":[{"id":"1124665323","type":"group","n
+09-26 16:12:26.536 D/InterconnectBridge: sendToBand ok (523B)
+09-26 16:12:28.237 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:12:28.367 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:12:28.398 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:12:31.243 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:12:31.361 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:12:31.380 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:12:34.247 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:12:34.374 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:12:34.394 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:12:37.249 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:12:37.386 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:12:37.425 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:12:40.252 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:12:40.367 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:12:40.422 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:12:43.254 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:12:43.376 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:12:43.426 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:12:46.256 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:12:46.335 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:12:46.350 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:12:46.375 D/OneBotClient: WS recv: {"time":1790410366,"self_id":3836305211,"post_type":"meta_event","meta_event_type":"heartbeat","status":{"online":true,"good":true},"interval":30000}
+09-26 16:12:46.376 D/OneBotClient: WS non-message frame (meta/action response)
+09-26 16:12:49.260 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:12:49.371 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:12:49.447 D/InterconnectBridge: onBandMessage: {"type":"read_chat","seq":10,"target_id":"1124665323"}
+09-26 16:12:49.453 D/InterconnectBridge: sendToBand frame bytes=524: {"type":"conversation_list","seq":10,"list":[{"id":"1124665323","type":"group","
+09-26 16:12:49.460 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:12:49.518 D/InterconnectBridge: sendToBand ok (524B)
+09-26 16:12:50.864 D/OneBotClient: WS recv: {"self_id":3836305211,"user_id":2308534727,"time":1790410371,"message_id":2080312702,"message_seq":2080312702,"real_id":2080312702,"real_seq":"325","message_type":"group","sender":{"user_id":2308534727,"nickname":"一秋 小号3836305211","card":"","role":"owner"},"raw_message":"[CQ:image,file=CFF602A6519F5
+09-26 16:12:50.867 D/InterconnectBridge: sendToBand frame bytes=256: {"type":"push_message","seq":0,"message_type":"group","target_id":"1124665323","
+09-26 16:12:50.919 D/InterconnectBridge: sendToBand ok (256B)
+09-26 16:12:52.261 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:12:52.345 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:12:52.355 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:12:55.264 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:12:55.325 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:12:55.359 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:12:56.448 D/OneBotClient: WS recv: {"self_id":3836305211,"user_id":2308534727,"time":1790410376,"message_id":2065998829,"message_seq":2065998829,"real_id":2065998829,"real_seq":"326","message_type":"group","sender":{"user_id":2308534727,"nickname":"一秋 小号3836305211","card":"","role":"owner"},"raw_message":"[CQ:at,qq=3988199] 依旧bug","f
+09-26 16:12:56.452 D/InterconnectBridge: sendToBand frame bytes=266: {"type":"push_message","seq":0,"message_type":"group","target_id":"1124665323","
+09-26 16:12:56.498 D/InterconnectBridge: sendToBand ok (266B)
+09-26 16:12:58.269 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:12:58.371 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:12:58.386 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:13:01.273 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:13:01.385 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:13:01.408 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:13:02.965 D/InterconnectBridge: onBandMessage: {"type":"read_chat","seq":11,"target_id":"1124665323"}
+09-26 16:13:02.967 D/InterconnectBridge: sendToBand frame bytes=548: {"type":"conversation_list","seq":11,"list":[{"id":"1124665323","type":"group","
+09-26 16:13:03.040 D/InterconnectBridge: sendToBand ok (548B)
+09-26 16:13:04.276 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:13:04.337 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:13:04.473 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:13:04.616 D/OneBotClient: WS recv: {"self_id":3836305211,"user_id":3988199,"time":1790410384,"message_id":1183759539,"message_seq":1183759539,"real_id":1183759539,"real_seq":"327","message_type":"group","sender":{"user_id":3988199,"nickname":"Astroptis","card":"","role":"admin"},"raw_message":"[CQ:at,qq=2308534727] 你现在适配了多少设备","font"
+09-26 16:13:04.616 D/InterconnectBridge: sendToBand frame bytes=286: {"type":"push_message","seq":0,"message_type":"group","target_id":"1124665323","
+09-26 16:13:04.673 D/InterconnectBridge: sendToBand ok (286B)
+09-26 16:13:06.984 D/InterconnectBridge: onBandMessage: {"type":"read_chat","seq":12,"target_id":"1124665323"}
+09-26 16:13:06.985 D/InterconnectBridge: sendToBand frame bytes=595: {"type":"conversation_list","seq":12,"list":[{"id":"1124665323","type":"group","
+09-26 16:13:07.057 D/InterconnectBridge: sendToBand ok (595B)
+09-26 16:13:07.280 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:13:07.346 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:13:07.771 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:13:10.283 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:13:10.368 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:13:10.379 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:13:13.284 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:13:13.365 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:13:13.376 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:13:14.737 D/OneBotClient: WS recv: {"self_id":3836305211,"user_id":2308534727,"time":1790410395,"message_id":367309324,"message_seq":367309324,"real_id":367309324,"real_seq":"328","message_type":"group","sender":{"user_id":2308534727,"nickname":"一秋 小号3836305211","card":"","role":"owner"},"raw_message":"1个","font":14,"sub_type":"norma
+09-26 16:13:14.738 D/InterconnectBridge: sendToBand frame bytes=252: {"type":"push_message","seq":0,"message_type":"group","target_id":"1124665323","
+09-26 16:13:14.795 D/InterconnectBridge: sendToBand ok (252B)
+09-26 16:13:16.285 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:13:16.345 D/OneBotClient: WS recv: {"time":1790410396,"self_id":3836305211,"post_type":"meta_event","meta_event_type":"heartbeat","status":{"online":true,"good":true},"interval":30000}
+09-26 16:13:16.346 D/OneBotClient: WS non-message frame (meta/action response)
+09-26 16:13:16.370 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:13:16.384 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:13:19.287 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:13:19.373 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:13:19.390 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:13:20.372 D/OneBotClient: WS recv: {"self_id":3836305211,"user_id":3685258092,"time":1790410400,"message_id":536453165,"message_seq":536453165,"real_id":536453165,"real_seq":"35676","message_type":"group","sender":{"user_id":3685258092,"nickname":"星尘","card":"caw2206(无事勿扰 有事勿扰 有疑询服主或他管)","role":"admin"},"raw_message":"我的统计","font":14
+09-26 16:13:20.380 D/InterconnectBridge: sendToBand frame bytes=245: {"type":"push_message","seq":0,"message_type":"group","target_id":"194636275","s
+09-26 16:13:20.453 D/InterconnectBridge: sendToBand ok (245B)
+09-26 16:13:21.633 D/InterconnectBridge: onBandMessage: {"type":"read_chat","seq":13,"target_id":"1124665323"}
+09-26 16:13:21.637 D/InterconnectBridge: sendToBand frame bytes=759: {"type":"conversation_list","seq":13,"list":[{"id":"194636275","type":"group","n
+09-26 16:13:21.700 D/InterconnectBridge: sendToBand ok (759B)
+09-26 16:13:22.291 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:13:22.343 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:13:22.535 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:13:25.294 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:13:25.370 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:13:25.387 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:13:27.285 D/InterconnectBridge: onBandMessage: {"type":"read_chat","seq":14,"target_id":"1124665323"}
+09-26 16:13:27.286 D/InterconnectBridge: sendToBand frame bytes=759: {"type":"conversation_list","seq":14,"list":[{"id":"194636275","type":"group","n
+09-26 16:13:27.357 D/InterconnectBridge: sendToBand ok (759B)
+09-26 16:13:28.295 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:13:28.374 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:13:28.380 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:13:29.257 D/OneBotClient: WS recv: {"self_id":3836305211,"user_id":3836305211,"time":1790410409,"message_id":1517309039,"message_seq":1517309039,"real_id":1517309039,"real_seq":"35677","message_type":"group","sender":{"user_id":3836305211,"nickname":"一秋呀(小号)大号2308534727","card":"","role":"admin"},"raw_message":"[CQ:image,file=DEFD204
+09-26 16:13:29.257 D/OneBotClient: WS non-message frame (meta/action response)
+09-26 16:13:29.267 D/InterconnectBridge: onBandMessage: {"type":"read_chat","seq":15,"target_id":"1124665323"}
+09-26 16:13:29.267 D/InterconnectBridge: sendToBand frame bytes=759: {"type":"conversation_list","seq":15,"list":[{"id":"194636275","type":"group","n
+09-26 16:13:29.343 D/InterconnectBridge: sendToBand ok (759B)
+09-26 16:13:31.297 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:13:31.391 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:13:31.403 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:13:34.298 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 16:13:34.876 D/InterconnectBridge: sendToBand ok (23B)
+09-26 16:13:34.902 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+09-26 16:13:36.847 E/InterconnectBridge: sendToBand skipped: no connected node. frame={"type":"connect_state","seq":0,"state":"disconnected","band":false,"protocol":f
