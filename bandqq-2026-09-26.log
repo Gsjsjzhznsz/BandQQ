@@ -1,0 +1,67 @@
+
+===== BandQQ 2.9.3(vc42) 会话开始 09-26 14:32:22.369 =====
+09-26 14:32:22.367 I/FileLogger: 设备: Xiaomi 22041216C (xaga)
+09-26 14:32:22.367 I/FileLogger: 系统: Android 15 (SDK 35) HyperOS OS2.0
+09-26 14:32:22.368 I/FileLogger: 应用: BandQQ 2.9.3(vc42)  日志目录: /storage/emulated/0/Android/data/io.github.gsjsjzhznsz.bandqq/files/logs
+09-26 14:32:22.368 W/FileLogger: 小米运动健康: 未安装（互联通道必需，未安装则发现不了手环节点）
+09-26 14:32:22.368 I/FileLogger: 权限-蓝牙连接: 已授权
+09-26 14:32:22.368 I/FileLogger: 权限-通知: 已授权
+09-26 14:32:22.375 I/FileLogger: 电池优化白名单: 未加入
+09-26 14:32:22.377 I/FileLogger: 无障碍保活: 未开启
+09-26 14:32:22.377 I/FileLogger: 提示: 运动健康「设备授权管理」条目在 APP 发起 DEVICE_MANAGER 授权请求后才生成，开启同步服务并连接一次即会触发
+09-26 14:32:26.538 I/SyncService: BandQQ 同步器 v2.9.3 (vc42) 启动
+09-26 14:32:26.555 W/InterconnectBridge: reconnect: no node, retry connect (no launch)
+09-26 14:32:26.555 E/InterconnectBridge: connect: not initialized
+09-26 14:32:26.666 D/InterconnectBridge: connect: found device 小米手环9 陶瓷特别版   
+09-26 14:32:26.708 I/InterconnectBridge: auth: DEVICE_MANAGER granted[0]=true
+09-26 14:32:26.772 D/OneBotClient: WS onOpen, connected=true
+09-26 14:32:26.773 D/OneBotClient: WS identify sent (echo=bandqq-2.9.3)
+09-26 14:32:26.776 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":false,"protocol":t
+09-26 14:32:26.779 D/OneBotClient: WS recv: {"time":1790404347,"self_id":3836305211,"post_type":"meta_event","meta_event_type":"lifecycle","sub_type":"connect"}
+09-26 14:32:26.780 D/OneBotClient: WS non-message frame (meta/action response)
+09-26 14:32:26.845 D/OneBotClient: WS recv: {"status":"ok","retcode":0,"data":{"app_name":"NapCat.Onebot","protocol_version":"v11","app_version":"4.18.28"},"message":"","wording":"","echo":"bandqq-2.9.3","stream":"normal-action"}
+09-26 14:32:26.845 D/OneBotClient: WS non-message frame (meta/action response)
+09-26 14:32:27.095 D/InterconnectBridge: openApp: 已在手环上拉起应用
+09-26 14:32:27.096 D/InterconnectBridge: sendToBand ok (84B)
+09-26 14:32:27.128 D/InterconnectBridge: registerListener ok
+09-26 14:32:27.129 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 14:32:27.199 D/InterconnectBridge: sendToBand ok (23B)
+09-26 14:32:28.095 D/InterconnectBridge: onBandMessage: {"type":"band_state","state":"connected","seq":0}
+09-26 14:32:28.096 D/InterconnectBridge: sendToBand frame bytes=80: {"type":"connect_state","seq":0,"state":"connected","band":true,"protocol":true}
+09-26 14:32:28.097 D/InterconnectBridge: sendToBand frame bytes=49: {"type":"visible_contacts","seq":0,"contacts":[]}
+09-26 14:32:28.097 D/MessageBroker: pushVisibleContacts -> 0 contacts
+09-26 14:32:28.097 D/InterconnectBridge: sendToBand frame bytes=279: {"type":"quick_replies","seq":0,"list":[{"label":"收到","content":"收到"},{"label":"
+09-26 14:32:28.097 D/MessageBroker: pushQuickReplies -> 6 items
+09-26 14:32:28.097 D/InterconnectBridge: sendToBand frame bytes=87: {"type":"settings_state","seq":0,"emoji_native":true,"msg_vibrate":true,"mute_li
+09-26 14:32:28.098 D/MessageBroker: pushSettingsState -> emoji=true vibrate=true
+09-26 14:32:28.099 D/InterconnectBridge: onBandMessage: {"type":"get_connect_state","seq":5}
+09-26 14:32:28.099 D/InterconnectBridge: sendToBand frame bytes=80: {"type":"connect_state","seq":0,"state":"connected","band":true,"protocol":true}
+09-26 14:32:28.100 D/InterconnectBridge: onBandMessage: {"type":"get_visible_contacts","seq":6}
+09-26 14:32:28.100 D/MessageBroker: get_visible_contacts -> 0 contacts
+09-26 14:32:28.100 D/InterconnectBridge: sendToBand frame bytes=49: {"type":"visible_contacts","seq":6,"contacts":[]}
+09-26 14:32:28.103 D/InterconnectBridge: onBandMessage: {"type":"get_conversations","seq":7}
+09-26 14:32:28.105 D/InterconnectBridge: sendToBand frame bytes=520: {"type":"conversation_list","seq":7,"list":[{"id":"194636275","type":"group","na
+09-26 14:32:28.108 D/InterconnectBridge: onBandMessage: {"type":"get_settings","seq":8}
+09-26 14:32:28.108 D/InterconnectBridge: sendToBand frame bytes=87: {"type":"settings_state","seq":0,"emoji_native":true,"msg_vibrate":true,"mute_li
+09-26 14:32:28.143 D/InterconnectBridge: sendToBand ok (87B)
+09-26 14:32:28.143 D/InterconnectBridge: sendToBand ok (520B)
+09-26 14:32:28.147 D/InterconnectBridge: sendToBand ok (49B)
+09-26 14:32:28.147 D/InterconnectBridge: sendToBand ok (87B)
+09-26 14:32:28.147 D/InterconnectBridge: sendToBand ok (49B)
+09-26 14:32:28.182 D/InterconnectBridge: sendToBand ok (279B)
+09-26 14:32:28.182 D/InterconnectBridge: sendToBand ok (80B)
+09-26 14:32:28.182 D/InterconnectBridge: sendToBand ok (80B)
+09-26 14:32:30.133 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+09-26 14:32:30.345 D/InterconnectBridge: sendToBand ok (23B)
+09-26 14:32:30.398 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+
+===== BandQQ 2.9.3(vc42) 会话开始 09-26 14:37:42.066 =====
+09-26 14:37:42.065 I/FileLogger: 设备: Xiaomi 22041216C (xaga)
+09-26 14:37:42.068 I/FileLogger: 系统: Android 15 (SDK 35) HyperOS OS2.0
+09-26 14:37:42.068 I/FileLogger: 应用: BandQQ 2.9.3(vc42)  日志目录: /storage/emulated/0/Android/data/io.github.gsjsjzhznsz.bandqq/files/logs
+09-26 14:37:42.069 W/FileLogger: 小米运动健康: 未安装（互联通道必需，未安装则发现不了手环节点）
+09-26 14:37:42.069 I/FileLogger: 权限-蓝牙连接: 已授权
+09-26 14:37:42.069 I/FileLogger: 权限-通知: 已授权
+09-26 14:37:42.072 I/FileLogger: 电池优化白名单: 未加入
+09-26 14:37:42.073 I/FileLogger: 无障碍保活: 未开启
+09-26 14:37:42.073 I/FileLogger: 提示: 运动健康「设备授权管理」条目在 APP 发起 DEVICE_MANAGER 授权请求后才生成，开启同步服务并连接一次即会触发
