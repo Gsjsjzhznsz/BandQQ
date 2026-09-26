@@ -3,7 +3,7 @@
 > **📱 分支模型（每类设备独立 RPK，不再合一包）**：
 > | 分支 | 适配设备 | 键盘 | 当前版本 |
 > |---|---|---|---|
-> | [`main`](https://github.com/Gsjsjzhznsz/BandQQ) | 小米手环 9/10/11（胶囊/长条屏） | [AetherZeng1145/Vela-Input-Method-Revise](https://github.com/AetherZeng1145/Vela-Input-Method-Revise) `Capsule-For-Xiaomi-Band`（192×490 原生） | v2.9.4 (vc48) |
+> | [`main`](https://github.com/Gsjsjzhznsz/BandQQ) | 小米手环 9/10/11（胶囊/长条屏） | [AetherZeng1145/Vela-Input-Method-Revise](https://github.com/AetherZeng1145/Vela-Input-Method-Revise) `Capsule-For-Xiaomi-Band`（192×490 原生） | v2.9.5 (vc49) |
 > | [`redmi-watch`](https://github.com/Gsjsjzhznsz/BandQQ/tree/redmi-watch) | Redmi Watch 5/6（432×514 宽屏） | 同仓 `Cube-For-Redmi-Watch`（432×514 原生，常量整数化映射 designWidth 192） | v2.11.1-rw (vc63) |
 > | [`xiaomi-watch-s`](https://github.com/Gsjsjzhznsz/BandQQ/tree/xiaomi-watch-s) | 小米 Watch S3/S4/S5（466/480 圆屏） | 同仓 `QWERTY` 圆屏版（466×466 原生，同上映射） | v2.11.1-s (vc62) |
 > | [`band-pro`](https://github.com/Gsjsjzhznsz/BandQQ/tree/band-pro) | 小米手环 9 Pro / 10 Pro（336×480 方屏） | skb 紧凑 QWERTY（原生 flex，bandpro 档定向尺寸） | v2.11.1-pro (vc96) |
@@ -39,7 +39,25 @@
 
 > 关键词：小米手环9 / Mi Band 9 / 小米手环10 / 小米手环11 / Mi Band 11 / 小米手环QQ / 小米手环9 Pro / Redmi Watch / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / Stapxs-QQ-Lite-X / wearable QQ / smartband chat / Mi Band QQ client
 
-## v2.9.4 更新日志（当前版本）
+## v2.9.5 更新日志（当前版本）
+
+> 用户接入真实 NapCat 后实测第二弹：**消息发不出去**。09-26 日志证据：拉名单已走 WS 回退成功，
+> 但发送仍只试 HTTP 双路即失败（`ConnectException: /127.0.0.1:3000`）——手环上显示「已发送」
+> 实为本地回显，QQ 侧从未收到；同时 compose 页存在 private+group 双发。
+
+### ① 发送链路补上 WS 回退（APK，根修）
+v2.9.4 只给联系人拉取（get_friend_list/get_group_list）加了 WS 回退，发送（send_private_msg/send_group_msg）漏掉了。现在 HTTP 两路均失败后，用与拉名单相同的 echo 路由（bandqq-api-*）把发送 action 经 WS 下发，按 `retcode==0` 判定成功 —— **WS 能连就能发消息**，与拉名单同一套保障。日志可查：`send via ws send_group_msg -> ok(retcode=0)`。
+
+### ② compose 页 private+group 双发根治（RPK）
+键盘输入发送页（compose）沿用了早期的「霰弹枪」兼容：先硬编码 `private` 发一条，再由 correctConversationType 后台补发一条正确类型 —— 真实 NapCat 上表现为群会话双发，且 private 那条把群号当 QQ 号发私聊，必然失败还可能误发陌生人。现在发送前先查会话类型（与聊天页 doSend 同语义），**只发一条、类型正确**；本地回显与上行帧同类型。
+
+### ③ requestApi 的 baseUrl 参数被静默丢弃回归修复（APK）
+v2.9.4 重构 requestApiAction 时把 `requestApi(action, baseUrl, callback)` 的 baseUrl 参数弄丢（内部只认 config.httpUrl）——联系人页手动刷新/SyncService 定时拉取传入的自定义地址全部失效（本环境恰与 config 相同未暴露，但单测抓出：旧测试永久挂死于无超时 takeRequest）。现已透传 baseUrl；同时给全部 takeRequest 加超时上限（防再次无限挂起），并把 3 例 v2.9.4 行为变更后未同步的过期测试断言更新为新契约。手机端单测自本版起纳入验证链：**104 测 104 过**。
+
+- 版本：RPK 2.9.5（vc49）+ 同步器 2.9.5（vc44，签名同源 af8819e2）；DevTools 无改动不重发；新增 sendMessage WS 回退单测；手机端单测 104 测 104 过（首次全绿，含 3 例过期断言修正）
+- 用户当天日志（bandqq-2026-09-26.log）已随本版修复从仓库移除（隐私）
+
+## v2.9.4 更新日志（历史版本）
 
 > 用户接入真实 NapCat 服务器后的实测反馈五连修（此前联调一直用 DevTools 模拟端，协议形态差异全部暴露）：
 > 群聊被识别成个人联系人 / 联系人不自动添加 / 快捷回复无确认 / 演示模式清理残留 / 主页日志面板被压扁。

@@ -106,12 +106,24 @@
     async sendMessage(content) {
       const store = this.$app.$def.store
       const { sendUpstream, emit } = this.$app.$def
+      // v2.9.5：先查会话类型再一次性发送（与 chat.ux doSend 同语义）。
+      // 此前硬编码 private 先发一条、correctConversationType 再补发一条正确类型，
+      // 真实 NapCat 上表现为 private+group 双发：private 那条把群号当 QQ 号发私聊，
+      // 必然失败还污染会话；现改为发送前确定类型，只发一条。
+      let mType = 'private'
+      try {
+        const convs = await store.getConversations()
+        const c = convs.find((x) => x.id === this.targetId)
+        if (c && c.type === 'group') mType = 'group'
+      } catch (e) {
+        console.error('conv type lookup failed', e)
+      }
       // 先构造上行帧拿到统一 time，手机端回推同 time 以便 upsert 去重，避免重复显示
-      const msg = protocol.sendMessage('private', this.targetId, content)
+      const msg = protocol.sendMessage(mType, this.targetId, content)
       // 本地立即回显自己发的消息：发送动作已执行即显示，不被上行成败阻塞
       store.upsertMessage({
         type: 'push_message',
-        message_type: 'private',
+        message_type: mType,
         target_id: this.targetId,
         sender_id: this.targetId,
         sender_name: this.name,
@@ -120,7 +132,7 @@
         is_self: true,
         time: msg.time
       }).then(() => emit && emit('message', {}))
-      console.log('[BANDQQ] v9 send ->', JSON.stringify({ target: this.targetId, name: this.name, content: content, type: 'private' }))
+      console.log('[BANDQQ] v9 send ->', JSON.stringify({ target: this.targetId, name: this.name, content: content, type: mType }))
       store.setSendStatus('发送中…')
       emit && emit('send_status')
       if (sendUpstream) {
@@ -134,22 +146,6 @@
         })
       } else {
         console.error('sendUpstream missing')
-      }
-      // 后台再校正消息类型（仅用于本地显示，不阻塞发送）
-      this.correctConversationType(content)
-    },
-    async correctConversationType(content) {
-      try {
-        const { sendUpstream } = this.$app.$def
-        const store = this.$app.$def.store
-        const convs = await store.getConversations()
-        const c = convs.find((x) => x.id === this.targetId)
-        if (c && c.type && c.type !== 'private' && sendUpstream) {
-          const msg = protocol.sendMessage(c.type, this.targetId, content)
-          sendUpstream(msg).catch((e) => console.error('send retry failed', e))
-        }
-      } catch (e) {
-        console.error('correct type failed', e)
       }
     }
   }

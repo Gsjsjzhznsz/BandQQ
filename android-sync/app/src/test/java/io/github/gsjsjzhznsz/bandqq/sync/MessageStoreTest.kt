@@ -176,11 +176,12 @@ class MessageStoreTest {
     }
 
     @Test
-    fun `无缓存时群会话名回退为发送者名`() {
+    fun `无缓存时群会话名回退为QQ群加群号`() {
         val store = MessageStore()
         store.addMessage("123", StoredMessage("group", "456", "张三", "你好", 1700000000L))
         val convs = store.getConversations()
-        assertEquals("张三", convs[0].name)
+        // v2.9.4 起：群缺名回退「QQ群 <群号>」而非发送者名（群会话不再冒充个人联系人）
+        assertEquals("QQ群 123", convs[0].name)
     }
 
     @Test

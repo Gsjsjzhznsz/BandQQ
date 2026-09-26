@@ -244,8 +244,45 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
         val root = baseUrl.trimEnd('/')
         doSend("$root/$action") {
             doSend("$root/api/$action") {
-                callback(false)
+                // v2.9.5：HTTP 两路均不可达（真实 NapCat 常只开 WS，HTTP API 是独立开关）
+                // → 经 WS 通道下发同样的 action，根治「WS-only 部署发不出消息」
+                sendViaWs(body, action, callback)
             }
+        }
+    }
+
+    /**
+     * v2.9.5：sendMessage 的 WS 回退通道。
+     * body 即 buildSendRequest 的 {action,params} 信封，取 params 复用 requestViaWs
+     * 的 echo 路由（bandqq-api-* 前缀）；应答 retcode==0 判定成功。
+     * 实测依据（用户 09-26 日志）：拉名单已走 WS 回退成功，但发送只试 HTTP 双路即失败，
+     * 手环上显示"已发送"实为本地回显，QQ 侧从未收到。
+     */
+    private fun sendViaWs(body: String, action: String, callback: (Boolean) -> Unit) {
+        val paramsJson = try {
+            com.google.gson.JsonParser.parseString(body).asJsonObject
+                .get("params")?.toString() ?: "{}"
+        } catch (t: Throwable) {
+            "{}"
+        }
+        requestViaWs(action, paramsJson) { resp ->
+            if (resp == null) {
+                callback(false)
+                return@requestViaWs
+            }
+            val ok = try {
+                com.google.gson.JsonParser.parseString(resp).asJsonObject
+                    .get("retcode")?.takeIf { it.isJsonPrimitive }?.asInt == 0
+            } catch (t: Throwable) {
+                false
+            }
+            try {
+                LogBus.log(
+                    "OneBotClient", if (ok) LogLevel.DEBUG else LogLevel.WARN,
+                    "send via ws $action -> ${if (ok) "ok(retcode=0)" else "fail: ${resp.take(200)}"}"
+                )
+            } catch (t: Throwable) {}
+            callback(ok)
         }
     }
 
@@ -254,14 +291,21 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
      * SnowLuma 默认 path='/' 且 action 从路径解析，优先 {httpUrl}/{action}，
      * 失败时回退 {httpUrl}/api/{action}（兼容 NapCat 等实现）。
      * v2.9.4：HTTP 两路均失败后自动回退 WS API（真实 NapCat 常只开 WS 服务）。
+     * v2.9.5 修复：baseUrl 参数此前被静默丢弃（v2.9.4 重构引入，requestApiAction 只用 config.httpUrl），
+     * 联系人页手动刷新/定时拉取传入的自定义地址全部失效；现已透传。
      * 成功回传原始响应体，失败回传 null。
      */
     fun requestApi(action: String, baseUrl: String = config.httpUrl, callback: (String?) -> Unit) {
-        requestApiAction(action, "{}", callback)
+        requestApiAction(action, "{}", baseUrl, callback)
     }
 
     /** v2.9.4：带参数的通用 API（MessageSender 接口实现；HTTP 优先，失败回退 WS） */
     override fun requestApiAction(action: String, paramsJson: String, callback: (String?) -> Unit) {
+        requestApiAction(action, paramsJson, config.httpUrl, callback)
+    }
+
+    /** v2.9.5：支持显式 baseUrl 的通用 API 调用（HTTP 优先，失败回退 WS） */
+    fun requestApiAction(action: String, paramsJson: String, baseUrl: String, callback: (String?) -> Unit) {
         val body = "{\"action\":\"$action\",\"params\":$paramsJson}"
         fun doRequest(url: String, onFail: () -> Unit) {
             val request = Request.Builder()
@@ -289,7 +333,7 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
                 }
             })
         }
-        val root = config.httpUrl.trimEnd('/')
+        val root = baseUrl.trimEnd('/')
         doRequest("$root/$action") {
             doRequest("$root/api/$action") {
                 // v2.9.4：HTTP 不可达（NapCat 只开 WS 是最常见部署）→ 经 WS 通道调用

@@ -9,7 +9,7 @@
 
 ## 版本线
 - v1.1.x：旧 lineage（stapxs 移植版，源码已失传，legacy/ 有 7z 分卷）
-- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.9.4**（RPK vc48 + app vc43，真实 NapCat 五连修）+ DevTools 1.3.0（vc6）
+- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.9.5**（RPK vc49 + app vc44，发送 WS 回退 + compose 双发根治）+ DevTools 1.3.0（vc6）
 - 签名一致性：rpk 与 APK 同源证书，APK SHA-256 = af8819e27a6ec8d84537ec86937cf016e780376305328abaa4eb79e8c626b004
 
 ## v2.1.0 已完成（2026-09-09）
@@ -315,3 +315,14 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 
 **构建环境**：容器重置后 tools/SDK 全失；scripts/setup-buildenv.sh 按新配方重建（JDK17 + Gradle 8.13 + SDK android-37.0 → **cp -r 保留双目录** + 副本三处元数据去 .0：package.xml path/api-level、source.properties ApiLevel、build.prop sdk_full）；脚本存 /home/z/my-project/scripts/bandqq-setup-env-v2.sh。系统 Java21 是 JRE 无 javac（老坑复验）。
 **验证**：RPK 包内 2.9.4/vc48 + item-grp/confirmReply/confirmQuickSend/demo id 全入包；APK 2.9.4/vc43 签名 af8819e2 同源 + dex 六标记（bandqq-api-/group name resolved/autoFetch retry/get_group_info/ws fallback/QQ群）；手环单测 61 测 60 过（api 门控 1 例存量失败基线一致）。
+
+## v2.9.5（2026-09-26，RPK vc49 + app vc44）—— 发送链路 WS 回退 + compose 双发根治
+
+**背景**：用户真实 NapCat 实测第二弹「现在信息发不出去」。09-26 日志（已随修复从仓库删除）铁证：拉名单已走 WS 回退成功（api get_friend_list via ws），但 send_private_msg/send_group_msg 只试 HTTP 双路（/send_*_msg 与 /api/send_*_msg）即 ConnectException 失败 —— 手环显示「已发送」实为本地回显，QQ 侧从未收到。v2.9.4 只给联系人拉取补了 WS 回退，发送漏了。
+
+1. **OneBotClient.sendMessage 补 WS 回退**：新增 sendViaWs(body, action, callback) —— 从 buildSendRequest 的 {action,params} 信封取 params，复用 requestViaWs 的 echo 路由（bandqq-api-*），应答 retcode==0 判成功；日志 `send via ws send_*_msg -> ok(retcode=0)`。WS-only 部署从此「能连就能发」。
+2. **compose.ux 双发根治**：原实现硬编码 private 先发一条 + correctConversationType 后台补发正确类型（日志表现为群会话 28ms 内 private+group 双发，private 把群号当 QQ 号）。现发送前 store.getConversations() 查类型（与 chat.ux doSend 同语义），只发一条、回显同类型；correctConversationType 整体删除。
+
+**验证**：手环单测 61 测 60 过（api 门控 1 例存量基线）；APK 新增 sendMessage WS 回退单测 2 例（MockWebServer withWebSocketUpgrade 模拟 WS-only 部署：HTTP 两路 500 → WS 应答 retcode=0 → callback(true)）；RPK 包内 2.9.5/vc49；APK 2.9.5/vc44 签名同源。
+
+**追加③（同版）requestApi baseUrl 丢弃回归**：v2.9.4 重构 requestApi→requestApiAction 时把 requestApi(action,baseUrl,callback) 的 baseUrl 静默丢弃（内部只用 config.httpUrl）——ContactScreen 手动刷新/SyncService 定时拉取传的自定义地址全失效。修复=OneBotClient 增 4 参 requestApiAction(action,params,baseUrl,callback) 重载，3 参接口实现委托之。**排查插曲（教训复验）**：跑 OneBotClientTest 整类必挂死——真凶=旧测试 3 因 baseUrl 丢失请求发去 127.0.0.1:3000，MockWebServer 收不到请求，`takeRequest()` 无超时永久等待；jstack 一发锁定。修：①baseUrl 透传 ②全部 takeRequest 加 3s 上限 ③3 例 v2.9.4 行为变更未同步的过期断言更新（群名回退 QQ群<群号> ×2、GameProtocolDetector 的 MockWebServer hostName localhost≠127.0.0.1 硬编码）。**手机端单测 104 测 104 过（历史首次全绿）**。另：MultiEdit「失败前序编辑已生效」陷阱本轮第三次命中（4 参重载函数体被截坏），单 Edit 按实况修复；gradle 卡死先 pkill+清 ~/.gradle/*.lock 再 --no-daemon。

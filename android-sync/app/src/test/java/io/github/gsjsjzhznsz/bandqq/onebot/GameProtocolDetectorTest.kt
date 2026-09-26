@@ -28,15 +28,18 @@ class GameProtocolDetectorTest {
 
     @Test
     fun `detect 命中标准 HTTP 端点并回填配置,token 为空`() = runBlocking {
+        val preferred = server.url("/").toString().trimEnd('/')
         server.enqueue(MockResponse().setBody("""{"status":"ok","data":{"msg":"SnowLuma"}}"""))
         val cfg = GameProtocolDetector.detect(
-            preferred = server.url("/").toString().trimEnd('/'),
+            preferred = preferred,
             hosts = listOf("127.0.0.1"),
             ports = intArrayOf()
         )
         assertNotNull(cfg)
-        assertTrue(cfg!!.httpUrl.startsWith("http://127.0.0.1:"))
-        assertTrue(cfg.wsUrl.startsWith("ws://127.0.0.1:"))
+        // v2.9.5：MockWebServer hostName 可能是 localhost 或 127.0.0.1，
+        // 契约是命中 preferred 时 httpUrl 原样回填、wsUrl 同址换 ws scheme，token 均为空
+        assertEquals(preferred, cfg!!.httpUrl)
+        assertTrue(cfg.wsUrl.startsWith("ws://"))
         assertEquals("", cfg.wsToken)
         assertEquals("", cfg.httpToken)
     }

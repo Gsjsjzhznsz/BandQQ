@@ -79,12 +79,13 @@ class MessageBrokerTest {
     }
 
     @Test
-    fun `群消息无缓存时 target_name 回退为发送者名`() {
+    fun `群消息无缓存时 target_name 回退为QQ群加群号`() {
         val broker = MessageBroker(parser, FakeOneBot { _, _, _ -> true }, MessageStore())
         val frame = broker.handleOneBotEvent(
             OneBotMessage("group", "123", "456", "张三", "你好", 1700000000L)
         )
-        assertTrue(frame!!.contains("\"target_name\":\"张三\""))
+        // v2.9.4 起：群缺名回退「QQ群 <群号>」而非发送者名
+        assertTrue(frame!!.contains("\"target_name\":\"QQ群 123\""))
     }
 
     @Test
