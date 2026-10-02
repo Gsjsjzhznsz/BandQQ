@@ -1,12 +1,15 @@
 # BandQQ — 小米手环/手表 QQ 消息助手（多分支：手环 / 红米手表 / 小米手表）
 
-> **📱 分支模型（每类设备独立 RPK，不再合一包）**：
-> | 分支 | 适配设备 | 键盘 | 当前版本 |
+> **📱 分支模型（v2.10.0 起：单 main 分支 + 构建期四分支包，`node tools/branch-release.js`）**：
+> | 分支包 | 适配设备 | designWidth | 当前版本 |
 > |---|---|---|---|
-> | [`main`](https://github.com/Gsjsjzhznsz/BandQQ) | 小米手环 9/10/11（胶囊/长条屏） | [AetherZeng1145/Vela-Input-Method-Revise](https://github.com/AetherZeng1145/Vela-Input-Method-Revise) `Capsule-For-Xiaomi-Band`（192×490 原生） | v2.9.5 (vc49) |
-> | [`redmi-watch`](https://github.com/Gsjsjzhznsz/BandQQ/tree/redmi-watch) | Redmi Watch 5/6（432×514 宽屏） | 同仓 `Cube-For-Redmi-Watch`（432×514 原生，常量整数化映射 designWidth 192） | v2.11.1-rw (vc63) |
-> | [`xiaomi-watch-s`](https://github.com/Gsjsjzhznsz/BandQQ/tree/xiaomi-watch-s) | 小米 Watch S3/S4/S5（466/480 圆屏） | 同仓 `QWERTY` 圆屏版（466×466 原生，同上映射） | v2.11.1-s (vc62) |
-> | [`band-pro`](https://github.com/Gsjsjzhznsz/BandQQ/tree/band-pro) | 小米手环 9 Pro / 10 Pro（336×480 方屏） | skb 紧凑 QWERTY（原生 flex，bandpro 档定向尺寸） | v2.11.1-pro (vc96) |
+> | bandqq-band | 小米手环 8/9/10/11（胶囊屏） | 192 | v2.10.0-band (vc51) |
+> | bandqq-bandpro | 手环 8Pro/9Pro/10Pro（336 方屏） | 336 | v2.10.0-bandpro (vc51) |
+> | bandqq-xiaomis | Xiaomi Watch S3/S4/S5（466 圆屏） | 466 | v2.10.0-xiaomis (vc51) |
+> | bandqq-redmiwatch | Redmi Watch 5/5 eSIM/6（432 方屏） | 432 | v2.10.0-redmiwatch (vc51) |
+> | bandqq-universal | 通用兜底（手环形态参数） | 192 | v2.10.0 (vc51) |
+>
+> 分支包由构建期换算器生成（designWidth 对准物理宽 + 样式值按视觉密度系数换算 + 键盘常量同步 + 圆屏安全边距），从同一源码树出包，杜绝 git 多分支漂移；历史 git 分支线（v2.11.x 实验）已废弃归档。
 | `unified-2.11.0`（归档） | 三形态合一运行时自适应 | 自建 skb 紧凑键盘 | v2.11.0 (vc45)，已被设备分支取代 |
 >
 > 宽/圆屏分支基于 v2.11.0 观感根治成果（内联 style 分档 + 几何机型判定）拆出，安装对应分支 RPK 即自动适配对应形态；键盘全部换装 AetherZeng1145 重构版（拼音候选回归宽/圆屏）。VVD 虚拟机四机验收：渲染 / 键位触控 / 拼音组合 / 候选上屏全链路通过（实拍见各分支提交）。
@@ -39,7 +42,13 @@
 
 > 关键词：小米手环9 / Mi Band 9 / 小米手环10 / 小米手环11 / Mi Band 11 / 小米手环QQ / 小米手环9 Pro / Redmi Watch / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / Stapxs-QQ-Lite-X / wearable QQ / smartband chat / Mi Band QQ client
 
-## v2.9.5 更新日志（当前版本）
+## v2.10.0 更新日志（当前版本）
+
+> 四件套：**分支级界面适配**（根治大屏"缩放异常"——单一 designWidth=192 在 432 宽屏被固件放大 2.25 倍，改为构建期四分支包：band 192/bandpro 336/xiaomis 466/redmiwatch 432，样式值按视觉密度系数换算非等比缩放，InputMethod 键盘常量与圆屏安全边距同步）+ **历史消息分页窗口化**（"历史达到额度就异常"根修：渲染 DOM 恒 ≤renderCap 与数据层解耦，点一次"加载更早"本地窗口前移一批零网络，本地到头才拉手机端，新增"回到最新"按钮）+ **eSIM 独立直连线路**（参考 merqury-vela：@system.fetch 直连 OneBot HTTP API+Bearer token，手机端连接时 direct_config 帧下发配置零手输，sendUpstream 三态编排互联优先/断开自动切直连，chat 4s/列表 20s 前台轮询熄屏即停，设置页"独立线路"状态行）+ **性能四项**（消息落盘 300ms 防抖合并写/排序幂等 WeakSet/数据层 100→120/启动冗余四连 send 清理）。
+- 验证：node 单测 80 测 79 过（新增 19 项直连/直连配置/容量全绿；api 门控 1 例存量基线）；四分支 rpk 解包 51 项断言全 PASS；APK badging vc51/2.10.0 + direct_config 多 dex 标记 FOUND。
+- 版本：RPK 四分支+通用 2.10.0（vc51，versionName 带分支后缀）+ 同步器 2.10.0（vc51，签名同源 af8819e2）。
+
+## v2.9.5 更新日志（历史版本）
 
 > 用户接入真实 NapCat 后实测第二弹：**消息发不出去**。09-26 日志证据：拉名单已走 WS 回退成功，
 > 但发送仍只试 HTTP 双路即失败（`ConnectException: /127.0.0.1:3000`）——手环上显示「已发送」

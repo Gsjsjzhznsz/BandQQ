@@ -8,9 +8,9 @@
 上游：https://github.com/Astroptis/band-qq-assistant ；本仓库为完整版镜像（含签名/产物/legacy）。
 
 ## 版本线
-- v1.1.x：旧 lineage（stapxs 移植版，源码已失传，legacy/ 有 7z 分卷）
-- v2.x：基于 Astroptis main（opencode 基线）重做。**当前 v2.9.5**（RPK vc49 + app vc44，发送 WS 回退 + compose 双发根治）+ DevTools 1.3.0（vc6）
-- 签名一致性：rpk 与 APK 同源证书，APK SHA-256 = af8819e27a6ec8d84537ec86937cf016e780376305328abaa4eb79e8c626b004
+- 当前正式线：v2.10.0（vc51）—— 分支级适配 + 分页窗口化 + eSIM 直连 + 性能四项（2026-10-02）
+- 历史线：v2.9.6（50，四页 absolute 黑屏根修+版本统一）/ v2.9.5（49，WS 回退+双发根治）/ v2.9.4（48，真实 NapCat 五连修）… 详见各节
+- git 分支线 v2.11.x（redmi-watch/xiaomi-watch-s/band-pro）已废弃归档，由构建期四分支包取代
 
 ## v2.1.0 已完成（2026-09-09）
 1. **手环图标白边**：根因=RGBA 透明画布（768 边缘像素全透明），Vela 启动器合成露白。修复=全出血 108×108 纯 RGB 图标（绿底白 Q 环），versionCode 21 刷缓存
@@ -336,3 +336,10 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 3. **全设备版本号统一**：rpk 与 APK 从本版起 versionName+versionCode 完全一致 **2.9.6 (50)**（rpk 49→50 顺升，APK 44→50 跳升锚定，此后恒同步 +1）；about.ux 关于页版本显示 v2.9.4→v2.9.6（2.9.5 漏同步的显示层遗留）。
 
 **验证**：node 单测 61/60 过（api 门控 1 例存量基线一致）；rpk 解包 = manifest 2.9.6/vc50 + 五页齐全 + body-wrap/msg-area-wrap/preview-box relative + absolute 编译形态入包 + about "v2.9.6 · 快应用端"（\xb7）；APK aapt badging vc50/2.9.6 + V2 签名 af8819e2 同源。构建环境容器重置第 N 次重建（scripts/setup-buildenv.sh 幂等复跑）：新坑=nohup 前台会话 & 后台任务随 Bash 工具调用结束被杀（必须 disown）；gradle.zip 从 services.gradle.org 102MB 处截断两次 → 腾讯镜像 mirrors.cloud.tencent.com/gradle 一次到位；ANDROID_HOME=/home/z/android-sdk 必须显式传。
+
+## v2.10.0（2026-10-02，versionCode 51）
+- 分支适配：tools/branch-release.js 四分支（band 192 k1.0/bandpro 336 k1.25/xiaomis 466 k1.35 圆屏/redmiwatch 432 k1.20）；构建期 designWidth 对准物理宽 + <style> 与内联 style 值换算（1px 保留）+ InputMethod 键盘常量（screenWidth/192 设计宽/633 滚动总宽）+ xiaomis 安全边距 + 大屏 msg-item width:100%；src/common/branch.js PROFILE 编译期锁档
+- 分页窗口化：chat.ux viewStart/viewEnd 两段式（本地窗口前移 pageSize 零网络→本地到头时间锚拉手机端 prepend 后窗口前移），DOM 恒 ≤renderCap（30/42/40/45），"回到最新"按钮，新消息仅锚定最新时滚底
+- eSIM 直连：src/common/direct.js（@system.fetch POST {action}+Bearer+/api 回退+8s 超时；send_message/get_history/get_visible_contacts 翻义；raw_message CQ 降级 at/poke）；app.ux sendUpstream 三态（互联连→互联失败回退直连/未连有配置→直连优先/都无→原路径）；MessageBroker.pushDirectConfig（127.0.0.1/localhost 不下发）；settings 独立线路状态行；chat 4s/index 20s 前台轮询
+- 性能：store 落盘 300ms 尾沿防抖（快照回调时重取，clearAll 不复活）；排序幂等 WeakSet（数组自定义属性会污染 deepEqual）；MAX_MESSAGES 120；app.onCreate 四连 send 清理
+- 交付：download/ 四分支+通用 rpk（154KB 级）+ APK 12,225,650B；Release v2.10.0 id=402007052 六附件匿名 200
