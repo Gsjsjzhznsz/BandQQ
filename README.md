@@ -1,28 +1,41 @@
-# BandQQ — 小米手环/手表 QQ 消息助手（多分支：手环 / 红米手表 / 小米手表）
+<div align="center">
 
-> **📱 分支模型（v2.10.0 起：单 main 分支 + 构建期四分支包，`node tools/branch-release.js`）**：
-> | 分支包 | 适配设备 | designWidth | 当前版本 |
-> |---|---|---|---|
-> | bandqq-band | 小米手环 8/9/10/11（胶囊屏） | 192 | v2.10.0-band (vc51) |
-> | bandqq-bandpro | 手环 8Pro/9Pro/10Pro（336 方屏） | 336 | v2.10.0-bandpro (vc51) |
-> | bandqq-xiaomis | Xiaomi Watch S3/S4/S5（466 圆屏） | 466 | v2.10.0-xiaomis (vc51) |
-> | bandqq-redmiwatch | Redmi Watch 5/5 eSIM/6（432 方屏） | 432 | v2.10.0-redmiwatch (vc51) |
-> | bandqq-universal | 通用兜底（手环形态参数） | 192 | v2.10.0 (vc51) |
->
-> 分支包由构建期换算器生成（designWidth 对准物理宽 + 样式值按视觉密度系数换算 + 键盘常量同步 + 圆屏安全边距），从同一源码树出包，杜绝 git 多分支漂移；历史 git 分支线（v2.11.x 实验）已废弃归档。
-| `unified-2.11.0`（归档） | 三形态合一运行时自适应 | 自建 skb 紧凑键盘 | v2.11.0 (vc45)，已被设备分支取代 |
->
-> 宽/圆屏分支基于 v2.11.0 观感根治成果（内联 style 分档 + 几何机型判定）拆出，安装对应分支 RPK 即自动适配对应形态；键盘全部换装 AetherZeng1145 重构版（拼音候选回归宽/圆屏）。VVD 虚拟机四机验收：渲染 / 键位触控 / 拼音组合 / 候选上屏全链路通过（实拍见各分支提交）。
+# 💬 BandQQ 腕间信使：低轨孤星
 
-> 🧠 **AI 协作记忆库**：[`MEMORY.md`](MEMORY.md) — 本项目的跨会话持久记忆（架构 / bug 台账 / 构建配方 / 任务清单）。任何新会话恢复上下文，先读它。
->
-> ⬇️ **本页以下为 main 分支（手环专用线）文档**：手环 9/10/11 用户直接刷 main 分支 RPK；红米 Watch 5/6 与小米 Watch S 系用户请切对应分支。
+**小米手环 / Redmi Watch / 小米手表 上的 QQ 消息助手 · Vela 快应用 + Android 同步器双端方案**
 
-[![Version](https://img.shields.io/badge/version-2.9.2--band-blue)]() [![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]() [![License](https://img.shields.io/badge/license-MIT-brightgreen)]()
+[![Version](https://img.shields.io/badge/version-2.12.0-blue)](https://github.com/Gsjsjzhznsz/BandQQ/releases)
+[![Platform](https://img.shields.io/badge/platform-Android%20%2B%20Vela-green)]()
+[![Devices](https://img.shields.io/badge/devices-Band%208~11%20%7C%20Watch%20S%20%7C%20Redmi%20Watch-orange)]()
+[![License](https://img.shields.io/badge/license-MIT-brightgreen)](LICENSE)
+[![Release](https://img.shields.io/badge/download-GitHub%20Releases-9cf)](https://github.com/Gsjsjzhznsz/BandQQ/releases)
 
 ![BandQQ 宣传图](docs/promo/banner-3x2.jpg)
 
-**BandQQ** 是一套开源的「小米手环 QQ 消息助手」双端方案：手环端运行 Vela 快应用（rpk），手机端运行安卓同步器（APK），通过小米互联蓝牙通道把 QQ 消息实时同步到手环，支持直接在手环上**查看 / 回复 / 翻历史消息 / 收图**。
+**手环上直接看 QQ、回 QQ、翻历史、收图。**
+手环端运行 Vela 快应用（rpk），手机端运行安卓同步器（APK），经小米互联蓝牙通道实时同步，
+协议端对接 OneBot v11（NapCat / Lagrange / LLOneBot / go-cqhttp 均可）。
+
+</div>
+
+---
+
+## 📱 设备分支（v2.10.0 起单 main 分支 + 构建期出包）
+
+单一源码树经 `band-qq/tools/branch-release.js` 构建期生成各系列独立适配包——
+designWidth 对准物理屏宽、样式按视觉密度系数换算、**键盘按分支原生化**（v2.12.0）、圆屏安全边距，杜绝 git 多分支漂移：
+
+| 分支包 | 适配设备 | 屏 | designWidth | 键盘布局（v2.12.0） |
+|---|---|---|---|---|
+| `bandqq-band` | 小米手环 8 / 9 / 10 / 11 | 192×490 胶囊 | 192 | 胶囊屏全键（滚动字母轮 + 弧形进度） |
+| `bandqq-bandpro` | 手环 8Pro / 9Pro / 10Pro | 336×480 方屏 | 336 | 方屏全键（按 336/432 等比换算） |
+| `bandqq-redmiwatch` | Redmi Watch 5 / 5 eSIM / 6 | 432×514 方屏 | 432 | 方屏全键（432 原生标尺） |
+| `bandqq-xiaomis` | Xiaomi Watch S3 / S4 / S5 | 466×466 圆屏 | 466 | 圆屏 QWERTY 全键（466 原生） |
+| `bandqq-universal` | 通用兜底 | 192 | 192 | 同 band |
+
+三套键盘布局全部来自 **AetherZeng1145/Vela-Input-Method-Revise**（见[引用项目](#-引用项目与致谢)），共享同一套**全量拼音字库（419 音节 27398 字，频序候选）**。
+
+> 🧠 AI 协作记忆库：[`MEMORY.md`](MEMORY.md) — 跨会话持久记忆（架构 / bug 台账 / 构建配方）。新会话恢复上下文先读它。
 
 ## 界面预览（手环 11 官方 Vela 虚拟机实拍 · 212×520）
 
@@ -34,345 +47,145 @@
 |:---:|:---:|
 | ![群聊拍一拍](docs/screenshots-vvm/03-群聊-拍一拍特效.png) | ![私聊拍一拍](docs/screenshots-vvm/04-私聊-拍一拍特效.png) |
 
-> 被群友 @ 时：会话列表金色「@我」角标 + 聊天页「@我」徽标与高亮呼吸气泡 + 长震提醒，三重感知不错过任何一条艾特；有人拍一拍你：居中紫色「XX 拍了拍你」特效胶囊 + 晃动动画 + 长震；长按会话开启免打扰：红点变灰、不自动拉起。
+> 被 @ 时：列表金色「@我」角标 + 聊天页呼吸高亮 + 长震，三重感知；有人拍一拍你：居中紫色特效胶囊 + 晃动动画 + 长震；长按会话可开免打扰。截图由小米官方 Vela 虚拟机（VVD）直接运行 RPK 后 gRPC 实拍，非网页模拟。
 
-> 界面截图由小米官方 Vela 虚拟机（VVD，vela-watch-5.0 镜像）直接运行 RPK 后 gRPC 实拍，非网页模拟。
-
-> **上游仓库说明**：本项目上游为 [Astroptis/band-qq-assistant](https://github.com/Astroptis/band-qq-assistant)。v2.x 系列以上游 main（opencode 基线）为底重写：性能架构升级为「手机端预处理 + 手环零计算直渲染」，并带回未读角标 / 快捷回复 / 历史翻页 / 彩色头像等特性。感谢上游作者的奠基工作。
-
-> 关键词：小米手环9 / Mi Band 9 / 小米手环10 / 小米手环11 / Mi Band 11 / 小米手环QQ / 小米手环9 Pro / Redmi Watch / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / Stapxs-QQ-Lite-X / wearable QQ / smartband chat / Mi Band QQ client
-
-## v2.10.0 更新日志（当前版本）
-
-> 四件套：**分支级界面适配**（根治大屏"缩放异常"——单一 designWidth=192 在 432 宽屏被固件放大 2.25 倍，改为构建期四分支包：band 192/bandpro 336/xiaomis 466/redmiwatch 432，样式值按视觉密度系数换算非等比缩放，InputMethod 键盘常量与圆屏安全边距同步）+ **历史消息分页窗口化**（"历史达到额度就异常"根修：渲染 DOM 恒 ≤renderCap 与数据层解耦，点一次"加载更早"本地窗口前移一批零网络，本地到头才拉手机端，新增"回到最新"按钮）+ **eSIM 独立直连线路**（参考 merqury-vela：@system.fetch 直连 OneBot HTTP API+Bearer token，手机端连接时 direct_config 帧下发配置零手输，sendUpstream 三态编排互联优先/断开自动切直连，chat 4s/列表 20s 前台轮询熄屏即停，设置页"独立线路"状态行）+ **性能四项**（消息落盘 300ms 防抖合并写/排序幂等 WeakSet/数据层 100→120/启动冗余四连 send 清理）。
-- 验证：node 单测 80 测 79 过（新增 19 项直连/直连配置/容量全绿；api 门控 1 例存量基线）；四分支 rpk 解包 51 项断言全 PASS；APK badging vc51/2.10.0 + direct_config 多 dex 标记 FOUND。
-- 版本：RPK 四分支+通用 2.10.0（vc51，versionName 带分支后缀）+ 同步器 2.10.0（vc51，签名同源 af8819e2）。
-
-## v2.9.5 更新日志（历史版本）
-
-> 用户接入真实 NapCat 后实测第二弹：**消息发不出去**。09-26 日志证据：拉名单已走 WS 回退成功，
-> 但发送仍只试 HTTP 双路即失败（`ConnectException: /127.0.0.1:3000`）——手环上显示「已发送」
-> 实为本地回显，QQ 侧从未收到；同时 compose 页存在 private+group 双发。
-
-### ① 发送链路补上 WS 回退（APK，根修）
-v2.9.4 只给联系人拉取（get_friend_list/get_group_list）加了 WS 回退，发送（send_private_msg/send_group_msg）漏掉了。现在 HTTP 两路均失败后，用与拉名单相同的 echo 路由（bandqq-api-*）把发送 action 经 WS 下发，按 `retcode==0` 判定成功 —— **WS 能连就能发消息**，与拉名单同一套保障。日志可查：`send via ws send_group_msg -> ok(retcode=0)`。
-
-### ② compose 页 private+group 双发根治（RPK）
-键盘输入发送页（compose）沿用了早期的「霰弹枪」兼容：先硬编码 `private` 发一条，再由 correctConversationType 后台补发一条正确类型 —— 真实 NapCat 上表现为群会话双发，且 private 那条把群号当 QQ 号发私聊，必然失败还可能误发陌生人。现在发送前先查会话类型（与聊天页 doSend 同语义），**只发一条、类型正确**；本地回显与上行帧同类型。
-
-### ③ requestApi 的 baseUrl 参数被静默丢弃回归修复（APK）
-v2.9.4 重构 requestApiAction 时把 `requestApi(action, baseUrl, callback)` 的 baseUrl 参数弄丢（内部只认 config.httpUrl）——联系人页手动刷新/SyncService 定时拉取传入的自定义地址全部失效（本环境恰与 config 相同未暴露，但单测抓出：旧测试永久挂死于无超时 takeRequest）。现已透传 baseUrl；同时给全部 takeRequest 加超时上限（防再次无限挂起），并把 3 例 v2.9.4 行为变更后未同步的过期测试断言更新为新契约。手机端单测自本版起纳入验证链：**104 测 104 过**。
-
-- 版本：RPK 2.9.5（vc49）+ 同步器 2.9.5（vc44，签名同源 af8819e2）；DevTools 无改动不重发；新增 sendMessage WS 回退单测；手机端单测 104 测 104 过（首次全绿，含 3 例过期断言修正）
-- 用户当天日志（bandqq-2026-09-26.log）已随本版修复从仓库移除（隐私）
-
-## v2.9.4 更新日志（历史版本）
-
-> 用户接入真实 NapCat 服务器后的实测反馈五连修（此前联调一直用 DevTools 模拟端，协议形态差异全部暴露）：
-> 群聊被识别成个人联系人 / 联系人不自动添加 / 快捷回复无确认 / 演示模式清理残留 / 主页日志面板被压扁。
-
-### ① 群聊不再被识别成个人联系人（RPK + APK 双端）
-群名解析链根治：OneBot v11 群消息事件只带群号不带群名，此前群名缓存缺失时手机端会退回「最后一位发送者昵称」当会话名 —— 群会话顶着一个私人昵称出现在列表里，与私聊无差别，用户误认成个人联系人。
-- **手机端**：群名缓存缺失时回退「QQ群 <群号>」（可辨识，不再冒充个人）；收到未知群的消息时按需调 `get_group_info` 拉取真名，拉到即固化进联系人缓存并补推权威会话帧（手环列表立即纠正）；测试推送会话名同样固化
-- **手环端**：会话列表新增蓝色「群」徽章（与 @我 / 临时徽章同构），群/私聊一眼区分；会话签名纳入 type，类型变化触发重渲染
-
-### ② 联系人自动添加（真实 NapCat WS-only 部署兑底）
-此前联系人名单只在连接建立时经 **HTTP** 拉取一次 —— 真实 NapCat 部署常只开 WS 服务（HTTP 是独立开关），拉取静默失败，联系人页永远空白、手环显示「请在手机端添加联系人」。
-- **WS API 兑底**：HTTP 两路均失败后自动经 WS 下发 OneBot action（echo=bandqq-api-* 路由应答，8s 超时兑底）——WS 能连就能拉联系人
-- **重试直到拉到**：连接后名单仍空（NapCat 扫码登录中/接口未就绪）时每 30s 重试，最多 10 次，拉到即停；此前只试一次，登录完成前连接的会话永远拿不到联系人
-- 全链路日志：HTTP 失败 → WS 回退 → 拉取成功/超时，主页日志面板可直接看到
-
-### ③ 快捷回复二次确认（RPK）
-快捷按钮紧凑且消息不可撤回，此前点击即发，误触即误发。现在点击先弹确认框（展示目标会话与完整发送内容，CQ 码原文可见可核对），确认后才发送；点遮罩或取消即撤。
-
-### ④ 清空记录同步清理演示模式联系人（RPK）
-演示模式（关于页连点版本号 7 次）注入的 5 个联系人在「清空记录」后残留为空骨架。现在清空时同步移除演示联系人及其免打扰标记；真实联系人骨架不动（手机端连接后自动重推）。新增 2 例单测覆盖。
-
-### ⑤ 主页实时日志面板不再被压成一条线（APK）
-日志风暴（WS 调试日志高频到达）时面板可能被压成底部一条线。重构：LazyColumn 懒组合 + seq 唯一 key（同毫秒同内容日志撞 key 的隐患一并根除）+ 即时滚动（不再动画互抢）+ 高度 `heightIn(min=140dp)` 兜底（物理上不可坍缩）；用户上滑翻旧日志时暂停自动跟随，拖回底部恢复。
-
-- 版本：RPK 2.9.4（vc48）+ 同步器 2.9.4（vc43，签名同源 af8819e2）；DevTools 无改动不重发；手环侧单测 61 测 60 过（api 门控 1 例为存量环境失败，基线一致）
-- 用户当天日志（bandqq-2026-09-26.log）已随本版修复从仓库移除（隐私）
-
-## v2.9.1 更新日志（历史版本）
-
-### 主页面列表铺满整屏（布局修复）
-用户指出主页面只能显示半页联系人（虚拟机实拍同样暴露此问题）：像素级排查确认 Vela 引擎 scroll 组件的 `background-color` **只绘制内容高度区域、不铺满 flex:1 拉伸后的视口** —— 列表视觉在内容结束处「断裂」，数据少时下半屏全黑，观感如同只能显示半页。
-- **修复**：列表背景移至外层普通容器（flex:1 撑满中区），scroll 改 absolute 铺满（引擎无关的确定高度）；空态同步改 absolute 覆盖不参与 flex
-- **演示模式扩充为 5 个会话**（此前仅 2 个）铺满 212×520 整页：@我 高亮 / 群聊+私聊拍一拍 / 双免打扰灰点 / 无未读纯时间戳全部形态同屏；@我 与拍一拍消息置于最新，打开会话即见特效
-- 版本：RPK 2.9.1（vc39）；同步器 / DevTools 无改动不重发；手环侧单测 56/56 过
-
-### 同步器文件日志系统（免 root 排查）
-有用户反馈「小米运动健康的设备授权管理里找不到 BandQQ」。为让远程排查不再靠猜，同步器 v2.9.1 把日志从内存/内存ring升级为**落盘文件日志**：
-- **日志位置**：`Android/data/io.github.gsjsjzhznsz.bandqq/files/logs/bandqq-日期.log` —— 应用自身外部数据目录，**文件管理器或 USB(MTP) 直接可取，无需 root**；保留 7 天、单文件 8MB 自动滚动
-- **APP 内导出**：主页「实时日志」面板新增「导出」按钮，一键打包全部日志 + 崩溃记录成 zip 分享给开发者
-- **环境自检**：每次进程启动自动记录机型 / 系统与 HyperOS 版本 / **小米运动健康是否安装及版本** / 蓝牙与通知权限 / 电池优化白名单 / 无障碍保活状态
-- **互联授权全链路落盘**：发现手环节点 → `DEVICE_MANAGER` 授权判定结果 → 授权请求送达 → `launchWearApp` 结果 → 心跳，每一步都有日志，用户反馈时发回当天日志即可精确定位卡在哪一步
-- 崩溃记录同步进当天日志（原有崩溃面板保留）
-
-#### 「设备授权管理找不到应用」排查指引
-运动健康的授权条目**只在手机 APP 发起授权请求后才会生成**，按顺序核对：
-1. **机型**：手环 9 / 10 / 11（Vela 快应用机型）才有第三方应用授权；手环 8 及更早、Redmi 手环系列不支持，属机型不适配
-2. **小米运动健康**：需已登录并**连接好手环**；版本过旧没有「设备授权管理」入口，先升级
-3. **触发授权**：手机安装 BandQQ 并打开 APP / 开启同步服务 —— SDK 会自动发起 `DEVICE_MANAGER` 授权请求，条目这时才出现（条目显示的是手机端应用名）
-4. 还不行：把 `Android/data/io.github.gsjsjzhznsz.bandqq/files/logs/` 当天日志发回来，日志会明确写「未发现手环节点 / 授权被拒 / 拉起失败（手环端未安装）」中的哪一种
-
-## v2.9.0 更新日志
-
-### 拍一拍全链路支持（QQ 业务规则修正）
-用户指出关键业务规则：**QQ 私聊没有 @，只有拍一拍；群聊才有 @** —— 此前 DevTools 的「私聊·@我」场景本身就是伪命题（用户多轮实测私聊场景当然永远没有 @ 动效）。本轮：
-- **APP 端**：新增 OneBot `notice.notify.poke`（兼容 `group_poke`/`friend_poke`）拍一拍解析，`target_id == self_id` 判定「拍一拍我」；联系人缓存把拍人者 QQ 号解析为昵称，下发 `poke=1` 帧（入库存 + 会话预览「XX 拍了拍你」）
-- **手环端**：聊天页拍一拍消息渲染为居中紫色特效胶囊（`pokeShake` 晃动动画 ×3，transform 不触发布局重排）+ 与 @我 同级长震；私聊群聊都支持
-- **DevTools 1.3.0**：新增「拍一拍」场景（私聊/群聊）+ 拍一拍自检日志；「@我·仅群聊」按钮明示业务规则，私聊误选 @我 时自动改发拍一拍并提示
-
-### 会话免打扰（红点变灰 + 不拉起）
-- 手环端长按会话 → 弹出「消息免打扰」开关；开启后未读徽标**红点变灰**、该会话消息不再震动
-- 经 `settings_update` 帧双向同步（v2.8.0 互通协议扩展 `mute_list` 字段），手机端同步存储用于拉起拦截
-
-### 自动拉起范围收敛（@我 + 拍一拍我 合并）
-- 拉起范围默认改为「**仅 @我 / 拍一拍我**」（重要消息才拉起，普通消息不再打扰；设置页可改回「所有消息」）
-- 免打扰会话永不触发自动拉起（消息照常推送显示）
-
-### 其它
-- @消息显示优化：协议层 at 段只有 QQ 号，手机端用联系人缓存把「@10086」解析为「@昵称」后下发（解析不到保持原样），手环零计算
-- 手环端新增演示模式彩蛋：设置 → 关于 → 连点版本号 7 次，注入演示会话（含 @我 / 拍一拍 / 免打扰灰点），无手机也能体验完整界面（Vela 虚拟机截图即由此实拍）
-- 版本：同步器 2.9.0（vc39）+ RPK 2.9.0（vc38）+ DevTools 1.3.0（vc6）；单测 APP 侧 poke 5 例 + 手环侧 54/54 过
-
-## v2.8.3 更新日志
-
-### @我 从未生效的真正根因：数字/布尔类型断裂（已修复）
-用户四轮实测后动效仍不出现，本轮逐帧对比 APP 下发字节与手环判定，抓住真凶：APP 端 Gson `addProperty("at", 1)` 下发**数字 1**，手环端 store 判定 `msg.at === true`（严格布尔）——`1 === true` 永远为 false，且负责类型转换的 `protocol.decodePush()` 是**从未被调用的死代码**（app.ux 直接把原始帧塞给 store）→ 实时推送的 @我 高亮从未生效；历史拉取路径原样存数字 1（truthy）反而能亮，完美解释「有时有有时没有」的混乱。同型断裂还击中了撤回同步（`recall:1` vs `=== true` → 撤回帧被当普通消息入库）。
-- **修复**：store.js 三处判定数字/布尔双兼容（at 高亮 / 会话 cat / recall 原位替换）；app.ux @我 强震动双保险（长震区别于普通短震，即使样式被固件降级也能感知被 @）；新增 2 例单测锁定数字形态
-- **手环务必刷 2.8.3+（现最新 2.9.1）**
-
-## v2.8.2 + DevTools 1.2.2 更新日志
-
-### 发送链路已通（1.2.1 实测确认）
-用户日志：连接存活 31s+、连发 8 条零断开——NetworkOnMainThreadException 修复彻底生效，DevTools → APP → 手环消息链路打通。
-
-### @我 动效排查与增强（RPK 2.8.2）
-链路逐环验证（DevTools at段/self_id → APP isAtMe → at:1 下发 → 手环渲染）代码无断点，新增 3 例单测锁定 DevTools 同构事件形态。判定用户侧无动效的原因为：手环 RPK 版本旧（@样式 v2.7.0 才引入）或旧动效在小屏过于隐蔽（底色 #1f1f1f↔#33290e 呼吸幅度太小）。本轮：
-1. **手环聊天页**：@我 消息气泡上方新增静态金色「@我」徽标（不依赖动画支持，任何固件都可见）+ 呼吸底色对比加大（#4a3808）+ 边框亮度拉满。
-2. **DevTools 1.2.2**：@我 场景发送后追加身份自检日志——「at段 qq=… 与 self_id=… 一致」+ 默认身份（10000）提醒，@我 判定链自检不再靠猜。
-3. 手环 RPK 请务必更新到 **2.8.2（versionCode 36）**：手环 设置 → 关于 可核对版本；旧版 RPK 无 @ 样式。
-
-## v2.8.2 + DevTools 1.2.1 更新日志
-
-### DevTools 1.2.1：NetworkOnMainThreadException —— 三轮联调的真正根因
-1.2.0 的「断连归因」日志终于让真凶现形：`下发失败：NetworkOnMainThreadException: null`。**DevTools 自己的 WS 服务器在 UI 主线程直接写 socket**——Android 强制禁止主线程网络 IO，每次点「发送」必然抛异常、写入失败、连接被服务端误标死亡并主动关闭。这就是「发一条断一条、不发能长连、手环永远收不到」的完整解释；此前怀疑的 APP 解析异常、心跳超时、版本问题全部排除（日志中 APP 2.8.2 连接、动作应答、好友/群列表均正常）。
-- **修复**：WsServer 新增专用 `ws-sender` 单线程，`broadcast()` 全部事件写入改为异步投递（fire-and-forget），任意线程可安全调用；写入失败经 onEvent 逐条上报并移除死连接。心跳/动作应答/握手期 lifecycle 原本就在后台线程，不受影响。
-- 仅 DevTools 需更新（vc4/1.2.1，签名同源 af8819e2 可覆盖安装），同步器 APK 与 RPK 无改动。
-
-## v2.8.2 + DevTools 1.2.0 更新日志
-
-### 背景：用户二次实测仍「发消息→断连」
-DevTools 日志特征（每条「已发送」后紧跟「客户端断开」，1~5s 后重连）与 APP 端重连循环节奏完全吻合：v2.8.1 的断连修复（try-catch 兑底）**在同步器 APK 2.8.1 内**，旧版 2.8.0 APP 收到事件解析异常仍会断连。本轮除双向协议补全外，重点新增**版本互认机制**，让旧版 APP 在日志里无处遁形。
-
-### DevTools 1.2.0（协议补全 + 断连归因）
-1. **WS 服务端成为完整 OneBot 正向端**：连接建立即下发 lifecycle connect 元事件 + 每 30s 心跳元事件（OneBot 标准保活语义）；客户端动作帧（`{"action":...,"echo":...}`）→ 解析并应答、echo 原样回带（此前 WS 收到客户端帧只打日志从不回包）；HTTP 与 WS 共用 `ActionRouter` 同一套应答逻辑（get_version_info/get_login_info/get_status/get_friend_list/get_group_list/send_*）。
-2. **HTTP 请求体字节读修复（手环回复收不到的隐藏元凶）**：此前按字符数读 Content-Length（字节数），含中文的请求体（手环快捷回复几乎全是中文）必然少读/阻塞至 8s 超时且不回包 → APP 端 send failed、DevTools 收不到回复日志。改为字节级精确读取（读头到 \r\n\r\n → 读满 Content-Length 字节）。
-3. **断连归因日志**：断开时区分客户端主动 close（带 code/reason，如测试连接的 `code=1000 reason=probe done`）、TCP EOF、读空闲收割（60s，客户端 20s ping 未达=对端已死）、下发写入失败（逐条上报）。下发事件后 4s 内客户端断开自动追加提示：「同步器 APP 低于 2.8.2 时收到事件解析异常会断连，请升级 APK」。
-
-### BandQQ 同步器 2.8.2（版本互认 + 降噪）
-1. **WS 握手即上报身份**：`onOpen` 后立即经 WS 发送 `{"action":"get_version_info","echo":"bandqq-<版本>"}`（Stapxs 同款标准行为，真实协议端会正常应答）。DevTools 1.2.0 日志直接显示「WS 动作 get_version_info（BandQQ APP 2.8.2）→ 已应答」——**没有这行就是对端连的不是最新 APP**。
-2. 服务启动日志记录版本（「BandQQ 同步器 v2.8.2 (vc38) 启动」），设置页日志面板可直接确认。
-3. meta_event（lifecycle/心跳）解析降噪：WARN → DEBUG（DevTools 1.2.0 起每 30s 有心跳帧，属正常协议流量）。
-
-### 保持不变
-- APK 签名同源（SHA-256 `af8819e2…b004`），可**直接覆盖安装**；DevTools 为独立应用（同签名）。
-- 手环端 RPK 无改动，保持 2.8.1。
-
-## v2.8.1 更新日志（历史版本）
-
-### 修复（DevTools 联调实测反馈）
-1. **DevTools 发送消息全链路不通（核心修复）**：根因是 APP 端 OneBot WS 消息处理链上任何异常都会被 OkHttp 的 loopReader catch-all 当作 WebSocket failure 立即断连（DevTools 日志表现为每发一条消息紧跟「客户端断开」，消息丢失）。三层防御修复：① `OneBotClient.onMessage/onOpen/onClosed` 全链 try-catch 兑底，异常写入同步日志（设置页可查）不断连；② `MessageBroker.onEvent/onState/onRecall` 全链兑底（入库/互联下发/自动拉起任何环节异常只记日志）；③ `InterconnectBridge.sendToBand` 互联 SDK 调用兑住同步抛出的异常。同时修复**多重连循环竞态**：`start()` 每次被调（反复点启动同步服务）都会新建重连循环且旧循环不取消 → 双 WS 连接（DevTools 日志「当前 2 个」）+ 旧连接泄漏，现在 `reconnect()` 先取消旧 Job、`connectOnce()` 前先关闭旧 ws。
-2. **手机端关于页打开即闪退**：根因是 AboutScreen 用 `painterResource(R.mipmap.ic_launcher)` 加载图标，而 API 26+ 的 ic_launcher 是 adaptive-icon XML，Compose painterResource 只支持 Vector/Bitmap drawable，遇到 AdaptiveIconDrawable 直接抛 IllegalStateException（其他推入页都没用 mipmap 图标所以只有关于页崩）。改为 `ContextCompat.getDrawable + core-ktx toBitmap()` 可绘制自适应图标。
-3. **手环端关于页点不进去**：`goAbout` 用了无效路由 `uri: '/pages/about/about'`，manifest 注册的 path 是 `/about`（router.push 对未知路由静默失败）。对照工作正常的 /settings、/chat、/compose 统一改为 `uri: '/about'`。
-4. **手环端设置页宽松化**：用户反馈六项设置挤成一坨。新增「连接 / 偏好 / 更多」三个分组节标题拉开层次，行高 52→58px、左右边距 8→10px、行距 4→6px、新增尾部留白，Band 9/10/11 双分辨率适配。
-5. **DevTools 新增「我的身份」配置（@我 判定正名）**：新增「我的QQ号」「我的昵称」输入框（持久化记忆）。@我 场景的 at 段 qq、事件 self_id、`get_login_info` 动作响应三处统一使用该身份——此前固定 self_id=10000 虽然逻辑上自洽，但用户无法确认「到底谁在被 @」，现在可以配置成自己真实的 QQ 号验证 @我 金色高亮与列表角标。HTTP API 新增 `get_login_info` 标准动作响应。
-6. **手机端关于页仓库行改为完整 GitHub 链接**：显示 `https://github.com/Gsjsjzhznsz/BandQQ` 且点击直接打开浏览器（此前只有仓库名+按钮）。
-
-### 保持不变
-- APK 签名同源（SHA-256 `af8819e2…b004`），可**直接覆盖安装**；DevTools 为独立应用（同签名）。
-
-## v2.8.0 更新日志（历史版本）
-
-### 新功能
-1. **BandQQ DevTools 开发者测试工具 APK（全新独立应用）**：模拟 OneBot 协议端（正向 WS 服务器 + HTTP API 服务器，零第三方依赖手写实现），没有 OneBot/SnowLuma 服务器的用户也能完整体验与调试全链路。启动后 BandQQ 同步器用默认地址（ws://127.0.0.1:3001 / http://127.0.0.1:3000）直连即可。支持：私聊/群聊 × 文本/@我/图片/表情/引用回复/语音/文件/长文本/撤回 一键模拟（真实 OneBot v11 数组段格式，走 APP 完整解析管线）；自定义消息（昵称+内容）；模拟好友/群列表（APP 连接后自动拉取出现在联系人页）；收到手环回复可自动回推一条对方消息（闭环演示：「手环回复 → 协议端收到 → 对方再回复」，手环上直接看到对话流）；全程事件日志；端口可配并记忆。
-2. **自动拉起后手环震动提示**：快应用被后台自动打开时手环震动一下（用户可能没注意到屏幕亮了），手动打开快应用不震动。设置页「快应用自动拉起」专区新增「拉起后手环震动」三档：不震 / 短震×2（默认，与消息单次短震区分）/ 长震。实现：launchWearApp 成功后置位待震标志，快应用真正连上（心跳 pong）时经 `band_alert` 帧下发，60s 时间窗口防拉起失败后残留误震。
-3. **双端设置互通**：「消息震动」（新消息手环振动）与「表情渲染」两项影响快应用的设置复制到手环端设置页，**双向实时互通**——手机端改动立即经 `settings_state` 快照帧下发（连接建立时也会下发）；手环端改动经 `settings_update` 帧回传手机端落盘（DataStore 持久化），变化才回推确认帧，防同步风暴；手环本地 storage 缓存加速启动，两端均即时生效无需重启。
-4. **双端关于页**：手机端设置页新增「关于 BandQQ」推入页（含应用图标、版本号、作者、联系方式、GitHub 仓库直达按钮、QQ 号一键复制、项目简介）；手环端设置页新增「关于」行跳转关于页面。作者一秋，联系方式 QQ 群 885186458，仓库 Gsjsjzhznsz/BandQQ。
-
-### 保持不变
-- APK 签名同源（SHA-256 `af8819e2…b004`），可**直接覆盖安装**；DevTools 为独立应用（同签名）。
-
-## v2.7.0 更新日志（历史版本）
-
-### 新功能
-1. **快应用自动拉起（互联 launchWearApp，置顶需求）**：手环QQ 未打开时收到新消息，延迟 N 秒自动通过互联拉起快应用完成同步展示，无需手动打开。设置页新增「快应用自动拉起」专区：总开关（默认关）+ 拉起延迟档位（5/10/15/30 秒）。拉起前先发一条系统通知「将于 N 秒后自动打开手环QQ」——运动健康的应用通知同步会把它镜像到手环，作为预告；点击通知或延迟内手动打开快应用即自动取消本次拉起；勿扰时段/群聊过滤命中的消息不触发。实现上 `AutoLauncher` 只调 `launchWearApp` 不动鉴权/监听链，与心跳重连循环无并发冲突；消息风暴自动去重（同一时刻至多一个待执行任务）。
-2. **手机端联系人/聊天记录列表头像**：新增 `AvatarCircle` 组件（与手环端同一套 id 色相散列 + 首字符），联系人页与聊天记录页每行展示彩色头像圆，两端视觉统一；固定尺寸 Box 居中排版，修复此前行内元素偏下的观感。
-3. **快捷回复即时同步**：设置页新增「保存并同步到手环（即时生效）」按钮，主「保存」按钮也附带同步 —— 改完快捷回复手环立即生效，不再需要重启快应用。
-4. **@我 消息动效**：聊天页 @我 气泡金色描边 + 呼吸光晕动画（仅动 border-color/背景亮度，不触发布局重排，低端手环无掉帧风险；RPK 编译产物已验证 keyframes 正常生成）；首页「@我」角标同步呼吸动效。
-
-### 修复
-5. **手环清空记录后被「重新同步」根治**：旧实现手环端 `api.send(clear_all_history)` 未 await 且失败静默 —— 清空请求丢失后手机端仍保留全部记录，下次会话同步时全部推回手环。现在：手环端 await + 3 次重试（间隔 1.5s）+ 成功后回拉会话确认；手机端收到清空请求后回推权威会话帧（ack）；手机端「清空全部聊天记录」也加二次确认弹窗；两端确认文案均明示「会请求对端同步清除」。
-6. **手环应用图标纯黑**：图标底色 #0D1015（13,16,21）与手环 AMOLED 桌面纯黑存在肉眼可辨的色差（“两个黑不一样”），通道级重着色为 #000000（含过渡带压暗，无色阶环），`scripts/recolor-icon-black.py` 可复跑。
-7. **清空后 @我 角标残留**：手机端 `clearAllHistory` 此前不清 @我 未读集合，清空后手环列表仍残留「@我」提示。
-
-### 保持不变
-- APK 签名同源（SHA-256 `af8819e2…b004`），可**直接覆盖安装**。
-
-## v2.6.0 更新日志（历史版本）
-
-### 修复
-1. **预测性返回开关彻底重做（KernelSU 原版实现逐行对齐）**：克隆 KernelSU 源码实证——开关处理器只写偏好 + 更新 UI，**不反射、不 recreate**（flag 在窗口 attach 时由系统读取，运行期切换本就必须重启生效）。此前 v2.4.7~v2.5.0 反复修的「点击闪烁/被踢回上级菜单/开关回弹」从根上消失：开关点击即生效地保存，摘要明示「重启应用后生效」，无任何页面刷新。
-2. **预测性返回手势从「无效果」变「真实可见」**：BandQQApp 新增 `PredictiveBackHandler`（activity-compose 1.12.4），返回手势期间顶层推入页跟手位移（30% 宽）+ 缩放 + 淡出（HyperOS 预览风格），提交才关闭、取消回弹；关闭开关时退化为离散返回。推入页状态回归 `rememberSaveable`，进程内重建不再丢导航；`RecreateCoordinator` 机制整体删除。
-3. **手环消息「一会就删除」根治（双保险）**：
-   - 手机端：测试推送消息同步写入手机聊天记录（v2.5.0 刻意不入库，但手环会话/历史以手机端为事实源，不入库的消息在手环下次同步时被清掉——正是用户观察到的删除现象）；
-   - 手环端：`setVisibleContacts` 不再无条件清除不在可见联系人列表的会话及其消息缓存，改为「仍有本地消息的临时会话保留」，仅清理无消息的骨架会话。
-4. **Band 9/10/11 视觉 bug（Vela 虚拟机实测发现并逐项修复）**：
-   - 首页空态文案「请在手机端添加联系人」在 212×520 折行出孤字 → 字号 20→18 + 单行裁剪，双屏验证单行；
-   - 设置页「清空全部聊天记录」在 192/212 宽度均折行、且右侧「清空」值被挤成竖排 → 缩短为「清空记录」+ `flex-shrink:0`，双屏验证单行。
-
-### 新功能
-5. **手环表情支持**：QQ 系统表情 id → Unicode emoji 映射表（80 项，id→名称以 NapCat 提取的 QQ NT 官方数据为准，0=惊讶/13=呲牙/14=微笑…），face 段与文本内 emoji 均透传手环渲染；旧版手机端兼容回退路径同步支持。设置页新增「表情原生渲染」开关：Vela 部分固件字形缺失时（Vela 虚拟机实测 watch 5.0 镜像无 emoji 字形，会显示方框）关闭即回退「[表情]」占位，无需重装。
-6. **Vela 虚拟机验收体系（aiot-toolkit VVD）**：脚本化创建 212×520（Band 10/11）与 192×490（Band 9）虚拟机、无头启动、gRPC 截屏 + 触摸注入，两台虚拟机并行验收四个页面布局（本版所有手环端修复均经双分辨率截图验证）。
-
-### 保持不变
-- APK 签名同源（SHA-256 `af8819e2…b004`），可**直接覆盖安装**。
-
-## v2.5.0 更新日志（历史版本）
-
-### 修复
-1. **预测性返回开关真正可用了**：v2.4.7 仍留有一个竞态——配置写入协程刚 `launch` 就 `recreate()`，重组作用域随 Activity 销毁把写协程一起取消，配置从未落盘；重建后读回 false，表现为「点击后界面刷新、开关又弹回关闭」。现在写入、反射设置、recreate 收进**同一个协程顺序执行**（先落盘再重建），点击后界面刷新、开关保持开启、手势立即生效。
-2. **数组段格式（NapCat/SnowLuma 默认）@我 检测失效修复**：旧逻辑只查 `[CQ:at,` 字符串，数组格式消息的 @我 永远检测不到（金色高亮/列表角标失效）；同时数组段格式的 `at` 段降级从 `[其他]` 改为 `@昵称`/`@全体成员`，`reply` 段显示 `[回复]`。
-3. **CQ 字符串格式消息显示修复**：string 上报的协议端此前会把 `[CQ:image,file=…]` 原样透传到手环，现统一降级为 `[图片]`/`[表情]`/`[语音]`/`[视频]`/`[文件]`/`[回复]`/`@…` 可读标记。
-
-### 新功能
-4. **小米手环 11 适配（212×520，PPI 326）**：会话列表/聊天/设置/回复输入四个页面的定高容器全部改为弹性布局（Band 9 为 192×490），两代屏幕双通吃，未来异形屏同样自适应；键盘组件此前已有 screenWidth 运行时自适应。
-5. **手环新消息振动提醒**：收到新消息（非自己回显/撤回帧/隐藏会话）短振动一次——勿扰/群聊过滤已在手机端完成，手环零额外判断，补齐手表端最核心的提醒通道。
-6. **测试推送模拟器**（替代原一键测试推送）：私聊/群聊 × 文本/@我/图片/表情/引用回复/撤回/语音/文件/长文本 九种场景，构造真实 OneBot v11 事件走完整解析管线（含 atMe 检测/内容降级/撤回原位替换），发送者昵称自动轮换，不入历史库不污染真实会话。
-
-### 保持不变
-- APK 签名同源（SHA-256 `af8819e2…b004`），可**直接覆盖安装**。
-
-## v2.4.7 更新日志（历史版本）
-
-### 修复
-1. **预测性返回开关不再「点击被踢回上级菜单」**：开关需要 `activity.recreate()` 才能让系统开关生效，而推入态为防崩溃故意不保存 → 重建后回主页，看起来像开关坏了。现在 recreate 前记录当前推入页，重建后自动重新推入（带自然进入动画），冷启动不受影响。
-
-### 新功能（消息推送策略：全部手机端判断，手环零感知零开销）
-2. **夜间勿扰**：设置勿扰时段（默认 23:00~07:00，支持跨零点），时段内新消息只入历史不推手环——不亮屏不震动；主动打开会话仍可从历史补看。
-3. **群聊推送范围**：全部 / 仅@我（含@全体）/ 不推送 三档；群消息风暴下不再轰炸手环，消息仍完整入库。
-4. **一键测试推送**：设置页一键向手环发送固定「BandQQ 测试」会话消息，验证 手机→蓝牙互联→手环 链路是否畅通，排查问题时不用再等真实消息。
-
-### 保持不变
-- APK 签名同源（SHA-256 `af8819e2…b004`），可**直接覆盖安装**。
-
-## v2.4.6 更新日志（历史版本）
-
-### 修复
-1. **主题设置两个选项点击崩溃（Monet 关键色 / 预测性返回开关）根治**：真根因是 `androidx.activity:activity-compose:1.9.1` 过老——miuix 0.9.3 弹窗系统（MiuixPopupHost → PopupEntry → NavigationBackHandler）依赖 `LocalNavigationEventDispatcherOwner`，只有 activity 1.12+ 的 ComponentActivity 才会提供；此前点击一切会弹窗/下拉的选项都直接 `IllegalStateException: No NavigationEventDispatcher…` 崩溃。升级 activity 1.12.4 + `setContent` 显式注入 owner 双保险根治，并顺带接入完整预测性返回事件管线。
-2. **无障碍权限无法申请修复**：v2.4.5 只有「无障碍干扰检查」行（检测他人清理工具），应用自身没有可开启的无障碍服务，系统设置里根本找不到 BandQQ。新增最小化 `KeepAliveAccessibilityService`（不读屏、不监听任何内容、`canRetrieveWindowContent=false`），系统无障碍列表出现「BandQQ 后台保活」开关；保活向导新增「无障碍保活（本应用）」检测行，实时显示开启状态并一键直达系统无障碍设置。开启后系统对该应用极为宽容，是全品牌通用的保活锚点。
-3. **保活向导「无障碍干扰检查」口径修正**：统计时排除本应用自身的保活锚点服务，开启保活服务后不再误报「发现干扰源」。
-
-### 保持不变
-- APK 签名同源（SHA-256 `af8819e2…b004`），可**直接覆盖安装**。
-
-## v2.4.2 → v2.4.5 更新日志（历史版本，详细根因见 MEMORY.md）
-
-- **v2.4.2**：修复顶栏遮挡内容（每页自带 PageScaffold，KSU 同构）；悬浮底栏导航栏 inset 偏下修复；预测性返回运行时开关（HiddenApiBypass 反射配方）。
-- **v2.4.3**：主页 2×2 快捷操作重构；后台保活向导（品牌自动识别 + 一键电池白名单 + 六品牌分步教程）；动画速度/延迟在主题设置内可调。
-- **v2.4.4**：预测性返回开关立即生效终修；Monet 关键色下拉被推入页遮挡根因修复；保活 4 项权限检测 + 品牌自启动直达；动画补全（isActive/级联封顶/二级展开）；Stapxs 撤回提示移植（手机端替换内容）；OkHttp 共享/状态总线等性能优化。
-- **v2.4.5**：崩溃三层防御（动画回退 KSU 默认 + 推入页 remember + CrashGuard 崩溃落盘查看）；通知权限 manifest + 串行运行时请求；动画延迟根治（currentPage）；图标白边根治（圆裁切去描边环）；**手环端新功能：撤回消息实时原位灰显、@我金色高亮 + 列表角标**（手机端预算、手环零计算零流量）；SnowLuma 原生安卓可行性调研（结论：hook 型协议端受 Android seccomp 限制不可直接内嵌，提供 `scripts/snowluma-termux.sh` 一键本机部署）。
-
-## v2.1.0 更新日志（历史版本）
-
-### 性能与体验
-1. **性能架构重构（防重启死机）**：所有非渲染必需的处理全部移到手机端——CQ 码剥离、emoji 降级、名称截短、头像字符与色相、预览截短、时间格式化、未读计数均在 APK 完成后随帧下发，手环端只做字段透传与渲染，热路径零字符扫描、零日期运算。
-2. **会话列表抖动根治**：`tid` 静态键控 + 120ms 尾沿防抖 + 列表内容签名比对（内容未变不进渲染管线）+ 列表项定高 86px + 角标绝对定位，消息风暴下列表纹丝不动。
-3. **手环图标白边修复**：根因是 RGBA 透明画布被启动器合成露白；重制为全出血 108×108 纯 RGB（无 alpha）图标，物理上不可能出现白边；versionCode 升至 21 刷图标缓存。
-
-### 功能（stapxs 特性在本基线重做）
-4. **未读角标**：手机端为唯一事实源，按会话持久化、封顶 99；手环打开聊天自动回执 `read_chat` 清零并回推列表。
-5. **快捷回复**：手机端设置页可自定义（每行一条，支持 CQ 码）；下发手环的按钮标签自动剥离 CQ/emoji 成纯文本（不再显示格式代码），发送内容保留 CQ 码原文；群聊自动按群类型发送。
-6. **历史翻页**：`before` 时间锚点 + `has_more` 判定，聊天页顶部「加载更早的消息」，prepend 保持阅读位置不跳动。
-7. **会话列表信息升级**：彩色头像（按 targetId 稳定色相）、会话预览、时间串、临时会话标记。
-8. **SnowLuma WebUI 内嵌**：设置页一键打开内嵌 WebView（默认 `http://协议端主机:5099`），扫码登录 / 开端点 / 配置 token 不用切应用。关于「把 SnowLuma 塞进 APK」：SnowLuma 是 hook 型协议端（需 ptrace 注入真实 QQ 进程 + Node 22+），受 Android seccomp 与其许可证双重限制**不可内嵌**，Termux(proot) 部署路径见下文。
-
-### 界面
-9. **miuix (HyperOS 风格) UI**：Android 端为 Compose + miuix 0.9.3（参考 HyperCeiler 视觉），底部四 Tab（主页/联系人/聊天记录/设置）。
-
-### 保持不变
-- APK 签名与 v1.1.x 完全一致（SHA-256 `af8819e2…b004`），可**直接覆盖安装**；rpk 与 APK 同源证书。
-
-## v1.1.1 更新日志（历史版本）
-
-### 修复
-1. **会话列表抖动**：列表项启用 `tid` 键控 diff + 内容签名比对（无变化不重排）+ 消息事件 150ms 防抖，群聊连发不再整表闪烁跳动。
-2. **输入法字库全量扩展**：8241 字 → **CJK 基本区全量 21197 字**（U+4E00–U+9FFF，基于 Unicode Unihan `kMandarin` 读音，常用字保持频率排序在前），生僻字「燚 龘 齉」等均可打。
-3. **历史消息翻页失效**：重写手机端翻页链路——锚点优先用 OneBot 响应的 `message_seq`（兼容 NapCat），私聊附加 Lagrange `time` 秒级参数双兼容；本地无锚点时两段式先拉最新页建立锚点；锚点过新时自动续翻（≤3 跳）；`has_more` 按原始返回条数判定，不再误判「没有更早的消息」。
-4. **冷启动丢消息**：三层修复——
-   - 手机端记录手环离线期间到达消息的会话，手环重连成功后**自动回推每会话最近 30 条**（手环端按 `time|content` 幂等去重）；
-   - 手环端本地持久化上限 30 条/会话 → **60 条/会话**、10 个会话 → **20 个会话**；
-   - 手机端聊天记录持久化由单 key 全量重写改为**按会话分 key**，消除大字符串写入失败导致的整库丢失（旧数据自动迁移）；手环端同步可见联系人时统一字符串比较，杜绝数字/字符串 id 混用误清全部本地消息。
-5. **rpk 应用图标**：图标按 Vela 快应用规范重制为 **108×108**，并升级 versionCode 触发手环端图标缓存刷新，桌面不再显示空白图标。
-6. **其他**：私聊历史响应中自己发送的消息 targetId 重映射（此前会整条丢弃）；自发消息回填 OneBot 响应的 `message_id` 作翻页锚点；翻页收集去重；去重集合加上限保护；首次打开会话本地历史不足时自动从 OneBot 补齐最新一页。
-
-### 保持不变
-- 签名与 v1.1.0 完全一致（SHA-256 `af8819e2…b004`），APK / rpk 均可**直接覆盖安装**，无需卸载旧版。
-
-## 功能特性
+## ✨ 功能特性
 
 ### 消息同步
-- 实时接收 QQ 群聊 / 私聊消息（OneBot v11，兼容 NapCat、Lagrange、LLOneBot、go-cqhttp 等）
-- 会话列表：彩色首字头像（Stapxs 风格）、最新消息预览、时间显示、按最新消息排序
-- 未读角标（99+ 封顶）、`[@我]` 红色标签；@我消息橙色描边 + 手环长震动
-- **断连补推**：手环重启 / 挂后台期间的错过的消息，重连后自动补齐
+- 实时接收 QQ 群聊 / 私聊消息（OneBot v11），@我 提醒、拍一拍特效、撤回灰显
+- 彩色首字头像（Stapxs 风格）、未读角标（99+ 封顶）、免打扰、时间分隔条
+- **断连补推**：手环重启 / 挂后台期间错过的消息，重连后自动补齐
+- 图片消息自动压缩为 96px 缩略图下发（<12KB，并发 2 + 超时兜底）
 
 ### 聊天与输入
-- 气泡布局：自己绿色右侧 / 他人深灰左侧（Stapxs-QQ-Lite-X 风格）
-- 时间分隔条（≥5 分钟自动插入）、群昵称按 ID 稳定取色
-- **快捷回复**：9 条常用语一键发送
-- **拼音输入法**：全键盘拼音输入，字库 **CJK 基本区 21197 字**，候选按常用度排序
-- **历史消息翻页**：「加载更早」按 message_seq / message_id 锚点向前翻页，OneBot 不可用时回退本地缓存
-- 图片消息自动抓取压缩为 96px 缩略图下发手环
+- **分支原生化拼音键盘**：胶囊 / 方屏 / 圆屏三套布局，全量拼音字库 27398 字（生僻字「燚 龘 齉」均可打），候选按常用度排序
+- 快捷回复：9 条常用语一键发送（支持 CQ 码、二次确认防误触）
+- 历史消息**分页窗口化**：点一次「加载更早」只前移一个窗口（零网络/零卡顿），DOM 恒 ≤ 渲染上限，另有「回到最新」按钮
+
+### eSIM / 独立线路
+- **eSIM 独立直连**（参考 merqury-vela）：手表经 @system.fetch 直连 OneBot HTTP API + Bearer token，互联断开自动切换，手机端连接时零手输下发配置
+- **AstrBot 本地伴侣**（v2.12.0）：检测/拉起 AstrBot Bubble，本机 NapCat 一键快连 127.0.0.1，零电脑零局域网
 
 ### 可靠性
-- OneBot WebSocket(:3001) 优先、HTTP(:3000) 自动回退，严格校验业务 retcode（发送失败回显原因）
-- 手环端冷启动自愈（互联通道重建 + 全量状态重拉）
-- 手机端前台服务常驻；聊天记录按会话分 key 持久化
+- OneBot WS(:3001) 优先、HTTP(:3000) 自动回退，API 全部走 echo 路由（WS-only 部署也能拉名单、发消息）
+- 手机端前台服务 + 无障碍保活锚点 + 后台保活向导；消息落盘 300ms 防抖合并写
+- 双端设置互通（表情渲染 / 震动 / 免打扰），夜间勿扰、群聊推送范围手机端判定，手环零开销
 
-## 系统架构
+## 📥 安装（GitHub Releases 分发）
+
+到 [**Releases**](https://github.com/Gsjsjzhznsz/BandQQ/releases) 下载对应文件：
+
+1. **手环端**：下载你设备对应的 `bandqq-<分支>-2.12.0.rpk`，经 Vela 快应用开发者模式 / 手环调试助手安装；关于页可核对版本与分支后缀
+2. **手机端**：安装 `bandqq-sync-release-2.12.0.apk`（签名 SHA-256 `af8819e2…` 全版本同源，直接覆盖安装），授予后台运行权限
+3. **协议端**：NapCat 等开启 WS :3001（推荐）/ HTTP :3000，在同步器设置页填地址与 token，「测试连接」验证
+4. 手机与手环经小米运动健康保持连接，打开手环端 QQ 助手即可使用
+
+> 没有协议端？先装 [BandQQ DevTools](https://github.com/Gsjsjzhznsz/BandQQ/releases)（独立调试 APK，内置 OneBot 模拟器）即可完整体验全链路。
+
+## 🏗️ 系统架构
 
 ```
 ┌──────────┐  小米互联蓝牙通道   ┌─────────────────┐   WS :3001 / HTTP :3000   ┌───────────┐
-│ 小米手环9 │ ◄────────────────► │  BandQQ 同步器   │ ◄────────────────────────► │  OneBot    │
+│ 小米手环  │ ◄────────────────► │  BandQQ 同步器   │ ◄────────────────────────► │  OneBot    │
 │ Vela快应用│    interconnect    │  (Android APK)  │        OneBot v11          │ NapCat 等  │
 └──────────┘                    └─────────────────┘                            └───────────┘
-   band-qq/ (rpk)                  android-sync/                                  QQ 服务端
+   band-qq/ (rpk)                  android-sync/        ▲                        QQ 服务端
+      ▲                                  │               └── 也可跑在本机：
+      └── eSIM 独立直连（@system.fetch）──┘       AstrBot Bubble / Termux / DevTools
 ```
 
 ## 目录结构
 
 ```
-band-qq/        手环端 Vela 快应用源码（aiot-toolkit 构建）
-android-sync/   安卓同步器源码（Kotlin + Compose，AGP 8.13）
-scripts/        构建脚本（build-rpk.sh / build-apk.sh / expand-dict-cjk.py 等）
+band-qq/        手环端 Vela 快应用源码（aiot-toolkit 构建；tools/branch-release.js 分支出包）
+kb-variants/    键盘分支变体快照（rect 方屏 / circle 圆屏，构建期换装）
+android-sync/   安卓同步器源码（Kotlin + Compose + miuix；含 AstrBot 伴侣模块）
+devtools/       BandQQ DevTools 调试器源码（OneBot 模拟器）
+scripts/        构建脚本（build-rpk.sh / build-apk.sh / setup-buildenv.sh 等）
 docs/           NapCat 配置、签名说明等文档
-dist/           v1.1.1 构建产物（rpk + APK）
-legacy/         历史归档（v1.1.0 源码包、旧变体快照）
+legacy/         历史归档（v1.1.0 源码包、旧变体快照、全量字库出处）
 ```
 
-## 快速开始
+## 🛠️ 从源码构建
 
-1. 手环端：将 `dist/bandqq-watch-1.1.1.rpk` 安装到手环（Vela 快应用开发者模式 / 手环调试助手）。
-2. 手机端：安装 `dist/bandqq-sync-release-1.1.1.apk`，授予后台运行权限。
-3. 协议端：NapCat 开 WebSocket 服务端口 3001（或 HTTP 3000），在同步器设置页填入地址与 token。
-4. 手环与手机通过小米运动健康保持连接，打开手环端 QQ 助手即可使用。
+```bash
+# 手环端 rpk（单分支）
+cd band-qq && node tools/branch-release.js bandpro   # band / bandpro / xiaomis / redmiwatch
 
-构建说明见 `scripts/README.md`；字库再生成：`python3 scripts/expand-dict-cjk.py <Unihan_Readings.txt>`。
+# Android 同步器 APK
+bash scripts/setup-buildenv.sh                       # JDK17 + Gradle 8.13 + SDK 一键重建
+cd android-sync && JAVA_HOME=/home/z/tools/jdk-17.0.20.1+1 \
+  /home/z/tools/gradle-8.13/bin/gradle assembleRelease -x lint
+```
 
-## 许可证
+构建说明见 `scripts/README.md`；字库再生成：`python3 scripts/expand-dict-cjk.py <Unihan_Reading...>`。
 
-MIT License（见 LICENSE）。基于上游 [Astroptis/band-qq-assistant](https://github.com/Astroptis/band-qq-assistant) 开发，聊天界面部分交互移植自 [stapxs/Stapxs-QQ-Lite-X](https://github.com/stapxs/Stapxs-QQ-Lite-X)。
+## 📦 更新日志
+
+### v2.12.0（当前版本 · vc52）
+
+> 三件事：**键盘分支原生化**（用户报告「以前给其他分支单独适配的键盘不见了」——v2.10.0 分支包里非手环机型仍被塞着胶囊键盘只做数值缩放；现按分支换装三套原生布局：bandpro/redmiwatch 方屏版、xiaomis 圆屏 QWERTY 版，方屏修上游两处笔误 onscroll 拼写/percent 绑定，方屏符号键扩充 ～！？【】「」、·）+ **全量拼音字库**（legacy 变体 20924 字全量池回归，与现役频序字典合并为 **419 音节 27398 字**，常用字频序拱顶不变、生僻字可打）+ **AstrBot 本地伴侣**（集成 MuFengDR/AstrBot-Bubble-Android-App：设置页新增 AstrBot 卡片，检测/一键拉起 com.astrbot.astrbot_bubble、探测本机 NapCat :3001/:3000 就绪状态、一键填入 127.0.0.1 本机地址；不做二进制合并——对方是 Flutter + 64MB Ubuntu rootfs 独立应用，伴侣模式才是性能与体积最优解）+ **README 项目化改版**。
+
+- 验证：四分支 rpk 解包 68 项断言全 PASS（新增键盘布局类残留检查/按键宽换算/滚动总宽词边界正则/全量字库罕见字标记）；node 单测 80 测 79 过（存量基线一致）；APK badging vc52/2.12.0 + AstrBotBridge 多 dex 标记 FOUND
+- 版本：RPK 四分支+通用 2.12.0（vc52，versionName 带分支后缀）+ 同步器 2.12.0（vc52，签名同源 af8819e2）
+
+<details>
+<summary><b>v2.10.0</b> — 分支级界面适配 + 历史分页窗口化 + eSIM 独立直连 + 性能四项（点击展开）</summary>
+
+- **分支级界面适配**：根治大屏「缩放异常」——单一 designWidth=192 在 432 宽屏被固件放大 2.25 倍；改为构建期四分支包（band 192 / bandpro 336 / xiaomis 466 / redmiwatch 432），样式值按视觉密度系数换算非等比缩放，圆屏安全边距
+- **历史消息分页窗口化**：「历史达到额度就异常」根修——渲染 DOM 恒 ≤ renderCap 与数据层解耦，点一次「加载更早」本地窗口前移一批零网络，本地到头才拉手机端，新增「回到最新」
+- **eSIM 独立直连线路**：参考 merqury-vela，@system.fetch 直连 OneBot HTTP + Bearer token，direct_config 帧下发配置，sendUpstream 三态编排，chat 4s/列表 20s 前台轮询熄屏即停
+- **性能四项**：消息落盘 300ms 防抖合并写 / 排序幂等 WeakSet / 数据层 100→120 / 启动冗余 send 清理
+</details>
+
+<details>
+<summary><b>v2.9.x</b> — 真实 NapCat 接入五连修（点击展开）</summary>
+
+- **v2.9.6**：RW5E 等非手环设备二级页黑屏根修（flex:1 滚动视口高度计算失败 → 四页统一 absolute 铺满同构改造）；全设备版本号统一（APK/rpk 同版同 vc 单轨）
+- **v2.9.5**：发送链路 WS 回退（WS 能连就能发）+ compose 双发根治（先查会话类型只发一条）+ requestApi baseUrl 丢弃回归修复
+- **v2.9.4**：群聊识别成个人联系人根治（get_group_info 补名固化 + 蓝「群」徽章）+ 联系人 WS API 通道与 30s×10 重试 + 快捷回复二次确认 + 演示模式清理 + 主页日志面板防坍缩
+- **v2.9.1**：主页面列表铺满整屏（Vela scroll 背景只绘制内容高度的引擎行为）；同步器落盘文件日志（免 root 排查 + 导出 + 环境自检 + 授权全链路）
+</details>
+
+<details>
+<summary><b>v2.7.0 ~ v2.9.0</b> — 自动拉起 / 拍一拍 / 免打扰 / DevTools（点击展开）</summary>
+
+- **v2.9.0**：拍一拍全链路（私聊也有提醒）+ 会话免打扰（红点变灰 + 不拉起）+ 拉起范围收敛「仅@我和拍一拍」+ 演示模式彩蛋
+- **v2.8.x**：DevTools 1.x 系列（OneBot 模拟器 / 主线程网络 IO 根修 / 版本互认 / 断连归因）+ 双端设置互通 + 双端关于页 + @我 类型断裂根修
+- **v2.7.0**：快应用自动拉起（launchWearApp + 预告通知 + 取消机制）+ 头像组件 + 快捷回复即时同步 + @我 呼吸动效
+</details>
+
+<details>
+<summary><b>v2.1.0 ~ v2.6.0</b> — 性能架构重构与 stapxs 特性回归（点击展开）</summary>
+
+- **v2.6.0**：预测性返回重做（KernelSU 原版对齐 + PredictiveBackHandler）+ 手环表情支持（80 项映射）+ Vela 虚拟机验收体系 + Band 11 适配
+- **v2.5.0**：数组段格式 @我 修复 + Band 11 弹性布局 + 新消息震动 + 测试推送模拟器（9 场景）
+- **v2.4.x**：保活向导 / 崩溃三层防御 / 撤回灰显 / 勿扰 / 群聊推送范围
+- **v2.1.0**：性能架构重构（手机端预处理 + 手环零计算直渲染）+ 未读角标 / 快捷回复 / 历史翻页 / 彩色头像回归 + miuix UI
+- **v1.1.1**：会话列表抖动根治 + 字库全量扩展 + 历史翻页重写 + 冷启动丢消息三层修复
+</details>
+
+## 🙏 引用项目与致谢
+
+本项目站立在这些开源项目之上，排名不分先后：
+
+| 项目 | 引用方式 |
+|---|---|
+| [**AetherZeng1145/Vela-Input-Method-Revise**](https://github.com/AetherZeng1145/Vela-Input-Method-Revise) | 手环端拼音键盘三套布局的直接来源（Capsule 胶囊 / Cube-For-Redmi-Watch 方屏 / QWERTY 圆屏分支），BandQQ 按设备分支构建期换装并扩充符号键 |
+| [**NEORUAA/Vela_input_method**](https://github.com/NEORUAA/Vela_input_method) | 上述键盘的上游原版（Vela 手环拼音输入法开山之作），事件与属性接口一脉相承 |
+| [**Astroptis/band-qq-assistant**](https://github.com/Astroptis/band-qq-assistant) | 本项目上游，v2.x 以上游 main 为底重写性能架构并回归 stapxs 特性 |
+| [**stapxs/stapxs-qq-lite**](https://github.com/ImStapxs/stapxs-qq-lite)（含 Lite-X） | 气泡布局 / 彩色首字头像等视觉范式的参考 |
+| [**CoraTech-Wear/merqury-vela**](https://github.com/CoraTech-Wear/merqury-vela) | eSIM 机型独立直连线路的实现参考（@system.fetch 直连 OneBot HTTP） |
+| [**MuFengDR/AstrBot-Bubble-Android-App**](https://github.com/MuFengDR/AstrBot-Bubble-Android-App) | AstrBot 本地机器人伴侣（手机 proot 一体化部署 NapCat + AstrBot，BandQQ 设置页一键检测/拉起/快连） |
+| [**AstrBot**](https://github.com/AstrBotDevs/AstrBot) | 多平台聊天机器人框架，经 AstrBot Bubble 接入后可为 QQ 号提供大模型自动回复 |
+| [**miuix**](https://github.com/miuix-kotlin-multiplatform/miuix) | Android 端 HyperOS 风格 Compose UI 框架 |
+
+> 感谢小米 Vela 团队的快应用生态与官方 VVD 虚拟机——本项目的界面验收全部由其 gRPC 实拍完成。
+
+## 📄 许可证
+
+[MIT](LICENSE)。第三方组件以其自身许可证为准；引用项目版权归原作者所有。
+
+---
+
+> 关键词：小米手环9 / Mi Band 9 / 小米手环10 / 小米手环11 / 小米手环QQ / 小米手环9 Pro / Redmi Watch / Xiaomi Watch S / Vela 快应用 / 快应用 rpk / OneBot v11 / NapCat / Lagrange / LLOneBot / go-cqhttp / QQ 消息同步 / 手环回复QQ / 手环看QQ / 蓝牙消息助手 / eSIM 手表 / AstrBot / wearable QQ / smartband chat

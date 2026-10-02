@@ -15,7 +15,7 @@ $JAVA_HOME/bin/javac -version
 
 echo "=== 2/5 Gradle 8.13 ==="
 if [ ! -x $T/gradle-8.13/bin/gradle ]; then
-  curl -sSL -o $T/gradle.zip "https://services.gradle.org/distributions/gradle-8.13-bin.zip"
+  curl -sSL -o $T/gradle.zip "https://mirrors.cloud.tencent.com/gradle/gradle-8.13-bin.zip"
   unzip -q $T/gradle.zip -d $T && rm $T/gradle.zip
 fi
 $T/gradle-8.13/bin/gradle --version 2>&1 | grep Gradle || true

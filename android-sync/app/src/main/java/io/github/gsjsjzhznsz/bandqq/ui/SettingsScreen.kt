@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.gsjsjzhznsz.bandqq.WebUiActivity
+import io.github.gsjsjzhznsz.bandqq.astrbot.AstrBotBridge
 import io.github.gsjsjzhznsz.bandqq.config.AppConfig
 import io.github.gsjsjzhznsz.bandqq.config.ConfigHolder
 import io.github.gsjsjzhznsz.bandqq.config.ConfigManager
@@ -83,6 +84,9 @@ fun SettingsScreen(
     var bandMsgVibrate by remember { mutableStateOf(true) }
     var testChatType by remember { mutableStateOf("private") }   // 模拟器：private | group
     var testScenario by remember { mutableStateOf("text") }      // 模拟器：text/at/image/face/reply/recall/voice/file/long
+    // v2.12.0 AstrBot Bubble 本地伴侣：安装状态 + 本机 NapCat 探测结果
+    var astrbotInstalled by remember { mutableStateOf(false) }
+    var astrbotProbeMsg by remember { mutableStateOf("") }
     var loaded by remember { mutableStateOf(false) }
     var entered by remember { mutableStateOf(false) }
 
@@ -114,6 +118,7 @@ fun SettingsScreen(
             }.getOrDefault("")
         }
         loaded = true
+        astrbotInstalled = AstrBotBridge.installedPackage(context) != null
     }
 
     PageScaffold(title = "设置", bottomInnerPadding = bottomInnerPadding) { innerPadding ->
@@ -561,9 +566,82 @@ fun SettingsScreen(
                 }
             }
 
+            // ===== AstrBot Bubble 本地伴侣（v2.12.0，MuFengDR/AstrBot-Bubble-Android-App）=====
+            SmallTitle(text = "AstrBot 本地机器人")
+            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 6)) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            MiuixIcons.CloudFill,
+                            contentDescription = "AstrBot",
+                            tint = colorScheme.primary,
+                            modifier = Modifier.size(20.dp),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            if (astrbotInstalled) "AstrBot Bubble 已安装" else "未检测到 AstrBot Bubble",
+                            fontSize = 14.sp,
+                        )
+                    }
+                    Text(
+                        text = "AstrBot Bubble 在手机 proot 容器里一体化部署 NapCat + AstrBot：" +
+                            "拉起它并启动后，本机即有 OneBot 服务（WS :3001 / HTTP :3000），" +
+                            "BandQQ 直连 127.0.0.1 就能同步手环，同时你的 QQ 号获得大模型自动回复能力。" +
+                            "零电脑、零局域网，与 eSIM 手表的独立直连线路天然兼容。",
+                        modifier = Modifier.padding(top = 8.dp),
+                        fontSize = 12.sp,
+                        color = colorScheme.onSurfaceSecondary,
+                    )
+                    if (astrbotProbeMsg.isNotBlank()) {
+                        Text(
+                            text = astrbotProbeMsg,
+                            modifier = Modifier.padding(top = 8.dp),
+                            fontSize = 13.sp,
+                            color = colorScheme.primary,
+                        )
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    ) {
+                        Button(
+                            onClick = {
+                                if (astrbotInstalled) {
+                                    if (!AstrBotBridge.launch(context)) toast(context, "拉起失败，请手动打开 AstrBot Bubble")
+                                } else {
+                                    AstrBotBridge.openRepo(context)
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColorsPrimary(),
+                            modifier = Modifier.weight(1f),
+                        ) { Text(if (astrbotInstalled) "打开 AstrBot Bubble" else "打开项目主页") }
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    val probe = AstrBotBridge.probeLocalNapcat()
+                                    astrbotProbeMsg = probe.describe()
+                                    toast(context, probe.describe())
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(),
+                            modifier = Modifier.weight(1f),
+                        ) { Text("检测本机 NapCat") }
+                    }
+                    Button(
+                        onClick = {
+                            wsUrl = AstrBotBridge.LOCAL_WS_URL
+                            httpUrl = AstrBotBridge.LOCAL_HTTP_URL
+                            toast(context, "已填入本机地址，请点上方「保存」生效并同步手环")
+                        },
+                        colors = ButtonDefaults.buttonColors(),
+                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                    ) { Text("一键填入本机 NapCat 地址（127.0.0.1）") }
+                }
+            }
+
             // ===== SnowLuma WebUI =====
             SmallTitle(text = "SnowLuma WebUI")
-            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 6)) {
+            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 7)) {
                 Column(
                     modifier = Modifier.padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -592,7 +670,7 @@ fun SettingsScreen(
 
             // ===== 关于内嵌 SnowLuma =====
             SmallTitle(text = "关于协议端")
-            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 7)) {
+            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 8)) {
                 Text(
                     text = "SnowLuma 为 hook 型协议端，需要向桌面版 QQ 进程注入（ptrace），" +
                         "无法直接内嵌进 APK。推荐用 Termux 一键脚本把协议端跑在本机：" +
@@ -607,7 +685,7 @@ fun SettingsScreen(
 
             // ===== 关于 BandQQ（v2.8.0）：仓库/作者/联系/简介 =====
             SmallTitle(text = "关于")
-            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 8)) {
+            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 9)) {
                 ArrowPreference(
                     title = "关于 BandQQ",
                     summary = "版本、GitHub 仓库、作者与联系方式",

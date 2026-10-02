@@ -8,8 +8,8 @@
 上游：https://github.com/Astroptis/band-qq-assistant ；本仓库为完整版镜像（含签名/产物/legacy）。
 
 ## 版本线
-- 当前正式线：v2.10.0（vc51）—— 分支级适配 + 分页窗口化 + eSIM 直连 + 性能四项（2026-10-02）
-- 历史线：v2.9.6（50，四页 absolute 黑屏根修+版本统一）/ v2.9.5（49，WS 回退+双发根治）/ v2.9.4（48，真实 NapCat 五连修）… 详见各节
+- 当前正式线：v2.12.0（vc52）—— 键盘分支原生化 + 全量拼音字库 27398 字 + AstrBot 本地伴侣（2026-10-03）
+- 历史线：v2.10.0（51，分支级适配+分页窗口化+eSIM 直连）/ v2.9.6（50，四页 absolute 黑屏根修+版本统一）/ v2.9.5（49，WS 回退+双发根治）/ v2.9.4（48，真实 NapCat 五连修）… 详见各节
 - git 分支线 v2.11.x（redmi-watch/xiaomi-watch-s/band-pro）已废弃归档，由构建期四分支包取代
 
 ## v2.1.0 已完成（2026-09-09）
@@ -343,3 +343,15 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 - eSIM 直连：src/common/direct.js（@system.fetch POST {action}+Bearer+/api 回退+8s 超时；send_message/get_history/get_visible_contacts 翻义；raw_message CQ 降级 at/poke）；app.ux sendUpstream 三态（互联连→互联失败回退直连/未连有配置→直连优先/都无→原路径）；MessageBroker.pushDirectConfig（127.0.0.1/localhost 不下发）；settings 独立线路状态行；chat 4s/index 20s 前台轮询
 - 性能：store 落盘 300ms 尾沿防抖（快照回调时重取，clearAll 不复活）；排序幂等 WeakSet（数组自定义属性会污染 deepEqual）；MAX_MESSAGES 120；app.onCreate 四连 send 清理
 - 交付：download/ 四分支+通用 rpk（154KB 级）+ APK 12,225,650B；Release v2.10.0 id=402007052 六附件匿名 200
+
+## v2.12.0（2026-10-03，versionCode 52）
+- 键盘分支原生化：用户报告「以前给其他分支单独适配的键盘不见了」——v2.10.0 四分支包里非手环机型仍装着胶囊键盘只做数值缩放。本轮 kb-variants/（仓库根，**不能放 band-qq/ 项目内：aiot 工具链会扫描项目内全部 .ux 并误编译报 not in src**）存三套完整 InputMethod 组件快照，branch-release.js 构建期 swapKeyboard 整体替换 src/components/InputMethod/（tmpdir 暂存→finally 恢复）：
+  - band=pill（Capsule 原样）；bandpro=rect×kbScale(336/432)=0.7778；redmiwatch=rect×1.0（432 原生）；xiaomis=circle×1.0（466 原生 QWERTY）
+  - rect 版修上游两 bug：模板 onscroll="handelScroll"→handleRectScroll 拼写、progress percent 绑定 {{percent}}（不存在的变量）→{{scrollPercent}}
+  - rect 符号键扩充：第二行+～！？第三行+【】「」、·，最宽行=64+15×(62+4)=1054（432 标尺），bandpro 构建期换算 820
+  - circle 版移除 hide 死按钮（compose 不监听 hide 事件）
+  - ⚠️ 教训：**JS 同名函数声明提升，旧版 scaleKeyboardConsts(src,b) 残留会静默覆盖新版 3 参版**（bandpro 1054→820 替换空转，verify 词边界正则才抓到）；verify 断言勿用「编译产物含注释」——编译器剥注释，用数据字（罕见字「錒」=新字库非 GB2312 标记）
+- 全量拼音字库：legacy/com-bandqq-variant 全量池（20924 字数组格式）与现役频序字典（6763 字符串格式）合并 → **419 音节 27398 字**（字符串格式兼容 dicUtil split('')；频序拱顶保留，脚本 scripts/convert_dic.py）；kb-variants/*/assets/dic.js 同步
+- AstrBot 本地伴侣（APK）：集成 MuFengDR/AstrBot-Bubble-Android-App 为伴侣模式（**不做二进制合并**：对方 Flutter+64MB Ubuntu rootfs）。app/…/astrbot/AstrBotBridge.kt：检测 com.astrbot.astrbot_bubble(+.profile/.debug)→getLaunchIntentForPackage 拉起；probeLocalNapcat TCP 探测 127.0.0.1:3001/3000；LOCAL_WS_URL/LOCAL_HTTP_URL 一键填入。manifest 加 <queries> 包可见性；SettingsScreen 新增「AstrBot 本地机器人」卡片（入场序号 6，后续卡片顺移）
+- README 项目化改版：徽章/分支矩阵含键盘列/功能分区/安装指向 Releases/更新日志 <details> 折叠/引用致谢表（Vela-Input-Method-Revise、NEORUAA、上游、stapxs、merqury-vela、AstrBot-Bubble、AstrBot、miuix）
+- 验证：四分支 rpk 解包 68 断言全 PASS；node 单测 80/79（基线）；APK badging vc52/2.12.0 + AstrBotBridge 多 dex FOUND；构建环境第 N 次重建：/home/z/tools+jdk17、/home/z/android-sdk 存活，scripts/setup-buildenv.sh 已改腾讯 gradle 镜像

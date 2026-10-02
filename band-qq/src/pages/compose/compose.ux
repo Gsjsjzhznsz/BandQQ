@@ -10,9 +10,12 @@
         <text class="preview-text">{{draft || '在这里输入内容，点击下方键盘按键'}}</text>
       </scroll>
     </div>
-    <!-- v2.9.2 键盘换装：AetherZeng1145/Vela-Input-Method-Revise Capsule-For-Xiaomi-Band
-         （胶囊屏原生 192×490 渲染重构版；props 仅 hide/maxlength/vibratemode，
-          complete/delete 事件与旧 NEORUAA 组件一致，compose 用法无需改动） -->
+    <!-- 键盘换装（v2.9.2 起，v2.12.0 分支原生化）：
+         基座 AetherZeng1145/Vela-Input-Method-Revise（基于 NEORUAA/Vela_input_method）。
+         源码树默认装 Capsule-For-Xiaomi-Band 胶囊版；bandpro/redmiwatch 装方屏 rect 版、
+         xiaomis 装圆屏 QWERTY 版——由 tools/branch-release.js 构建期从 kb-variants/ 整体
+         换装（kbScale 专属换算）。props 仅 hide/maxlength/vibratemode，
+         complete/delete 事件三变体一致，compose 用法无需改动 -->
     <input-method
       hide="{{false}}"
       maxlength="5"
