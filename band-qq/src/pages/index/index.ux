@@ -37,10 +37,14 @@
       <text class="empty-text">{{conversations.length === 0 ? '请在手机端添加联系人' : '暂无会话'}}</text>
     </div>
     </div>
-    <!-- v2.9.0 长按会话菜单：消息免打扰开关 -->
+    <!-- v2.9.0 长按会话菜单：消息免打扰开关；v2.13.0 扩展 OneBot v11 动作
+         （私聊：点赞/拍一拍；群聊：群签到），结果经 action_result 帧 toast -->
     <div class="menu-mask" if="{{menuConv}}" @click="closeMenu"></div>
     <div class="menu" if="{{menuConv}}">
       <text class="menu-title">{{menuConv.n9 || menuConv.name}}</text>
+      <text class="menu-row" onclick="menuLike" if="{{menuConv.type !== 'group'}}">点赞</text>
+      <text class="menu-row" onclick="menuPoke" if="{{menuConv.type !== 'group'}}">拍一拍</text>
+      <text class="menu-row" onclick="menuSign" if="{{menuConv.type === 'group'}}">群签到</text>
       <text class="menu-row" onclick="toggleMute">{{menuMuted ? '关闭消息免打扰' : '消息免打扰'}}</text>
       <text class="menu-row menu-cancel" onclick="closeMenu">取消</text>
     </div>
@@ -240,6 +244,30 @@
     },
     closeMenu() {
       this.menuConv = null
+    },
+    /** v2.13.0 OneBot v11 扩展：点赞（send_like，私聊） */
+    menuLike() {
+      const item = this.menuConv
+      if (!item || !item.id) return
+      const def = this.$app.$def
+      def.sendUpstream(protocol.sendLike(item.id, 10))
+      this.closeMenu()
+    },
+    /** v2.13.0 OneBot v11 扩展：拍一拍（friend_poke，私聊） */
+    menuPoke() {
+      const item = this.menuConv
+      if (!item || !item.id) return
+      const def = this.$app.$def
+      def.sendUpstream(protocol.sendPoke(item.id, 'private'))
+      this.closeMenu()
+    },
+    /** v2.13.0 OneBot v11 扩展：群签到（send_group_sign，群聊） */
+    menuSign() {
+      const item = this.menuConv
+      if (!item || !item.id) return
+      const def = this.$app.$def
+      def.sendUpstream(protocol.groupSign(item.id))
+      this.closeMenu()
     },
     /** 切换免打扰：本地立即生效 + settings_update 上报手机端（拦截快应用拉起） */
     async toggleMute() {

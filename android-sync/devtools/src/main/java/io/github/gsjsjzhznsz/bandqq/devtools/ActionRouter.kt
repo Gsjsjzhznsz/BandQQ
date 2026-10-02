@@ -14,7 +14,9 @@ import java.util.concurrent.atomic.AtomicLong
  *
  * 支持动作：get_version_info（真实版本数据）、get_login_info（我的身份）、
  * get_friend_list / get_group_list（模拟联系人）、get_status、
- * send_private_msg / send_group_msg（日志 + 可选自动回推闭环）、其余通用成功。
+ * send_private_msg / send_group_msg（日志 + 可选自动回推闭环）、其余通用成功；
+ * v1.4.0：send_like / friend_poke / group_poke / send_group_sign / delete_msg /
+ * set_msg_emoji_like / get_stranger_info / get_group_member_info（v2.13.0 APP 新动作同步模拟）。
  */
 class ActionRouter(
     private val autoEcho: () -> Boolean,
@@ -50,6 +52,43 @@ class ActionRouter(
             "get_friend_list" -> friendList()
             "get_group_list" -> groupList()
             "send_private_msg", "send_group_msg" -> handleSend(action, params)
+            // ===== v1.4.0（v2.13.0 APP 同步）：OneBot v11 扩展动作模拟 =====
+            "send_like" -> {
+                val uid = params.optLong("user_id", 0L)
+                val times = params.optInt("times", 10)
+                onLog("动作 send_like → 给 $uid 点赞 ×$times（模拟成功）")
+                JSONObject()
+            }
+            "friend_poke", "group_poke" -> {
+                val uid = params.optLong("user_id", 0L)
+                val gid = params.optLong("group_id", 0L)
+                if (gid > 0L) onLog("动作 group_poke → 群 $gid 里拍了拍 $uid（模拟）")
+                else onLog("动作 friend_poke → 拍了拍 $uid（模拟）")
+                JSONObject()
+            }
+            "send_group_sign" -> {
+                onLog("动作 send_group_sign → 群 ${params.optLong("group_id", 0L)} 签到（模拟）")
+                JSONObject()
+            }
+            "delete_msg" -> {
+                onLog("动作 delete_msg → 撤回消息 ${params.optString("message_id", "")}（模拟）")
+                JSONObject()
+            }
+            "set_msg_emoji_like" -> {
+                onLog("动作 set_msg_emoji_like → 消息 ${params.optString("message_id", "")} 回应 ${params.optString("emoji_id", "")}（模拟）")
+                JSONObject()
+            }
+            "get_stranger_info" -> {
+                val uid = params.optLong("user_id", 10086L)
+                onLog("动作 get_stranger_info → $uid 资料（模拟）")
+                JSONObject().put("user_id", uid).put("nickname", "测试好友").put("level", 12)
+            }
+            "get_group_member_info" -> {
+                val uid = params.optLong("user_id", 10086L)
+                onLog("动作 get_group_member_info → $uid 群资料（模拟）")
+                JSONObject().put("user_id", uid).put("nickname", "测试好友")
+                    .put("card", "群友小王").put("level", 8)
+            }
             else -> {
                 onLog("动作 $action（通用成功）")
                 JSONObject()

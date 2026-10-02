@@ -97,6 +97,26 @@ case 'push_message':
       // 手环持久化；eSIM 机型在互联断开（手机不在旁）时自动切直连收发
       store.setDirectCfg({ url: msg.url, token: msg.token }).then(() => emit('direct_config', msg))
       break
+    case 'action_result':
+      // v2.13.0 OneBot v11 扩展动作结果：点赞/拍一拍/群签到/撤回/表情回应的成败 toast；
+      // message_id 回填帧（action=send）透传给 store 定位本地消息，供撤回/回应复用
+      try {
+        if (msg.action === 'send' && msg.message_id && msg.target_id) {
+          store.bindMessageId(msg.target_id, msg.time, msg.message_id)
+        }
+        const pr = require('@system.prompt')
+        pr.showToast({ msg: msg.info || (msg.ok ? '操作成功' : '操作失败'), duration: 1500 })
+      } catch (e) {}
+      emit('action_result', msg)
+      break
+    case 'user_info':
+      // v2.13.0 资料查询结果：简版 toast 展示（昵称 + 群等级），完整帧 emit 给聊天页
+      try {
+        const pu = require('@system.prompt')
+        pu.showToast({ msg: (msg.nickname || '未知用户') + (msg.level ? ' · Lv' + msg.level : ''), duration: 2000 })
+      } catch (e) {}
+      emit('user_info', msg)
+      break
     case 'band_alert':
       // v2.8.0 自动拉起提示震动：快应用被后台自动打开时提醒用户（手动打开不触发）。
       // mode 1=短震×2（默认）2=长震；与 push_message 的单次短震区分。

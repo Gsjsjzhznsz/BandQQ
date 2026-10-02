@@ -209,6 +209,25 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
         persistAtUnread()
     }
 
+    /**
+     * v2.13.0：发送成功后回填 message_id（撤回/表情回应定位用）。
+     * 按 targetId+time+content 三元组定位（与 addMessage 去重键一致）。
+     */
+    fun setMessageId(targetId: String, time: Long, content: String, messageId: String) {
+        val list = messagesByTarget[targetId] ?: return
+        val t = normalizeTime(time)
+        var hit = false
+        for (i in list.indices) {
+            val m = list[i]
+            if (m.time == t && m.content == content && m.isSelf) {
+                list[i] = m.copy(messageId = messageId)
+                hit = true
+                break
+            }
+        }
+        if (hit) persistMessages()
+    }
+
     /** 手环打开聊天时上报已读：清零未读计数 + 清除 @我 未读提示 */
     fun markRead(targetId: String) {
         val changed = unreadByTarget.remove(targetId) != null

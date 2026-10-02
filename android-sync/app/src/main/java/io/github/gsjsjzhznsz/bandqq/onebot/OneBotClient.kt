@@ -208,12 +208,26 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
         targetId: String,
         content: String,
         httpUrlOverride: String?,
-        callback: (Boolean) -> Unit
+        callback: (ok: Boolean, messageId: String) -> Unit
     ) {
         val baseUrl = httpUrlOverride ?: config.httpUrl
         val body = parser.buildSendRequest(messageType, targetId, content)
         // SnowLuma 从路径解析 action：发到与 body action 一致的路径（如 /send_group_msg）
         val action = parser.actionName(messageType)
+        /** v2.13.0：从 OneBot 应答 data.message_id 提取消息 ID（撤回定位用） */
+        fun extractMessageId(resp: String): String = try {
+            com.google.gson.JsonParser.parseString(resp).asJsonObject
+                .get("data")?.takeIf { it.isJsonObject }
+                ?.getAsJsonObject()?.get("message_id")?.let { mid ->
+                    when {
+                        mid.isJsonPrimitive && mid.asJsonPrimitive.isNumber -> mid.asString
+                        mid.isJsonPrimitive -> mid.asString
+                        else -> ""
+                    }
+                } ?: ""
+        } catch (_: Throwable) {
+            ""
+        }
         fun doSend(url: String, onFail: () -> Unit) {
             val request = Request.Builder()
                 .url(url)
@@ -232,7 +246,7 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
                         if (it.isSuccessful) {
                             // OneBot 返回 HTTP 200，但业务可能失败（retcode != 0），记录下来便于定位
                             try { LogBus.log("OneBotClient", LogLevel.DEBUG, "send ok(${it.code}) $url -> $resp") } catch (t: Throwable) {}
-                            callback(true)
+                            callback(true, extractMessageId(resp))
                         } else {
                             try { LogBus.log("OneBotClient", LogLevel.ERROR, "send http ${it.code} $url -> $resp") } catch (t: Throwable) {}
                             onFail()
@@ -258,7 +272,7 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
      * 实测依据（用户 09-26 日志）：拉名单已走 WS 回退成功，但发送只试 HTTP 双路即失败，
      * 手环上显示"已发送"实为本地回显，QQ 侧从未收到。
      */
-    private fun sendViaWs(body: String, action: String, callback: (Boolean) -> Unit) {
+    private fun sendViaWs(body: String, action: String, callback: (ok: Boolean, messageId: String) -> Unit) {
         val paramsJson = try {
             com.google.gson.JsonParser.parseString(body).asJsonObject
                 .get("params")?.toString() ?: "{}"
@@ -267,7 +281,7 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
         }
         requestViaWs(action, paramsJson) { resp ->
             if (resp == null) {
-                callback(false)
+                callback(false, "")
                 return@requestViaWs
             }
             val ok = try {
@@ -276,13 +290,18 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
             } catch (t: Throwable) {
                 false
             }
+            val messageId = try {
+                com.google.gson.JsonParser.parseString(resp).asJsonObject
+                    .get("data")?.takeIf { it.isJsonObject }?.asJsonObject
+                    ?.get("message_id")?.takeIf { it.isJsonPrimitive }?.asString ?: ""
+            } catch (_: Throwable) { "" }
             try {
                 LogBus.log(
                     "OneBotClient", if (ok) LogLevel.DEBUG else LogLevel.WARN,
                     "send via ws $action -> ${if (ok) "ok(retcode=0)" else "fail: ${resp.take(200)}"}"
                 )
             } catch (t: Throwable) {}
-            callback(ok)
+            callback(ok, messageId)
         }
     }
 

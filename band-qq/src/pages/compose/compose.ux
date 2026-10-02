@@ -10,16 +10,20 @@
         <text class="preview-text">{{draft || '在这里输入内容，点击下方键盘按键'}}</text>
       </scroll>
     </div>
-    <!-- 键盘换装（v2.9.2 起，v2.12.0 分支原生化）：
-         基座 AetherZeng1145/Vela-Input-Method-Revise（基于 NEORUAA/Vela_input_method）。
-         源码树默认装 Capsule-For-Xiaomi-Band 胶囊版；bandpro/redmiwatch 装方屏 rect 版、
-         xiaomis 装圆屏 QWERTY 版——由 tools/branch-release.js 构建期从 kb-variants/ 整体
-         换装（kbScale 专属换算）。props 仅 hide/maxlength/vibratemode，
-         complete/delete 事件三变体一致，compose 用法无需改动 -->
+    <!-- 键盘换装（v2.13.0 全分支统一 NEORUAA/Vela_input_method 上游单组件）：
+         单文件内置 circle/rect/pill-shaped 三屏形布局（QWERTY+T9，中/英/日），
+         词库 assets/dictionary/*.txt（file.readText 按需加载，manifest 已声明 system.file），
+         字库含 BandQQ 全量 27398 字合并池（scripts/merge_dict_neoruaa.py 生成）。
+         screentype 由 tools/branch-release.js 构建期按分支写字面量：
+           band=pill-shaped(192原生) / bandpro=rect(336原生) /
+           xiaomis=circle(466/480换算) / redmiwatch=rect(432自适应宽)。
+         事件接口：complete 选字上屏 / delete 拼音清空后删草稿字符（上游原生支持），
+         与旧胶囊版一致，compose 用法无需改动 -->
     <input-method
       hide="{{false}}"
       maxlength="5"
       vibratemode="short"
+      screentype="pill-shaped"
       @complete="onComplete"
       @delete="onDelete"
     ></input-method>

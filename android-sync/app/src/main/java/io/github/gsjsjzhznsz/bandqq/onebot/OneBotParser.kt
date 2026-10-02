@@ -445,6 +445,8 @@ class OneBotParser {
         obj.addProperty("time", msg.time)
         obj.addProperty("is_self", msg.isSelf)
         obj.addProperty("visible", visible)
+        // v2.13.0：message_id 透传（手环端撤回自己消息/表情回应定位用；为空省字节）
+        if (msg.messageId.isNotEmpty()) obj.addProperty("message_id", msg.messageId)
         // at=1 表示该消息 @我/全体（手环端高亮；为真才下发省字节）
         if (msg.atMe) obj.addProperty("at", 1)
         return obj.toString()

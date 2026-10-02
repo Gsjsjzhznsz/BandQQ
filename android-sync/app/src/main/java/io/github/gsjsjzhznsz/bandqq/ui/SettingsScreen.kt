@@ -84,9 +84,8 @@ fun SettingsScreen(
     var bandMsgVibrate by remember { mutableStateOf(true) }
     var testChatType by remember { mutableStateOf("private") }   // 模拟器：private | group
     var testScenario by remember { mutableStateOf("text") }      // 模拟器：text/at/image/face/reply/recall/voice/file/long
-    // v2.12.0 AstrBot Bubble 本地伴侣：安装状态 + 本机 NapCat 探测结果
-    var astrbotInstalled by remember { mutableStateOf(false) }
-    var astrbotProbeMsg by remember { mutableStateOf("") }
+    // v2.13.0 AstrBot 双包：卡片由 flavor sourceSet 的 AstrBotSection 提供
+    // （companion=伴侣模式 / bundled=内嵌引擎），本文件只传一键填地址回调
     var loaded by remember { mutableStateOf(false) }
     var entered by remember { mutableStateOf(false) }
 
@@ -118,7 +117,6 @@ fun SettingsScreen(
             }.getOrDefault("")
         }
         loaded = true
-        astrbotInstalled = AstrBotBridge.installedPackage(context) != null
     }
 
     PageScaffold(title = "设置", bottomInnerPadding = bottomInnerPadding) { innerPadding ->
@@ -566,78 +564,19 @@ fun SettingsScreen(
                 }
             }
 
-            // ===== AstrBot Bubble 本地伴侣（v2.12.0，MuFengDR/AstrBot-Bubble-Android-App）=====
+            // ===== AstrBot 本地机器人（v2.13.0 双包：瘦包伴侣模式 / 胖包内嵌引擎）=====
+            // 卡片实现按 flavor 隔离：app/src/companion/.../AstrBotSection.kt（检测拉起
+            // 独立 AstrBot Bubble）与 app/src/bundled/.../AstrBotSection.kt（内嵌引擎
+            // 安装/启动/停止/日志），同包同签名，编译期二选一。
             SmallTitle(text = "AstrBot 本地机器人")
-            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 6)) {
-                Column(modifier = Modifier.padding(12.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            MiuixIcons.CloudFill,
-                            contentDescription = "AstrBot",
-                            tint = colorScheme.primary,
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            if (astrbotInstalled) "AstrBot Bubble 已安装" else "未检测到 AstrBot Bubble",
-                            fontSize = 14.sp,
-                        )
-                    }
-                    Text(
-                        text = "AstrBot Bubble 在手机 proot 容器里一体化部署 NapCat + AstrBot：" +
-                            "拉起它并启动后，本机即有 OneBot 服务（WS :3001 / HTTP :3000），" +
-                            "BandQQ 直连 127.0.0.1 就能同步手环，同时你的 QQ 号获得大模型自动回复能力。" +
-                            "零电脑、零局域网，与 eSIM 手表的独立直连线路天然兼容。",
-                        modifier = Modifier.padding(top = 8.dp),
-                        fontSize = 12.sp,
-                        color = colorScheme.onSurfaceSecondary,
-                    )
-                    if (astrbotProbeMsg.isNotBlank()) {
-                        Text(
-                            text = astrbotProbeMsg,
-                            modifier = Modifier.padding(top = 8.dp),
-                            fontSize = 13.sp,
-                            color = colorScheme.primary,
-                        )
-                    }
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        Button(
-                            onClick = {
-                                if (astrbotInstalled) {
-                                    if (!AstrBotBridge.launch(context)) toast(context, "拉起失败，请手动打开 AstrBot Bubble")
-                                } else {
-                                    AstrBotBridge.openRepo(context)
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColorsPrimary(),
-                            modifier = Modifier.weight(1f),
-                        ) { Text(if (astrbotInstalled) "打开 AstrBot Bubble" else "打开项目主页") }
-                        Button(
-                            onClick = {
-                                scope.launch {
-                                    val probe = AstrBotBridge.probeLocalNapcat()
-                                    astrbotProbeMsg = probe.describe()
-                                    toast(context, probe.describe())
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(),
-                            modifier = Modifier.weight(1f),
-                        ) { Text("检测本机 NapCat") }
-                    }
-                    Button(
-                        onClick = {
-                            wsUrl = AstrBotBridge.LOCAL_WS_URL
-                            httpUrl = AstrBotBridge.LOCAL_HTTP_URL
-                            toast(context, "已填入本机地址，请点上方「保存」生效并同步手环")
-                        },
-                        colors = ButtonDefaults.buttonColors(),
-                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
-                    ) { Text("一键填入本机 NapCat 地址（127.0.0.1）") }
-                }
-            }
+            AstrBotSection(
+                entered = entered,
+                onFillLocalAddresses = {
+                    wsUrl = AstrBotBridge.LOCAL_WS_URL
+                    httpUrl = AstrBotBridge.LOCAL_HTTP_URL
+                    toast(context, "已填入本机地址，请点上方「保存」生效并同步手环")
+                },
+            )
 
             // ===== SnowLuma WebUI =====
             SmallTitle(text = "SnowLuma WebUI")

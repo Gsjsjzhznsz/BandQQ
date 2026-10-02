@@ -30,7 +30,8 @@ interface MessageSender {
         targetId: String,
         content: String,
         httpUrlOverride: String? = null,
-        callback: (Boolean) -> Unit = {}
+        /** v2.13.0：回传发送结果与协议端返回的 message_id（撤回定位用，可能为空） */
+        callback: (ok: Boolean, messageId: String) -> Unit = { _, _ -> }
     )
 
     /**
@@ -90,7 +91,16 @@ class MessageBroker(
                 val content = obj.get("content")?.asString ?: ""
                 val frameTime = obj.get("time")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asLong
                 val sendTime = if (frameTime != null && frameTime > 0) frameTime else System.currentTimeMillis()
-                oneBot.sendMessage(messageType, targetId, content)
+                oneBot.sendMessage(messageType, targetId, content) { ok, messageId ->
+                    // v2.13.0：发送结果与 message_id 回传手环（撤回/表情回应定位用）
+                    if (ok && messageId.isNotEmpty()) {
+                        store.setMessageId(targetId, sendTime, content, messageId)
+                        bandSender(
+                            "{\"type\":\"action_result\",\"seq\":0,\"action\":\"send\",\"ok\":true," +
+                                "\"target_id\":\"$targetId\",\"time\":$sendTime,\"message_id\":\"$messageId\"}"
+                        )
+                    }
+                }
                 // 记录自己发送的消息，保证手机端历史与会话完整性。
                 // 会话名以目标联系人的真实名称为准，避免落成"我"导致会话列表出现"我"
                 val selfSenderName = store.contactName(targetId).ifBlank { targetId }
@@ -124,6 +134,100 @@ class MessageBroker(
                         targetName = targetName
                     )
                 )
+                return true
+            }
+            "send_like" -> {
+                // v2.13.0 OneBot v11 扩展：点赞（NapCat send_like，s=次数上限依协议端）
+                val targetId = obj.get("target_id")?.asString ?: return false
+                val times = obj.get("times")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asInt ?: 10
+                callOneBot(
+                    "send_like", "{\"user_id\":$targetId,\"times\":$times}", seq,
+                    "点赞 ×$times", targetId
+                )
+                return true
+            }
+            "send_poke" -> {
+                // v2.13.0 OneBot v11 扩展：主动拍一拍（NapCat friend_poke / group_poke）
+                val targetId = obj.get("target_id")?.asString ?: return false
+                val chatType = obj.get("chat_type")?.asString ?: "private"
+                val action = if (chatType == "group") "group_poke" else "friend_poke"
+                val params = if (chatType == "group") {
+                    "{\"group_id\":$targetId,\"user_id\":$targetId}"
+                } else {
+                    "{\"user_id\":$targetId}"
+                }
+                callOneBot(action, params, seq, "拍一拍", targetId)
+                return true
+            }
+            "group_sign" -> {
+                // v2.13.0 OneBot v11 扩展：群签到（send_group_sign，部分协议端支持）
+                val targetId = obj.get("target_id")?.asString ?: return false
+                callOneBot("send_group_sign", "{\"group_id\":$targetId}", seq, "群签到", targetId)
+                return true
+            }
+            "message_action" -> {
+                // v2.13.0 OneBot v11 扩展：消息级动作（表情回应 / 撤回自己消息）
+                val messageId = obj.get("message_id")?.asString ?: return false
+                val sub = obj.get("sub_action")?.asString ?: ""
+                when (sub) {
+                    "delete" -> callOneBot(
+                        "delete_msg", "{\"message_id\":\"$messageId\"}", seq, "撤回消息", ""
+                    )
+                    "emoji" -> {
+                        val emojiId = obj.get("emoji_id")?.takeIf { it.isJsonPrimitive }?.asString ?: "128077"
+                        callOneBot(
+                            "set_msg_emoji_like",
+                            "{\"message_id\":\"$messageId\",\"emoji_id\":\"$emojiId\"}",
+                            seq, "表情回应 $emojiId", ""
+                        )
+                    }
+                    else -> log("message_action 未知子动作: $sub")
+                }
+                return true
+            }
+            "get_user_info" -> {
+                // v2.13.0 OneBot v11 扩展：资料查询（私聊 get_stranger_info / 群 get_group_member_info）
+                val targetId = obj.get("target_id")?.asString ?: return false
+                val chatType = obj.get("chat_type")?.asString ?: "private"
+                val groupId = obj.get("group_id")?.asString
+                val action: String
+                val params: String
+                if (chatType == "group" && groupId != null) {
+                    action = "get_group_member_info"
+                    params = "{\"group_id\":$groupId,\"user_id\":$targetId}"
+                } else {
+                    action = "get_stranger_info"
+                    params = "{\"user_id\":$targetId}"
+                }
+                oneBot.requestApiAction(action, params) { raw ->
+                    var ok = false
+                    if (raw != null) {
+                        try {
+                            val root = JsonParser.parseString(raw).asJsonObject
+                            if (root.get("retcode")?.asInt == 0 || root.has("data")) {
+                                val d = root.getAsJsonObject("data")
+                                if (d != null) {
+                                    val nick = d.get("nickname")?.takeIf { it.isJsonPrimitive }?.asString
+                                        ?: d.get("card")?.takeIf { it.isJsonPrimitive }?.asString ?: ""
+                                    val uid = d.get("user_id")?.takeIf { it.isJsonPrimitive }?.asString ?: targetId
+                                    val level = d.get("level")?.takeIf { it.isJsonPrimitive }?.asString ?: ""
+                                    ok = true
+                                    val reply = JsonObject()
+                                    reply.addProperty("type", "user_info")
+                                    reply.addProperty("seq", seq)
+                                    reply.addProperty("target_id", targetId)
+                                    reply.addProperty("nickname", nick)
+                                    reply.addProperty("user_id", uid)
+                                    if (level.isNotEmpty()) reply.addProperty("level", level)
+                                    bandSender(reply.toString())
+                                }
+                            }
+                        } catch (t: Throwable) {
+                            log("get_user_info 解析失败: $t")
+                        }
+                    }
+                    if (!ok) bandSender(actionResultFrame(seq, "资料查询失败", targetId))
+                }
                 return true
             }
             "get_history" -> {
@@ -629,6 +733,34 @@ class MessageBroker(
         obj.addProperty("msg_vibrate", cfg.bandMsgVibrate)
         // v2.9.0：免打扰会话集合（逗号分隔 ID），手环据此渲染灰色红点
         obj.addProperty("mute_list", cfg.mutedChats.joinToString(","))
+        return obj.toString()
+    }
+
+    /**
+     * v2.13.0 OneBot v11 扩展动作统一通道：requestApiAction（HTTP 优先、WS 回退）→
+     * retcode==0 判成功 → action_result 帧回手环（toast 展示）。
+     */
+    private fun callOneBot(action: String, paramsJson: String, seq: Int, label: String, targetId: String) {
+        oneBot.requestApiAction(action, paramsJson) { raw ->
+            val ok = raw != null && try {
+                JsonParser.parseString(raw).asJsonObject
+                    .get("retcode")?.takeIf { it.isJsonPrimitive }?.asInt == 0
+            } catch (t: Throwable) {
+                false
+            }
+            log("v11 action $action -> ${if (ok) "ok" else "fail"}")
+            bandSender(actionResultFrame(seq, if (ok) label + "成功" else label + "失败（协议端未响应或动作不支持）", targetId))
+        }
+    }
+
+    /** v2.13.0：动作结果回帧（手环端 toast 展示） */
+    private fun actionResultFrame(seq: Int, info: String, targetId: String): String {
+        val obj = JsonObject()
+        obj.addProperty("type", "action_result")
+        obj.addProperty("seq", seq)
+        obj.addProperty("ok", info.endsWith("成功"))
+        obj.addProperty("info", info)
+        if (targetId.isNotEmpty()) obj.addProperty("target_id", targetId)
         return obj.toString()
     }
 

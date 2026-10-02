@@ -234,8 +234,8 @@ class FakeOneBot(private val onSend: (String, String, String) -> Boolean) : Mess
         targetId: String,
         content: String,
         httpUrlOverride: String?,
-        callback: (Boolean) -> Unit
+        callback: (ok: Boolean, messageId: String) -> Unit
     ) {
-        callback(onSend(messageType, targetId, content))
+        callback(onSend(messageType, targetId, content), "fake_mid_1")
     }
 }

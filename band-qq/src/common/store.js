@@ -277,6 +277,21 @@ export function createStore(storageImpl) {
       }
       return messagesByTarget[targetId]
     },
+    /**
+     * v2.13.0：发送应答 action_result（action=send）回填自己消息的 message_id。
+     * 按 time 定位（手环本地回显与手机端回推共用同一 time）。
+     */
+    async bindMessageId(targetId, time, messageId) {
+      await this.ensureInit()
+      if (!targetId || !messageId) return
+      const messages = messagesByTarget[targetId] || []
+      const hit = messages.find((m) => (m.time || 0) === (time || -1) && m.is_self === true)
+      if (hit && hit.message_id !== messageId) {
+        hit.message_id = messageId
+        scheduleMsgPersist(targetId)
+      }
+    },
+
     /** 追加更早的历史消息（翻页），按 time+content 去重合并 */
     async prependMessages(targetId, list) {
       await this.ensureInit()
@@ -382,6 +397,9 @@ export function createStore(storageImpl) {
         if (msg.at === true || msg.at === 1) item.at = true
         // v2.9.0 拍一拍消息：手环聊天页渲染居中特效气泡，会话预览直接显示「XX 拍了拍你」
         if (msg.poke === true || msg.poke === 1) item.poke = true
+        // v2.13.0 message_id 透传（自己发的回显帧在发送应答后由 action_result 回填；
+        // 对方消息在手机端解析事件时已带上）—— 聊天页长按菜单撤回/表情回应定位用
+        if (msg.message_id) item.message_id = msg.message_id
         messages.push(item)
         // 按时间升序排列，保证消息顺序不乱（秒/毫秒混用也统一比较）
         messages.sort((a, b) => (a.time || 0) - (b.time || 0))

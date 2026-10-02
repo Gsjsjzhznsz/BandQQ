@@ -27,7 +27,8 @@
         <div class="msg-col {{item.is_self ? 'col-self' : 'col-other'}}" if="{{!(item.poke && !item.is_self && !item.rc)}}">
           <text class="msg-name" if="{{item.message_type === 'group' && !item.is_self}}">{{item.sender_name}}</text>
           <text class="at-badge" if="{{item.at && !item.is_self && !item.rc}}">@我</text>
-          <text class="bubble {{item.is_self ? 'bubble-self' : (item.rc ? 'bubble-rc' : (item.at ? 'bubble-other bubble-at' : 'bubble-other'))}}">{{item.content}}</text>
+          <!-- v2.13.0 消息动作菜单：点击气泡弹出（表情回应/撤回/资料，见 openMsgMenu） -->
+          <text class="bubble {{item.is_self ? 'bubble-self' : (item.rc ? 'bubble-rc' : (item.at ? 'bubble-other bubble-at' : 'bubble-other'))}}" @click="openMsgMenu(item)">{{item.content}}</text>
         </div>
       </div>
     </scroll>
@@ -53,6 +54,25 @@
           <text class="confirm-cancel" onclick="cancelQuickSend">取消</text>
           <text class="confirm-ok" onclick="confirmQuickSend">发送</text>
         </div>
+      </div>
+    </div>
+    <!-- v2.13.0 消息动作菜单：表情回应（文字标签防 tofu）/撤回自己消息/资料查询 -->
+    <div class="mask" if="{{menuMsg}}" @click="closeMsgMenu">
+      <div class="confirm-box" @click="stopBubble">
+        <text class="confirm-title">消息操作</text>
+        <div class="emoji-row">
+          <text class="emoji-btn" onclick="react0">赞</text>
+          <text class="emoji-btn" onclick="react1">心</text>
+          <text class="emoji-btn" onclick="react2">笑</text>
+        </div>
+        <div class="emoji-row">
+          <text class="emoji-btn" onclick="react3">萌</text>
+          <text class="emoji-btn" onclick="react4">哭</text>
+          <text class="emoji-btn" onclick="react5">庆</text>
+        </div>
+        <text class="menu-line" if="{{menuMsg && menuMsg.is_self && menuMsg.message_id}}" onclick="recallMsg">撤回这条消息</text>
+        <text class="menu-line" onclick="queryUserInfo">查看{{menuMsg && menuMsg.is_self ? '我' : '对方'}}资料</text>
+        <text class="confirm-cancel" onclick="closeMsgMenu">取消</text>
       </div>
     </div>
   </div>
@@ -123,6 +143,10 @@
   .confirm-btns { flex-direction: row; justify-content: space-between; }
   .confirm-cancel { flex: 1; text-align: center; padding: 9px 0; font-size: 16px; color: #999999; background-color: #3a3a3a; border-radius: 12px; margin-right: 8px; }
   .confirm-ok { flex: 1; text-align: center; padding: 9px 0; font-size: 16px; color: #ffffff; background-color: #07c160; border-radius: 12px; }
+  /* v2.13.0 消息动作菜单：表情回应（文字标签防 tofu）/撤回/资料 */
+  .emoji-row { flex-direction: row; justify-content: space-between; margin-bottom: 8px; }
+  .emoji-btn { width: 48px; height: 40px; text-align: center; line-height: 40px; font-size: 15px; color: #ffffff; background-color: #3a3a3a; border-radius: 10px; }
+  .menu-line { padding: 9px 0; font-size: 16px; color: #e8ecf2; text-align: center; }
 </style>
 
 <script>
@@ -148,7 +172,9 @@
       canLatest: false,
       loadingOlder: false,
       confirmReply: false,
-      confirmContent: ''
+      confirmContent: '',
+      /** v2.13.0 消息动作菜单：当前选中的消息对象（null=关闭） */
+      menuMsg: null
     },
     onInit(params) {
       console.log('[BANDQQ] v21 chat onInit')
@@ -276,6 +302,53 @@
       this._pendingReply = null
       if (!q || !q.content || !this.targetId) return
       this.doSend(q.content)
+    },
+    // ============ v2.13.0 OneBot v11 消息动作（表情回应/撤回/资料） ============
+    /** 点击气泡：弹出消息动作菜单（存整条消息对象供动作定位） */
+    openMsgMenu(item) {
+      if (!item || !item.message_id) {
+        // 无 message_id（旧消息/未回显）：仅资料查询有意义，也弹菜单但撤回/回应不可用
+        this.menuMsg = item ? { message_id: '', content: item.content, is_self: item.is_self === true, sender_id: item.sender_id, message_type: item.message_type } : null
+        return
+      }
+      this.menuMsg = item
+    },
+    closeMsgMenu() {
+      this.menuMsg = null
+    },
+    /** 表情回应：QQ 表情回应 unicode 码点（文字按钮防 tofu） */
+    _react(emojiId) {
+      const m = this.menuMsg
+      this.menuMsg = null
+      if (!m || !m.message_id) return
+      const def = this.$app.$def
+      def.sendUpstream(protocol.messageAction('emoji', m.message_id, emojiId))
+    },
+    react0() { this._react('128077') },  // 👍
+    react1() { this._react('100') },     // ❤
+    react2() { this._react('128514') },  // 😂
+    react3() { this._react('128531') },  // 😗
+    react4() { this._react('128546') },  // 😢
+    react5() { this._react('127881') },  // 🎉
+    /** 撤回自己消息（delete_msg；仅协议端支持且回填了 message_id 的消息可用） */
+    recallMsg() {
+      const m = this.menuMsg
+      this.menuMsg = null
+      if (!m || !m.message_id) return
+      const def = this.$app.$def
+      def.sendUpstream(protocol.messageAction('delete', m.message_id))
+    },
+    /** 资料查询：私聊查会话对方；群聊查该消息发送者（带 group_id 走群成员接口） */
+    queryUserInfo() {
+      const m = this.menuMsg
+      this.menuMsg = null
+      if (!m) return
+      const def = this.$app.$def
+      if (m.message_type === 'group' && m.sender_id) {
+        def.sendUpstream(protocol.getUserInfo(m.sender_id, 'group', this.targetId))
+      } else {
+        def.sendUpstream(protocol.getUserInfo(this.targetId, 'private'))
+      }
     },
     /** 实际发送（快捷回复确认后与 compose 页共用语义：群会话用 group 类型） */
     doSend(content) {

@@ -12,8 +12,31 @@ android {
         applicationId = "io.github.gsjsjzhznsz.bandqq"
         minSdk = 26
         targetSdk = 34
-        versionCode = 52
-        versionName = "2.12.0"
+        versionCode = 53
+        versionName = "2.13.0"
+    }
+
+    // v2.13.0 双包分发（用户可二选一安装，同 applicationId 同 versionCode）：
+    //   companion 瘦包/伴侣版：不含引擎，检测拉起独立 AstrBot Bubble App（v2.12.0 行为）
+    //   bundled   胖包：内嵌 AstrBot 引擎（proot + Ubuntu rootfs，astrbot-engine 模块），
+    //             开箱即得本机 NapCat，APK 体积增加约 60MB
+    flavorDimensions += "dist"
+    productFlavors {
+        create("companion") {
+            dimension = "dist"
+        }
+        create("bundled") {
+            dimension = "dist"
+        }
+    }
+
+    // 产物文件名带 flavor，双包分发不混淆
+    applicationVariants.all {
+        val variantLabel = name.removeSuffix("Release").removeSuffix("Debug")
+        outputs.all {
+            (this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl)?.outputFileName =
+                "bandqq-$versionName-$variantLabel.apk"
+        }
     }
 
     signingConfigs {
@@ -56,6 +79,8 @@ android {
 }
 
 dependencies {
+    add("bundledImplementation", project(":astrbot-engine"))
+
     implementation(files("libs/xms-wearable-lib_1.4_release.aar"))
     implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.okhttp3:okhttp-sse:4.12.0")

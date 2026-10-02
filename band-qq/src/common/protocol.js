@@ -70,6 +70,43 @@ function readChat(targetId) {
   return { type: 'read_chat', seq: nextSeq(), target_id: targetId }
 }
 
+// ============ v2.13.0 OneBot v11 扩展动作（点赞/拍一拍/群签到/消息动作/资料） ============
+// 手机端 MessageBroker 路由到 send_like / friend_poke / group_poke / send_group_sign /
+// delete_msg / set_msg_emoji_like / get_stranger_info / get_group_member_info，
+// 结果以 action_result 帧（toast）与 user_info 帧回推手环。
+
+/** 点赞（私聊对象；times 上限依协议端，默认 10） */
+function sendLike(targetId, times) {
+  return { type: 'send_like', seq: nextSeq(), target_id: targetId, times: times || 10 }
+}
+
+/** 主动拍一拍（chat_type: 'private' | 'group'） */
+function sendPoke(targetId, chatType) {
+  return { type: 'send_poke', seq: nextSeq(), target_id: targetId, chat_type: chatType || 'private' }
+}
+
+/** 群签到（send_group_sign，部分协议端支持） */
+function groupSign(targetId) {
+  return { type: 'group_sign', seq: nextSeq(), target_id: targetId }
+}
+
+/**
+ * 消息级动作：sub_action 'emoji'（表情回应）| 'delete'（撤回自己消息）。
+ * emojiId 为 QQ 表情回应 unicode 码点字符串（如 128077 = 👍）。
+ */
+function messageAction(subAction, messageId, emojiId) {
+  const f = { type: 'message_action', seq: nextSeq(), sub_action: subAction, message_id: messageId }
+  if (subAction === 'emoji') f.emoji_id = emojiId
+  return f
+}
+
+/** 资料查询：私聊 get_stranger_info；群聊带 group_id 走 get_group_member_info */
+function getUserInfo(targetId, chatType, groupId) {
+  const f = { type: 'get_user_info', seq: nextSeq(), target_id: targetId, chat_type: chatType || 'private' }
+  if (groupId) f.group_id = groupId
+  return f
+}
+
 function isEmojiCode(c) {
   return (c >= 0x2600 && c <= 0x27bf) ||
     (c >= 0x2b00 && c <= 0x2bff) ||
@@ -191,6 +228,11 @@ export default {
   readChat,
   getSettings,
   updateSettings,
+  sendLike,
+  sendPoke,
+  groupSign,
+  messageAction,
+  getUserInfo,
   stripEmoji,
   markEmoji,
   degradeContent,
@@ -211,6 +253,11 @@ export {
   readChat,
   getSettings,
   updateSettings,
+  sendLike,
+  sendPoke,
+  groupSign,
+  messageAction,
+  getUserInfo,
   stripEmoji,
   markEmoji,
   degradeContent,

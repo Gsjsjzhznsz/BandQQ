@@ -38,7 +38,7 @@ class OneBotClientTest {
         val client = OneBotClient(parser)
         val latch = CountDownLatch(1)
         var ok = false
-        client.sendMessage("group", "123", "收到", url) { ok = it; latch.countDown() }
+        client.sendMessage("group", "123", "收到", url) { _ok, _mid -> ok = _ok; latch.countDown() }
         latch.await(3, TimeUnit.SECONDS)
         val request = server.takeRequest(3, TimeUnit.SECONDS)!!
         assertEquals("POST", request.method)
@@ -54,7 +54,7 @@ class OneBotClientTest {
         val client = OneBotClient(parser)
         val latch = CountDownLatch(1)
         var ok = false
-        client.sendMessage("private", "456", "hi", url) { ok = it; latch.countDown() }
+        client.sendMessage("private", "456", "hi", url) { _ok, _mid -> ok = _ok; latch.countDown() }
         latch.await(3, TimeUnit.SECONDS)
         val request = server.takeRequest(3, TimeUnit.SECONDS)!!
         assertTrue(request.path!!.contains("send_private_msg"))
@@ -120,7 +120,7 @@ class OneBotClientTest {
             server.enqueue(MockResponse().setResponseCode(500))
             val latch = CountDownLatch(1)
             var ok = false
-            client.sendMessage("group", "1124665323", "测适", httpUrl) { ok = it; latch.countDown() }
+            client.sendMessage("group", "1124665323", "测适", httpUrl) { _ok, _mid -> ok = _ok; latch.countDown() }
             latch.await(8, TimeUnit.SECONDS)
             assertTrue("WS 回退应判定发送成功", ok)
         } finally {
@@ -138,7 +138,7 @@ class OneBotClientTest {
             server.enqueue(MockResponse().setResponseCode(500))
             val latch = CountDownLatch(1)
             var ok = true
-            client.sendMessage("group", "999999999", "hi", httpUrl) { ok = it; latch.countDown() }
+            client.sendMessage("group", "999999999", "hi", httpUrl) { _ok, _mid -> ok = _ok; latch.countDown() }
             latch.await(8, TimeUnit.SECONDS)
             assertTrue("retcode!=0 应判定发送失败", !ok)
         } finally {
