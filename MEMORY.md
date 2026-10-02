@@ -8,7 +8,7 @@
 上游：https://github.com/Astroptis/band-qq-assistant ；本仓库为完整版镜像（含签名/产物/legacy）。
 
 ## 版本线
-- 当前正式线：v2.12.0（vc52）—— 键盘分支原生化 + 全量拼音字库 27398 字 + AstrBot 本地伴侣（2026-10-03）
+- 当前正式线：v2.13.0（vc53）—— 键盘全分支换装 NEORUAA + AstrBot 胖/瘦双 APK + OneBot v11 扩展动作 + DevTools 1.4.0 miuix 重写 + 许可证 AGPL-3.0（2026-10-03）
 - 历史线：v2.10.0（51，分支级适配+分页窗口化+eSIM 直连）/ v2.9.6（50，四页 absolute 黑屏根修+版本统一）/ v2.9.5（49，WS 回退+双发根治）/ v2.9.4（48，真实 NapCat 五连修）… 详见各节
 - git 分支线 v2.11.x（redmi-watch/xiaomi-watch-s/band-pro）已废弃归档，由构建期四分支包取代
 
@@ -343,6 +343,14 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 - eSIM 直连：src/common/direct.js（@system.fetch POST {action}+Bearer+/api 回退+8s 超时；send_message/get_history/get_visible_contacts 翻义；raw_message CQ 降级 at/poke）；app.ux sendUpstream 三态（互联连→互联失败回退直连/未连有配置→直连优先/都无→原路径）；MessageBroker.pushDirectConfig（127.0.0.1/localhost 不下发）；settings 独立线路状态行；chat 4s/index 20s 前台轮询
 - 性能：store 落盘 300ms 尾沿防抖（快照回调时重取，clearAll 不复活）；排序幂等 WeakSet（数组自定义属性会污染 deepEqual）；MAX_MESSAGES 120；app.onCreate 四连 send 清理
 - 交付：download/ 四分支+通用 rpk（154KB 级）+ APK 12,225,650B；Release v2.10.0 id=402007052 六附件匿名 200
+
+## v2.13.0（2026-10-03，versionCode 53）
+
+- 键盘全分支换装 NEORUAA/Vela_input_method 单组件（三屏形内置，screentype 构建期写入 + xiaomis 466/480 换算 636→617；词库分片按需加载 + 27398 字合入 cn.txt）；kb-variants/ 退役
+- AstrBot 双包：bundled 胖包内嵌引擎（astrbot-engine 模块 proot+rootfs62MB，EngineManager/EngineService）+ companion 瘦包伴侣；flavor sourceSet 同签名 AstrBotSection 隔离
+- OneBot v11 扩展：send_like/friend_poke/group_poke/send_group_sign/set_msg_emoji_like/delete_msg/get_stranger_info/get_group_member_info；MessageSender callback(+messageId)；action_result/user_info 帧；DevTools ActionRouter 同步模拟
+- DevTools 1.4.0 Compose+miuix 重写（vc7）；许可证 MIT→AGPL-3.0-only
+- 注意坑：branch-release 步骤③样式换算曾覆盖步骤②screentype（composeTagged 须作为换算基线）；gradle flavor 配置用 add("bundledImplementation", ...)；libsudo.so 为占位文件跳过；miuix-blur 需 tools:overrideLibrary
 
 ## v2.12.0（2026-10-03，versionCode 52）
 - 键盘分支原生化：用户报告「以前给其他分支单独适配的键盘不见了」——v2.10.0 四分支包里非手环机型仍装着胶囊键盘只做数值缩放。本轮 kb-variants/（仓库根，**不能放 band-qq/ 项目内：aiot 工具链会扫描项目内全部 .ux 并误编译报 not in src**）存三套完整 InputMethod 组件快照，branch-release.js 构建期 swapKeyboard 整体替换 src/components/InputMethod/（tmpdir 暂存→finally 恢复）：
