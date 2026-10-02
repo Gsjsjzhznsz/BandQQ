@@ -145,3 +145,21 @@ Work Log:
 Stage Summary:
 - 产物：bandqq-sync-release-2.8.0.apk + bandqq-devtools-release-1.0.0.apk + bandqq-watch-release-2.8.0.rpk
 - 回归建议：①装 DevTools→启动服务器→APP 默认地址直连→点模拟按钮消息到手环 ②手环回复→DevTools 日志+自动回推对方消息 ③手环设置页改「消息震动」→APP 设置页状态同步 ④开启自动拉起→拉起后手环短震×2 ⑤双端关于页信息完整
+
+---
+Task ID: 17
+Agent: main (Super Z)
+Task: band-qq v2.9.6 —— RW5E 等非手环设备二级页黑屏根修（四页 scroll absolute 化）+ 全设备版本号统一（2.9.6/vc50）
+
+Work Log:
+- 用户实测 RW5E（Redmi Watch 5E）虚拟机正常、真机点 index 右上 3 个点（goSettings→/settings）后二级页纯黑，右划可退出
+- 根因：settings/about 的 .body、chat 的 .msg-area、compose 的 .preview-scroll 全是 flex:1 scroll——RW5E 固件 flex:1 滚动视口高度计算失败致内容全灭；index 因 v2.9.1 已改 absolute 铺满而幸免（证据差定案）
+- 修复：四页统一「wrap(position:relative;flex:1) + scroll(position:absolute;inset:0;width:100%;height:100%)」index 同构改造；chat 保留 msgList id 与 scroll-top 滚底绑定；compose padding 转移 preview-text
+- 版本统一：manifest 2.9.6/vc50 + gradle 2.9.6/vc50（APK 44→50 跳升锚定，此后 rpk/APK 版本号恒一致）+ about 页显示 v2.9.6（2.9.5 漏改）
+- 构建：环境重建（disown 防后台任务被杀 / 腾讯镜像下 gradle / ANDROID_HOME 显式传 / android-37 双目录陷阱按 MEMORY 配方）→ rpk 148,702B + APK 12,225,650B
+- 验证：node 61/60（基线一致）；rpk 解包版本/五页/wrap+absolute 形态全 PASS；APK badging vc50/2.9.6 + V2 签名 af8819e2 同源
+- v2.11.7 历史实验 Release（版本混编 2.9.3+2.11.7）已删除；Release v2.9.6 双附件发布
+
+Stage Summary:
+- 产物：bandqq-watch-release-2.9.6.rpk + bandqq-sync-release-2.9.6.apk（GitHub Release 分发）
+- 回归建议：①RW5E 实装：点 3 个点进设置（应见分组卡片非黑屏）→ 关于 → 返回 ②聊天页消息滚动/快捷回复 ③撰写页键盘+预览 ④手环 9/10/11 全页回归（渲染路径改动）⑤两端关于页版本号应同显 2.9.6

@@ -326,3 +326,13 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 **验证**：手环单测 61 测 60 过（api 门控 1 例存量基线）；APK 新增 sendMessage WS 回退单测 2 例（MockWebServer withWebSocketUpgrade 模拟 WS-only 部署：HTTP 两路 500 → WS 应答 retcode=0 → callback(true)）；RPK 包内 2.9.5/vc49；APK 2.9.5/vc44 签名同源。
 
 **追加③（同版）requestApi baseUrl 丢弃回归**：v2.9.4 重构 requestApi→requestApiAction 时把 requestApi(action,baseUrl,callback) 的 baseUrl 静默丢弃（内部只用 config.httpUrl）——ContactScreen 手动刷新/SyncService 定时拉取传的自定义地址全失效。修复=OneBotClient 增 4 参 requestApiAction(action,params,baseUrl,callback) 重载，3 参接口实现委托之。**排查插曲（教训复验）**：跑 OneBotClientTest 整类必挂死——真凶=旧测试 3 因 baseUrl 丢失请求发去 127.0.0.1:3000，MockWebServer 收不到请求，`takeRequest()` 无超时永久等待；jstack 一发锁定。修：①baseUrl 透传 ②全部 takeRequest 加 3s 上限 ③3 例 v2.9.4 行为变更未同步的过期断言更新（群名回退 QQ群<群号> ×2、GameProtocolDetector 的 MockWebServer hostName localhost≠127.0.0.1 硬编码）。**手机端单测 104 测 104 过（历史首次全绿）**。另：MultiEdit「失败前序编辑已生效」陷阱本轮第三次命中（4 参重载函数体被截坏），单 Edit 按实况修复；gradle 卡死先 pkill+清 ~/.gradle/*.lock 再 --no-daemon。
+
+## v2.9.6（2026-10-02，RPK vc50 + app vc50）—— RW5E 等非手环设备二级页黑屏根修 + 全设备版本号统一
+
+**背景**：用户开始把手环 rpk 装到手环外 Vela 设备（RW5E=Redmi Watch 5E，432×514 方屏）实测：主页正常，点「更多选项」（index 右上 3 个点 = goSettings → router.push('/settings')）后**二级页纯黑，右划系统返回可退出**；Vela 虚拟机（VVD）上同页正常。历史 v2.11.7 实验版（二级页黑屏二分诊断分支包，band 2.9.3/bandpro·redmiwatch·xiaomiwatch 2.11.7 混编）已随本版根修从 Release 清除。
+
+1. **黑屏根因定案（证据差推理）**：index 页 scroll 在 v2.9.1 已因"引擎 scroll 背景只绘内容区"改为 absolute 铺满（不依赖引擎 flex），RW5E 上正常；settings/about 页 `.body { flex:1; width:192px }`、chat 页 `.msg-area { flex:1 }`、compose 页 `.preview-scroll { flex:1 }` 全部仍是 flex:1 scroll —— RW5E 固件对 flex:1 滚动视口的高度计算失败 → 内容区 0 高全灭 → 页面只剩 #000000 背景 = 纯黑。
+2. **修复（四页统一 index 同构）**：`<div class="*-wrap { position:relative; flex:1 }">` 包裹 + scroll 改 `{ position:absolute; left:0; top:0; width:100%; height:100% }`；chat 保留 id=msgList 与 scroll-top 滚底绑定；compose 的 preview-box padding 转移到 preview-text。四页 = settings/about/chat/compose，一次全修（chat/compose 在 RW5E 上属必然同病，先修防复发）。
+3. **全设备版本号统一**：rpk 与 APK 从本版起 versionName+versionCode 完全一致 **2.9.6 (50)**（rpk 49→50 顺升，APK 44→50 跳升锚定，此后恒同步 +1）；about.ux 关于页版本显示 v2.9.4→v2.9.6（2.9.5 漏同步的显示层遗留）。
+
+**验证**：node 单测 61/60 过（api 门控 1 例存量基线一致）；rpk 解包 = manifest 2.9.6/vc50 + 五页齐全 + body-wrap/msg-area-wrap/preview-box relative + absolute 编译形态入包 + about "v2.9.6 · 快应用端"（\xb7）；APK aapt badging vc50/2.9.6 + V2 签名 af8819e2 同源。构建环境容器重置第 N 次重建（scripts/setup-buildenv.sh 幂等复跑）：新坑=nohup 前台会话 & 后台任务随 Bash 工具调用结束被杀（必须 disown）；gradle.zip 从 services.gradle.org 102MB 处截断两次 → 腾讯镜像 mirrors.cloud.tencent.com/gradle 一次到位；ANDROID_HOME=/home/z/android-sdk 必须显式传。

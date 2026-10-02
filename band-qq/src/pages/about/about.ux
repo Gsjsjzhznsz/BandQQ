@@ -6,13 +6,15 @@
     <div class="title-bar">
       <text class="page-title">关于</text>
     </div>
+    <!-- v2.9.6 RW5E 黑屏根修：与 settings/index 同构，scroll absolute 铺满不依赖引擎 flex -->
+    <div class="body-wrap">
     <scroll class="body" scroll-y="true">
       <div class="hero" onclick="onVerTap">
         <image class="icon" src="../../common/icon.png"></image>
         <text class="app-name">BandQQ</text>
         <!-- v2.9.0：连点版本区 7 次开启演示模式（注入演示会话，无手机也可体验界面）；
              点击区挂在整个 hero（小 text 点击区在部分固件上不响应） -->
-        <text class="ver">v2.9.4 · 快应用端</text>
+        <text class="ver">v2.9.6 · 快应用端</text>
         <text class="demo-hint" if="{{demoHint}}">{{demoHint}}</text>
       </div>
       <div class="card col">
@@ -31,6 +33,7 @@
         <text class="v">github.com/Gsjsjzhznsz/BandQQ</text>
       </div>
     </scroll>
+    </div>
   </div>
 </template>
 
@@ -40,7 +43,9 @@
   .btn { width: 102px; height: 72px; }
   .title-bar { height: 40px; align-items: center; justify-content: center; }
   .page-title { font-size: 24px; color: #ffffff; }
-  .body { flex: 1; width: 192px; flex-direction: column; }
+  /* v2.9.6 RW5E 黑屏根修：wrap flex:1 + scroll absolute 铺满（index/settings 同构方案） */
+  .body-wrap { position: relative; flex: 1; flex-direction: column; }
+  .body { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .hero { flex-direction: column; align-items: center; margin: 10px 8px 4px 8px; }
   .icon { width: 64px; height: 64px; border-radius: 16px; }
   .app-name { font-size: 22px; color: #ffffff; margin-top: 6px; font-weight: bold; }
