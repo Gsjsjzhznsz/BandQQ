@@ -100,6 +100,8 @@
 <script>
   import router from '@system.router'
   import protocol from '../../common/protocol'
+  import direct from '../../common/direct'
+  import { profile } from '../../common/branch'
 
   const REFRESH_DEBOUNCE_MS = 120
 
@@ -116,6 +118,11 @@
       this.pullConnectState()
       this.loadConversations()
       this.loadVisibleContacts()
+      // v2.10.0 eSIM 直连：互联不在时前台轮询联系人骨架（onHide 停止）
+      this.startDirectPoll()
+    },
+    onHide() {
+      this.stopDirectPoll()
     },
     onInit() {
       const def = this.$app.$def
@@ -143,6 +150,7 @@
       def.on('cleared', this._handlers.cleared)
     },
     onDestroy() {
+      this.stopDirectPoll()
       const def = this.$app.$def
       if (this._handlers) {
         def.off('conversations', this._handlers.conversations)
@@ -152,6 +160,27 @@
         def.off('cleared', this._handlers.cleared)
         this._handlers = null
       }
+    },
+    /** v2.10.0 直连轮询（仅前台，20s）：互联不在时拉好友+群骨架保持列表可用 */
+    startDirectPoll() {
+      this.stopDirectPoll()
+      const app = this.$app.$def
+      const cfg = app.store.getDirectCfg && app.store.getDirectCfg()
+      if (!cfg || app.api.isConnected()) return
+      this._pollTimer = setInterval(() => this.directPollContacts(), profile().pollListMs || 20000)
+      this.directPollContacts()
+    },
+    stopDirectPoll() {
+      if (this._pollTimer) { clearInterval(this._pollTimer); this._pollTimer = null }
+    },
+    directPollContacts() {
+      const app = this.$app.$def
+      const cfg = app.store.getDirectCfg()
+      if (!cfg) return
+      direct.fetchContacts(cfg).then((contacts) => {
+        if (!contacts || !contacts.length) return
+        app.store.setVisibleContacts(contacts).then(() => app.emit('visible_contacts', contacts))
+      }).catch(() => {})
     },
     async pullConnectState() {
       const api = this.$app.$def.api

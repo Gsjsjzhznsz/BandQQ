@@ -15,6 +15,7 @@
 import api from './common/api'
 import protocol from './common/protocol'
 import store from './common/store'
+import direct from './common/direct'
 
 const listeners = {}
 
@@ -91,6 +92,11 @@ case 'push_message':
       // v2.8.0 双端互通：手机端设置快照落地 + 通知设置页刷新
       store.setSettings(msg).then(() => emit('settings', msg))
       break
+    case 'direct_config':
+      // v2.10.0 eSIM 独立线路：手机端连接时下发 NapCat HTTP 直连配置（url+token），
+      // 手环持久化；eSIM 机型在互联断开（手机不在旁）时自动切直连收发
+      store.setDirectCfg({ url: msg.url, token: msg.token }).then(() => emit('direct_config', msg))
+      break
     case 'band_alert':
       // v2.8.0 自动拉起提示震动：快应用被后台自动打开时提醒用户（手动打开不触发）。
       // mode 1=短震×2（默认）2=长震；与 push_message 的单次短震区分。
@@ -109,21 +115,53 @@ case 'push_message':
   }
 }
 
+/**
+ * v2.10.0 直连回退：互联失败/未连接且有直连配置（eSIM 机型）时，把协议帧
+ * 翻译为 OneBot HTTP 调用直发 NapCat。无直连配置时保持原互联错误路径。
+ */
+function viaDirect(payload) {
+  const cfg = store.getDirectCfg()
+  if (!cfg) return Promise.reject({ code: 'NO_CHANNEL' })
+  return direct.sendPayload(cfg, payload).then(
+    (r) => { console.log('[BANDQQ] v21 direct OK') ; return r },
+    (e) => { console.log('[BANDQQ] v21 direct FAIL', JSON.stringify(e)) ; throw e }
+  )
+}
+
+/** 连接建立后的权威首拉（v2.10.0 起 onCreate 不再重复四连 send） */
+function pullAll() {
+  api.send(protocol.getConnectState())
+  api.send(protocol.getVisibleContacts())
+  api.send(protocol.getConversations())
+  api.send(protocol.getSettings())
+}
+
+/**
+ * 全局统一上行入口：由 app 层持有的 api 发送，不受页面销毁影响。
+ * 返回 Promise，页面可链式观察成功/失败。
+ * v2.10.0 通道编排：互联已连接 → 互联（失败回退直连）；未连接且有直连配置 →
+ * 直连优先（省去互联 waitReady 最长 10s 的等待）；都无 → 原互联路径（错误可见）。
+ */
+function sendUpstream(payload) {
+  console.log('[BANDQQ] v21 upstream ->', JSON.stringify(payload).slice(0, 160))
+  if (api.isConnected()) {
+    return api.send(payload).catch((e) => {
+      console.log('[BANDQQ] v21 upstream FAIL -> direct fallback', JSON.stringify(e))
+      return viaDirect(payload)
+    })
+  }
+  const cfg = store.getDirectCfg()
+  if (cfg) return viaDirect(payload)
+  return api.send(payload)
+}
+
 export default {
   api,
   protocol,
   store,
   handleMessage,
   emit,
-  /**
-   * 全局统一上行入口：由 app 层持有的 api 发送，不受页面销毁影响�?   * 返回 Promise，页面可链式观察成功/失败�?   */
-sendUpstream(payload) {
-    console.log('[BANDQQ] v9 upstream ->', JSON.stringify(payload).slice(0, 160))
-    return api.send(payload).then(
-      (r) => { console.log('[BANDQQ] v9 upstream OK') ; return r },
-      (e) => { console.log('[BANDQQ] v9 upstream FAIL', JSON.stringify(e)) ; throw e }
-    )
-  },
+  sendUpstream,
   on(event, fn) {
     if (!listeners[event]) listeners[event] = []
     listeners[event].push(fn)
@@ -139,14 +177,11 @@ sendUpstream(payload) {
     if (idx >= 0) set.splice(idx, 1)
   },
   onCreate() {
-    console.log('[BANDQQ] v9 app onCreate, protocol=', typeof protocol, 'store=', typeof store, 'api=', typeof api)
+    console.log('[BANDQQ] v21 app onCreate, protocol=', typeof protocol, 'store=', typeof store, 'api=', typeof api, 'direct=', typeof direct)
     store.init()
-    const pullAll = () => {
-      api.send(protocol.getConnectState())
-      api.send(protocol.getVisibleContacts())
-      api.send(protocol.getConversations())
-      api.send(protocol.getSettings())
-    }
+    // v2.10.0 清理：原 onCreate 尾部四连 send 在连接未 open 时注定丢失（interconnect
+    // 帧在 onopen 前不可投递），onOpen 里的 pullAll 才是有效首拉 —— 删除重复四连，
+    // 省去四帧无效 send（含 10s waitReady 兑底计时的空转）
     api.init({
       onMessage: handleMessage,
       onOpen: () => {
@@ -154,10 +189,6 @@ sendUpstream(payload) {
         pullAll()
       }
     })
-    api.send(protocol.getConnectState())
-    api.send(protocol.getVisibleContacts())
-    api.send(protocol.getConversations())
-    api.send(protocol.getSettings())
   }
 }
 

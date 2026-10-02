@@ -20,6 +20,11 @@
         <text class="row-label">协议端</text>
         <text class="row-value">{{protocolText}}</text>
       </div>
+      <!-- v2.10.0 eSIM 独立线路：手机端 direct_config 下发后自动待命，互联断开时自动切直连 -->
+      <div class="card row">
+        <text class="row-label">独立线路</text>
+        <text class="row-value dim">{{directText}}</text>
+      </div>
       <text class="section">偏好</text>
       <div class="card row" @click="toggleVibrate">
         <text class="row-label">消息震动</text>
@@ -94,6 +99,7 @@
     private: {
       statusText: '未连接',
       protocolText: '未知',
+      directText: '未配置',
       vibrateText: '开',
       emojiText: '原生',
       confirmShow: false
@@ -107,10 +113,13 @@
       this.$app.$def.on('state', () => this.refreshStatus())
       // v2.8.0 双端互通：手机端改了设置 → 快照到达 → 刷新行文案
       this.$app.$def.on('settings', () => this.refreshSettings())
+      // v2.10.0 直连配置到达 → 刷新独立线路状态行
+      this.$app.$def.on('direct_config', () => this.refreshStatus())
     },
     onDestroy() {
       this.$app.$def.off('state')
       this.$app.$def.off('settings')
+      this.$app.$def.off('direct_config')
     },
     goBack() {
       router.back()
@@ -157,6 +166,9 @@
       const s = store.getConnectState()
       this.statusText = s && s.band ? '已连接' : '未连接'
       this.protocolText = s ? (s.protocol ? '在线' : '离线') : '未知'
+      // v2.10.0 独立线路状态：未配置 / 直连中（互联断开已用直连）/ 已配置待命
+      const cfg = store.getDirectCfg && store.getDirectCfg()
+      this.directText = !cfg ? '未配置' : (s && s.band ? '已配置待命' : '直连模式')
     },
     askClear() {
       this.confirmShow = true

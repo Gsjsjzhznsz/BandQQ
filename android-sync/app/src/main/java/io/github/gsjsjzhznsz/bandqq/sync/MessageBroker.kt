@@ -592,6 +592,34 @@ class MessageBroker(
         log("pushSettingsState -> emoji=${ConfigHolder.config.emojiNative} vibrate=${ConfigHolder.config.bandMsgVibrate}")
     }
 
+    /**
+     * v2.10.0 eSIM 独立线路：下发 NapCat HTTP 直连配置（url+token），手环持久化。
+     * eSIM 机型（RW5E eSIM / Watch S4 eSIM / 15th 等）互联断开（手机不在旁）时
+     * 自动切直连收发。仅下发有效外网/局域网地址：默认 127.0.0.1/localhost 对手环
+     * 无意义（手表连不到手机 loopback），不下发避免手环误判"已配置待命"。
+     */
+    fun pushDirectConfig() {
+        val frame = buildDirectConfigFrame()
+        if (frame != null) {
+            bandSender(frame)
+            log("pushDirectConfig -> ${ConfigHolder.config.endpoint.httpUrl}")
+        } else {
+            log("pushDirectConfig skipped: httpUrl not reachable from band (default/blank)")
+        }
+    }
+
+    private fun buildDirectConfigFrame(): String? {
+        val ep = ConfigHolder.config.endpoint
+        val url = ep.httpUrl.trim()
+        if (url.isEmpty() || url.contains("127.0.0.1") || url.contains("localhost")) return null
+        val obj = JsonObject()
+        obj.addProperty("type", "direct_config")
+        obj.addProperty("seq", 0)
+        obj.addProperty("url", url)
+        obj.addProperty("token", ep.httpToken)
+        return obj.toString()
+    }
+
     private fun buildSettingsStateFrame(): String {
         val cfg = ConfigHolder.config
         val obj = JsonObject()

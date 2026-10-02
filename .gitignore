@@ -17,6 +17,7 @@ band-qq/node_modules/
 # v1.1.1
 android-sync/.kotlin/
 band-qq/dist/
+band-qq/dist-branch/
 .temp_*/
 band-qq/sign/debug/
 band-qq/build/

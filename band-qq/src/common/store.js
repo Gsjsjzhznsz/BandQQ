@@ -2,7 +2,9 @@ import protocol from './protocol.js'
 const { degradeContent } = protocol
 
 const MAX_CONVERSATIONS = 50
-const MAX_MESSAGES = 100
+/** v2.10.0 数据层容量 100→120：聊天页渲染窗口化（branch.js renderCap）后 DOM 恒定，
+ *  数据层多留余量供翻页窗口前移（「历史达到额度就异常」的渲染额度已与数据容量解耦） */
+const MAX_MESSAGES = 120
 const CACHE_CONVERSATIONS = 10
 const CACHE_MESSAGES = 30
 const CONV_KEY = 'conv_cache'
@@ -10,6 +12,10 @@ const MSG_PREFIX = 'msg_cache_'
 const VISIBLE_KEY = 'visible_contacts'
 const QR_KEY = 'quick_replies'
 const SETTINGS_KEY = 'band_settings'
+/** v2.10.0 eSIM 独立线路配置（手机端 direct_config 帧下发，手环持久化） */
+const DIRECT_KEY = 'direct_cfg'
+/** v2.10.0 消息落盘防抖：消息风暴时每条消息不再同步全量序列化 storage（300ms 尾沿合并写） */
+const MSG_FLUSH_MS = 300
 
 /**
  * v2.8.0 双端互通设置（手机端为权威源，本地缓存加速启动）：
@@ -98,6 +104,25 @@ function createStorageAdapter(storageImpl) {
   }
 }
 
+/**
+ * v2.10.0 消息 storage 落盘防抖：快照在回调时重新从 messagesByTarget 取（不闭包旧引用），
+ * 会话被清空（clearAllMessages delete 后 undefined）时落 '[]'，不会复活旧数据。
+ */
+function createMsgPersister(cache, resolveMessages) {
+  const timers = {}
+  return function schedule(key) {
+    if (timers[key]) clearTimeout(timers[key])
+    timers[key] = setTimeout(() => {
+      timers[key] = null
+      const arr = resolveMessages()[key]
+      cache.set(MSG_PREFIX + key, JSON.stringify(arr && arr.length ? arr.slice(-CACHE_MESSAGES) : []))
+    }, MSG_FLUSH_MS)
+  }
+}
+
+/** v2.10.0 已排序标记用 WeakSet（数组挂自定义属性会污染 JSON 之外的深比较断言） */
+const sortedMsgs = new WeakSet()
+
 let systemStorage = null
 function resolveSystemStorage() {
   if (!systemStorage) {
@@ -117,7 +142,9 @@ export function createStore(storageImpl) {
   let connectState = null
   let quickReplies = DEFAULT_QUICK_REPLIES.slice()
   let settings = Object.assign({}, DEFAULT_SETTINGS)
+  let directCfg = null
   const messagesByTarget = {}
+  const scheduleMsgPersist = createMsgPersister(cache, () => messagesByTarget)
   let initPromise = null
 
   return {
@@ -161,8 +188,30 @@ export function createStore(storageImpl) {
           const parsed = JSON.parse(stRaw)
           if (parsed && typeof parsed === 'object') settings = Object.assign({}, DEFAULT_SETTINGS, parsed)
         } catch (e) { /* 用默认 */ }
+        const dRaw = await cache.get(DIRECT_KEY, '{}')
+        try {
+          const parsed = JSON.parse(dRaw)
+          if (parsed && typeof parsed.url === 'string' && parsed.url) directCfg = parsed
+        } catch (e) { /* 用默认 */ }
       })()
       return initPromise
+    },
+    /** v2.10.0 eSIM 独立线路：直连配置落地（手机端 direct_config 下发；url 为空视为未配置） */
+    async setDirectCfg(cfg) {
+      await this.ensureInit()
+      if (!cfg || typeof cfg !== 'object') return
+      const url = typeof cfg.url === 'string' ? cfg.url.trim() : ''
+      if (!url) {
+        directCfg = null
+        await cache.set(DIRECT_KEY, JSON.stringify({}))
+        return
+      }
+      directCfg = { url: url, token: typeof cfg.token === 'string' ? cfg.token : '' }
+      await cache.set(DIRECT_KEY, JSON.stringify(directCfg))
+    },
+    /** 未配置返回 null；调用方据此决定是否启用直连通道 */
+    getDirectCfg() {
+      return directCfg ? { url: directCfg.url, token: directCfg.token } : null
     },
     // 确保任何读取前缓存行初始化完成，避免冷启动时拿到空列表并被清空
     async ensureInit() {
@@ -207,8 +256,12 @@ export function createStore(storageImpl) {
       await this.ensureInit()
       const msgs = messagesByTarget[targetId]
       if (msgs) {
-        // 读取时也按 time 升序兜底，兼容早期缓存里未排序的数据
-        if (msgs.length > 1) msgs.sort((a, b) => (a.time || 0) - (b.time || 0))
+        // v2.10.0 排序幂等：已排序数组以 WeakSet 标记，热路径（窗口化后 onShow/轮询高频读取）
+        // 不再每次全量 sort（120 条比较链路），自定义属性不影响 JSON.stringify
+        if (!sortedMsgs.has(msgs)) {
+          if (msgs.length > 1) msgs.sort((a, b) => (a.time || 0) - (b.time || 0))
+          sortedMsgs.add(msgs)
+        }
         return msgs
       }
       const raw = await cache.get(MSG_PREFIX + targetId, '[]')
@@ -217,8 +270,10 @@ export function createStore(storageImpl) {
         if (messagesByTarget[targetId].length > 1) {
           messagesByTarget[targetId].sort((a, b) => (a.time || 0) - (b.time || 0))
         }
+        sortedMsgs.add(messagesByTarget[targetId])
       } catch (e) {
         messagesByTarget[targetId] = []
+        sortedMsgs.add(messagesByTarget[targetId])
       }
       return messagesByTarget[targetId]
     },
@@ -242,8 +297,10 @@ export function createStore(storageImpl) {
       }
       existing.sort((a, b) => (a.time || 0) - (b.time || 0))
       const sliced = existing.slice(-MAX_MESSAGES)
+      sortedMsgs.add(sliced)
       messagesByTarget[targetId] = sliced
-      if (added > 0) await cache.set(MSG_PREFIX + targetId, JSON.stringify(sliced.slice(-CACHE_MESSAGES)))
+      // v2.10.0 落盘防抖（300ms 尾沿合并写，不再每页同步全量序列化）
+      if (added > 0) scheduleMsgPersist(targetId)
       return added
     },
     async setMessages(targetId, list) {
@@ -265,8 +322,9 @@ export function createStore(storageImpl) {
       }
       merged.sort((a, b) => (a.time || 0) - (b.time || 0))
       const sliced = merged.slice(-MAX_MESSAGES)
+      sortedMsgs.add(sliced)
       messagesByTarget[targetId] = sliced
-      await cache.set(MSG_PREFIX + targetId, JSON.stringify(sliced.slice(-CACHE_MESSAGES)))
+      scheduleMsgPersist(targetId)
     },
     /**
      * 手机端 push_message 落库。
@@ -290,7 +348,7 @@ export function createStore(storageImpl) {
         if (hit && hit.content !== content) {
           hit.content = content
           hit.rc = 1 // 与历史帧的撤回标志一致，聊天页灰显
-          await cache.set(MSG_PREFIX + key, JSON.stringify(messages.slice(-CACHE_MESSAGES)))
+          scheduleMsgPersist(key)
         }
         const idx = conversations.findIndex((c) => c.id === key)
         if (idx >= 0) {
@@ -328,8 +386,10 @@ export function createStore(storageImpl) {
         // 按时间升序排列，保证消息顺序不乱（秒/毫秒混用也统一比较）
         messages.sort((a, b) => (a.time || 0) - (b.time || 0))
         while (messages.length > MAX_MESSAGES) messages.shift()
+        sortedMsgs.add(messages)
         messagesByTarget[key] = messages
-        await cache.set(MSG_PREFIX + key, JSON.stringify(messages.slice(-CACHE_MESSAGES)))
+        // v2.10.0 落盘防抖：消息风暴时 N 条消息 → 1 次合并写（原每条同步全量序列化）
+        scheduleMsgPersist(key)
       }
 
       // 未读数：手机端 v2 直接下发权威值；旧端(-1)时本地保守自增（仅可见会话的非自发消息）

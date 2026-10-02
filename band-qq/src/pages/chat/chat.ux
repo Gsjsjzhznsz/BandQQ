@@ -13,8 +13,11 @@
      flex:1 scroll 在 Redmi Watch 5E 等固件上高度计算失败致内容全灭），scroll-top 滚底绑定保留 -->
     <div class="msg-area-wrap">
     <scroll id="msgList" class="msg-area" scroll-y="true" scroll-top="{{scrollTop}}">
-      <div class="older-wrap" show="{{hasMore}}">
-        <text class="older-btn" onclick="loadOlder">{{loadingOlder ? '加载中…' : '加载更早的消息'}}</text>
+      <div class="older-wrap" show="{{hasMore || canLatest}}">
+        <text class="older-btn" if="{{hasMore}}" onclick="loadOlder">{{loadingOlder ? '加载中…' : '加载更早的消息'}}</text>
+        <!-- v2.10.0 渲染窗口化：历史翻页后 DOM 恒定 ≤ renderCap，尾部新消息被窗口裁掉，
+             此按钮回到最新窗口（viewEnd 锚定末尾） -->
+        <text class="older-btn latest" if="{{canLatest}}" onclick="goLatest">回到最新</text>
       </div>
       <div class="msg-item {{item.is_self ? 'self' : 'other'}}" for="{{item in messages}}" tid="tid">
         <!-- v2.9.0 拍一拍消息：居中特效胶囊（紫金边框 + 晃动动画，无 emoji 依赖防 tofu） -->
@@ -69,6 +72,7 @@
   .msg-area { position: absolute; left: 0; top: 0; width: 100%; height: 100%; flex-direction: column; }
   .older-wrap { height: 34px; flex-direction: row; justify-content: center; align-items: center; }
   .older-btn { font-size: 15px; color: #0d84ff; padding: 4px 12px; }
+  .older-btn.latest { color: #ff9f43; }
   .msg-item { width: 192px; padding: 0 8px; margin-top: 8px; flex-direction: row; flex-shrink: 0; }
   .self { justify-content: flex-end; }
   .other { justify-content: flex-start; }
@@ -124,6 +128,8 @@
 <script>
   import router from '@system.router'
   import protocol from '../../common/protocol'
+  import direct from '../../common/direct'
+  import { profile } from '../../common/branch'
 
   const HISTORY_LIMIT = 30
 
@@ -138,6 +144,8 @@
       scrollTop: 0,
       quickReplies: [],
       hasMore: false,
+      /** v2.10.0 窗口状态：true=当前窗口未锚定到本地最新（尾部被裁剪） */
+      canLatest: false,
       loadingOlder: false,
       confirmReply: false,
       confirmContent: ''
@@ -188,11 +196,20 @@
       this.refreshSendStatus()
     },
     onShow() {
+      // 每次进入会话窗口锚定最新（IM 惯例：进会话=看最新）
+      this._viewStart = null
+      this._viewEnd = null
       this.loadMessages(false)
       // 打开聊天即上报已读，手机端清零未读并回推会话列表
       this.reportRead()
+      // v2.10.0 eSIM 直连：互联不在时前台轮询历史（onHide 停止）
+      this.startDirectPoll()
+    },
+    onHide() {
+      this.stopDirectPoll()
     },
     onDestroy() {
+      this.stopDirectPoll()
       const def = this.$app.$def
       if (this._handlers) {
         def.off('message', this._handlers.message)
@@ -202,6 +219,32 @@
         def.off('quick_replies', this._handlers.quick_replies)
         this._handlers = null
       }
+    },
+    /** v2.10.0 直连轮询（仅前台）：互联已连接时不轮询，省电省流量 */
+    startDirectPoll() {
+      this.stopDirectPoll()
+      const app = this.$app.$def
+      const cfg = app.store.getDirectCfg && app.store.getDirectCfg()
+      if (!cfg || app.api.isConnected()) return
+      this._pollTimer = setInterval(() => this.directPoll(), profile().pollChatMs || 4000)
+      this.directPoll()
+    },
+    stopDirectPoll() {
+      if (this._pollTimer) { clearInterval(this._pollTimer); this._pollTimer = null }
+    },
+    directPoll() {
+      const app = this.$app.$def
+      const cfg = app.store.getDirectCfg()
+      if (!cfg || !this.targetId) return
+      const store = app.store
+      store.getConversations().then((convs) => {
+        const conv = convs.find((c) => c.id === this.targetId)
+        const isGroup = conv && conv.type === 'group'
+        direct.fetchHistory(cfg, this.targetId, 15, isGroup).then((list) => {
+          if (!list || !list.length) return
+          store.setMessages(this.targetId, list).then(() => this.loadMessages(false))
+        }).catch(() => {})
+      }).catch(() => {})
     },
     loadQuickReplies() {
       const store = this.$app.$def.store
@@ -285,33 +328,55 @@
         : protocol.getHistory(this.targetId, HISTORY_LIMIT)
       api.send(payload).catch((e) => { console.error('requestHistory fail', e) })
     },
-    /** history_list 到达：翻页时走合并，普通刷新走替换 */
+    /** history_list 到达：翻页走窗口前移合并，普通刷新走窗口重置替换 */
     onHistoryArrived(msg) {
       const store = this.$app.$def.store
       const list = Array.isArray(msg.list) ? msg.list : []
       if (msg.before > 0) {
         this.loadingOlder = false
         if (list.length === 0) {
-          this.hasMore = false
+          this._netHasMore = false
+          this.hasMore = (this._viewStart || 0) > 0
           return
         }
         store.prependMessages(this.targetId, list).then((added) => {
-          this.hasMore = msg.has_more === true
-          console.log('[chat] prepend older added=' + added + ' hasMore=' + this.hasMore)
+          this._netHasMore = msg.has_more === true
+          console.log('[chat] prepend older added=' + added + ' hasMore=' + this._netHasMore)
+          // v2.10.0：窗口前移展示新拉的一批（上限保护在 loadMessages 内收缩尾部）
+          this._viewStart = Math.max(0, (this._viewStart || 0) - added)
           this.loadMessages(false, true)
+          this.scrollTop = 0
         })
       } else {
+        // 普通刷新：窗口重置锚定最新 + 滚底
+        this._viewStart = null
+        this._viewEnd = null
         store.setMessages(this.targetId, list).then(() => {
-          this.hasMore = msg.has_more === true
+          this._netHasMore = msg.has_more === true
           this.loadMessages(true)
         })
       }
     },
-    /** 翻页：以当前窗口最早消息时间为锚点 */
+    /**
+     * v2.10.0 翻页窗口化：点一次「加载更早」两段式——
+     * ① 本地窗口还有更早（viewStart>0）：纯本地窗口前移 pageSize 条（零网络，瞬时），
+     *    同时窗口尾部收缩保 DOM ≤ renderCap（数据仍留 store，回到最新可再看）；
+     * ② 本地已到头：以窗口最早真实消息时间为锚向手机端拉更早（prepend 后窗口前移展示）。
+     * 「历史达到额度就异常」根修：渲染层 DOM 恒定 ≤ renderCap，与数据层容量解耦。
+     */
     loadOlder() {
       if (this.loadingOlder) return
+      const prof = profile()
+      if ((this._viewStart || 0) > 0) {
+        this._viewStart = Math.max(0, (this._viewStart || 0) - (prof.pageSize || 15))
+        this._viewEnd = (this._viewStart || 0) + (prof.renderCap || 30)
+        this.loadMessages(false, true)
+        // 顶部锚定：新展示的更早消息紧随按钮下方
+        this.scrollTop = 0
+        return
+      }
       const anchor = this._firstRealTime
-      if (!anchor) {
+      if (!anchor || this._netHasMore === false) {
         this.hasMore = false
         return
       }
@@ -320,19 +385,26 @@
       // 超时兜底：6s 未响应解除 loading
       setTimeout(() => { this.loadingOlder = false }, 6000)
     },
+    /** v2.10.0 回到最新：窗口重新锚定末尾 + 滚底 */
+    goLatest() {
+      this._viewStart = null
+      this._viewEnd = null
+      this.loadMessages(true)
+    },
     /**
-     * 渲染前签名比对：列表未变化时不写 this.messages（防重渲染）。
-     * 仅在新消息到达（count 增大）时滚动到底部；翻页 prepend 保持阅读位置。
+     * 渲染前签名比对：窗口切片未变化时不写 this.messages（防重渲染）。
+     * v2.10.0 窗口语义：viewEnd=null 锚定本地最新；新消息仅在锚定最新时滚底，
+     * 历史窗口浏览中新消息不跳转（canLatest 按钮提示）。
      */
     async loadMessages(scrollIfNew, keepPosition) {
       const store = this.$app.$def.store
-      const msgs = (await store.getMessages(this.targetId)).slice()
+      const all = (await store.getMessages(this.targetId)).slice()
       // 兜底：本地明细为空但会话有摘要时展示占位（不落库，避免污染翻页锚点）
-      if (msgs.length === 0) {
+      if (all.length === 0) {
         const convs = await store.getConversations()
         const conv = convs.find((c) => c.id === this.targetId)
         if (conv && conv.last_msg) {
-          msgs.push({
+          all.push({
             message_type: conv.type || 'private',
             sender_name: conv.name || '会话',
             content: conv.last_msg,
@@ -342,24 +414,34 @@
           })
         }
       }
+      const prof = profile()
+      const cap = prof.renderCap || 30
+      const total = all.length
+      // 窗口切片：viewEnd=null 锚定最新；上限保护恒 cap（历史浏览时尾部收缩）
+      let end = this._viewEnd == null ? total : Math.max(1, Math.min(this._viewEnd, total))
+      let start = this._viewStart == null ? Math.max(0, end - cap) : Math.max(0, Math.min(this._viewStart, end - 1))
+      if (end - start > cap) start = end - cap
+      const msgs = all.slice(start, end)
       for (let i = 0; i < msgs.length; i++) {
         const m = msgs[i]
         m.tid = (m.time || 0) + '_' + i + '_' + (m.content || '').length
       }
       const last = msgs.length > 0 ? msgs[msgs.length - 1] : null
-      const sig = msgs.length + '|' + (last ? (last.time || 0) + '|' + (last.content || '').length : '')
+      const sig = start + '|' + end + '|' + total + '|' + (last ? (last.time || 0) + '|' + (last.content || '').length : '')
       if (sig === this._lastMsgSig && !keepPosition) {
         return
       }
-      const prevCount = this._lastCount || 0
+      const prevEnd = this._lastEnd || 0
       const firstReal = msgs.find((m) => !m._fallback)
       this._firstRealTime = firstReal ? (firstReal.time || 0) : 0
-      if (this._firstRealTime === 0) this.hasMore = false
+      if (this._firstRealTime === 0) this._netHasMore = false
       this._lastMsgSig = sig
-      this._lastCount = msgs.length
+      this._lastEnd = end
       this.messages = msgs
-      if (!keepPosition && msgs.length > prevCount) {
-        // 新消息到达：滚动到底部（翻页 prepend 时保持阅读位置不滚动）
+      this.hasMore = start > 0 || this._netHasMore !== false
+      this.canLatest = end < total
+      if (!keepPosition && end === total && end > prevEnd) {
+        // 锚定最新且窗口末端前移（新消息）：滚动到底部；历史窗口/翻页 prepend 不动
         this._scrollTick = (this._scrollTick || 0) + 1
         this.scrollTop = 999999 + this._scrollTick
         const el = this.$element && this.$element('msgList')

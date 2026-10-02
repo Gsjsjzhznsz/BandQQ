@@ -2,8 +2,8 @@
   "package": "io.github.gsjsjzhznsz.bandqq",
   "name": "QQ助手",
   "icon": "/common/icon.png",
-  "versionName": "2.9.6",
-  "versionCode": 50,
+  "versionName": "2.10.0",
+  "versionCode": 51,
   "minAPILevel": 1,
   "deviceTypeList": [
     "watch"
@@ -36,6 +36,9 @@
     },
     {
       "name": "system.clipboard"
+    },
+    {
+      "name": "system.fetch"
     }
   ],
   "display": {

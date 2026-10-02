@@ -352,6 +352,8 @@ object InterconnectBridge {
         broker?.pushQuickReplies()
         // v2.8.0 双端互通：连接建立即下发设置快照（手环本地持久化，变更经 settings_update 回传）
         broker?.pushSettingsState()
+        // v2.10.0 eSIM 独立线路：连接建立即下发直连配置（手环持久化待命）
+        broker?.pushDirectConfig()
     }
 
     fun onDisconnect() {
