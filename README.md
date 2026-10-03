@@ -143,7 +143,14 @@ gradle :devtools:assembleRelease
 
 ## 📦 更新日志
 
-### v2.18.0（当前版本 · vc58）
+### v2.18.1（当前版本 · vc59）
+
+> 五项修复：**① 键盘半屏真机根修**（v2.18 已把宿主 kb-dock 改顶部锚定，但键盘组件根容器 .page 仍 bottom:0 —— 真机固件上该 bottom 解析到页面文档底而非 dock 底（镜像引擎按最近定位祖先解析所以 VM 取证通过、真机依旧半屏），1px nudge 重排修不了定位错，与「输入也不展开」全部症状吻合；改 top:0 与 dock 同源锚定，dock 高==键盘高构建期同值写入，正常固件两锚等价、异常固件 top 锚已被 v2.18 取证证明全固件可靠）；**② 撤回假成功回帧修正**（用户实测证伪 v2.18 的「get_msg 查无=已撤回」推断：NapCat recallMsg NT 超时（撤回未生效）时 get_msg 同样可能 1200，导致手环显示“撤回成功”而群里消息还在；现在 get_msg 探测只区分「消息仍在/状态无法确认」两种终败文案，任何路径不再回假成功，重试链保持）；**③ AstrBot 自动补装 DNS 根修**（用户 10-03 日志：自动补装首步 apt-get update 即 Temporary failure resolving 'ports.ubuntu.com'——proot 不提供网络栈配置、发行版 rootfs 缺 /etc/resolv.conf，glibc 解析必败；启动/装步前写入公共解析器（阿里/腾讯/谷歌）+ update 失败自动切清华 ubuntu-ports 镜像重试一次 + 必装清单去 sudo（proot 恒为 root，包名清单越长源不可达时死得越早））；**④ 引擎日志落盘**（用户反馈引擎日志无本地 log 文件：EngineManager 全量输出异步写入 Android/data/<pkg>/files/logs/engine-*.log（与主日志同目录，导出 zip 自动收录，8MB 滚动 7 天回收），AstrBot 标签页日志块同步改定高滚动+显示落盘路径）；**⑤ APK 通讯日志面板定高加固**（开启服务后日志区高度塌陷：日志盒彻底去 weight 化改固定 300dp，不随过滤标签行增减/父容器测量路径变化）。
+
+- 验证：四分支 rpk 解包断言 verify_2181 132/132 PASS（新增 .page 不再 bottom 锚定/top:0 在包）；手环端 node 单测 107 测 106 过（存量基线 1 不变）；APP 单测 125+125 双 flavor 全绿；bundled/companion 双 APK 编译 badging vc59/2.18.1，胖包含 DNS 修复版启动脚本
+- 版本：APP/手环 2.18.1（vc59）单轨延续
+
+### v2.18.0（vc58）
 
 > 三线修复：**① AstrBot 引擎「环境不完整」根治**（升级用户设备上 v2.17 自愈脚本从未部署——历史实现只在首次安装时写脚本，isInstalled=true 时安装流程整体跳过，容器里跑的还是旧版预检脚本，报 missing curl/git/uv + MANUAL_ENV 后退出；现每次启动前用 APK 资产强制刷新容器内三脚本/配置（内容一致跳写、保留重装标记），且 start() 前置 installIfNeeded（未装引擎直接启动必败的老问题一并修掉））；**② 撤回/v11 动作重试+验证+明细**（用户 10-03 日志实证撤回链路 BandQQ 侧已全通、失败点在协议端 NapCat recallMsg NT 事件超时 retcode=1200（社区已知瞬态型问题）——v11 动作统一通道改为失败自动重试 3 次（1.2s/2.5s 间隔），delete_msg 1200 时先经 get_msg 验证（消息已不存在按撤回成功回帧，覆盖"已生效但反馈丢失"场景），最终失败透传协议端 retcode 到手环 toast；另：HTTP 拒连自适应降级（连续 3 次拒连 → 10 分钟 WS-only，换配置自动恢复，砍掉每动作两路空转））；**③ 键盘 dock 顶部锚定 + 挂载自愈**（Vela VM 四分支实测取证：band9 镜像页面高度解析异常（内容高≈665>视口 490），absolute bottom:0 把键盘整体推出屏外≈175px——第三排字母腰斩、进度条不可见，即用户口径"键盘只显示一半，输入不展开"；页面顶部锚定在全部固件/镜像上精确可靠，kb-dock 改 top=视口高−键盘物理高（band 157/bandpro 197/xiaomis 154/redmiwatch 231，构建期分支写入）+ 键盘弹出后 120ms/650ms 两拍 1px 收缩还原强制重排（历史"输入一下就恢复"的自愈无需用户输入））。
 

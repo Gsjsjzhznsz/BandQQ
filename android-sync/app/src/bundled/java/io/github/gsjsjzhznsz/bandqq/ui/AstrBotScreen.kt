@@ -1,5 +1,6 @@
 package io.github.gsjsjzhznsz.bandqq.ui
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -228,19 +229,41 @@ fun AstrBotScreen(
                 }
             }
 
-            // ===== 引擎日志（独立标签页放宽到 80 行）=====
+            // ===== 引擎日志（独立标签页放宽到 80 行；v2.18.1 起同时落盘 files/logs/engine-*.log）=====
             if (showLogs) {
                 Spacer(Modifier.height(10.dp))
                 Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text("引擎日志（最近 80 行）", fontSize = 13.sp)
                         Text(
-                            text = logs.takeLast(80).joinToString("\n").ifBlank { "暂无日志" },
-                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                            text = "完整日志已落盘：Android/data/" +
+                                "${context.packageName}/files/logs/engine-*.log（可用文件管理器取出，导出日志 zip 同样收录）",
+                            modifier = Modifier.padding(top = 4.dp),
                             fontSize = 10.sp,
                             color = colorScheme.onSurfaceSecondary,
-                            lineHeight = 14.sp,
                         )
+                        // v2.18.1：80 行长文本改为定高滚动容器，页不再被整段撑高/依赖外部测量
+                        androidx.compose.foundation.layout.Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(240.dp)
+                                .padding(top = 8.dp)
+                                .background(
+                                    color = colorScheme.surfaceContainer,
+                                    shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp),
+                                ),
+                        ) {
+                            Text(
+                                text = logs.takeLast(80).joinToString("\n").ifBlank { "暂无日志" },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .verticalScroll(rememberScrollState())
+                                    .padding(10.dp),
+                                fontSize = 10.sp,
+                                color = colorScheme.onSurfaceSecondary,
+                                lineHeight = 14.sp,
+                            )
+                        }
                     }
                 }
             }

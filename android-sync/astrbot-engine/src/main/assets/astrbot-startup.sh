@@ -79,9 +79,56 @@ bump_progress(){
   printf "$next" > "$TMPDIR/progress"
 }
 
+# v2.18.1：容器 DNS 自举。实证（用户 10-03 日志）：自动补装首步 apt-get update 即
+# "Temporary failure resolving 'ports.ubuntu.com'" → git/curl 全装不上 →
+# 自动补装链整体烂死。根因：proot 不提供网络栈配置，发行版 rootfs 常缺
+# /etc/resolv.conf（或为指向 systemd-resolved stub 的断链），glibc 解析必败。
+# 修法：启动/装步前写入公共解析器（阿里/腾讯/谷歌，国内优先），幂等。
+ensure_container_dns(){
+  local rc=/etc/resolv.conf
+  if [ -s "$rc" ] && grep -qE '^[[:space:]]*nameserver' "$rc" 2>/dev/null; then
+    return 0
+  fi
+  echo "[AstrBot Android] 容器 DNS 缺失/不可用，写入公共解析器..."
+  if [ -L "$rc" ] || [ -e "$rc" ]; then rm -f "$rc" 2>/dev/null; fi
+  {
+    echo "nameserver 223.5.5.5"
+    echo "nameserver 119.29.29.29"
+    echo "nameserver 8.8.8.8"
+    echo "options timeout:2 attempts:3 rotate"
+  } > "$rc" 2>/dev/null || { echo "警告: 无法写入 $rc（rootfs 只读?），网络安装可能失败"; return 1; }
+  # 极简 rootfs 可能缺 nsswitch.conf（glibc 缺省含 dns，显式补上更稳）
+  if [ ! -f /etc/nsswitch.conf ]; then
+    printf 'hosts: files dns\nnetworks: files\n' > /etc/nsswitch.conf 2>/dev/null || true
+  fi
+  echo "[AstrBot Android] DNS 已就绪（$(grep -c '^nameserver' "$rc" 2>/dev/null || echo 0) 个解析器）"
+  return 0
+}
+
+# v2.18.1：ubuntu-ports 官方源在国内弱网下可用性差；update 失败后切清华镜像重试一次。
+# 与 prepare_apt_downloads（清华源 http→https 升级）互补：那个管协议，这个管官方源不可达。
+switch_apt_mirror_tuna(){
+  local file changed=0
+  for file in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+    [ -f "$file" ] || continue
+    if grep -qE 'https?://ports\.ubuntu\.com' "$file"; then
+      sed -i -e 's#http://ports\.ubuntu\.com#https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports#g' \
+             -e 's#https://ports\.ubuntu\.com#https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports#g' "$file"
+      changed=1
+    fi
+  done
+  if [ "$changed" -eq 1 ]; then
+    echo "已将 ubuntu-ports 官方源切换为清华镜像"
+    return 0
+  fi
+  return 1
+}
+
 install_sudo_curl_git(){
+  # v2.18.1：必装清单去掉 sudo —— proot 容器内恒为 root，装 sudo 纯属浪费且是
+  # 自动补装链第一环就失败的高频点（包名清单越长，源不可达时死得越早）
   missing=()
-  for cmd in sudo git curl; do
+  for cmd in git curl; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
       missing+=("$cmd")
     fi
@@ -98,15 +145,20 @@ install_sudo_curl_git(){
   apt_opts="-o Acquire::ForceIPv4=true"
 
   if ! apt-get $apt_opts update; then
-    echo "apt-get update 失败，继续尝试安装..."
+    echo "apt-get update 失败，切换清华 ports 镜像后重试一次..."
+    if switch_apt_mirror_tuna && apt-get $apt_opts update; then
+      echo "镜像切换后 update 成功"
+    else
+      echo "警告: apt-get update 仍失败（检查网络/DNS），继续尝试安装..."
+    fi
   fi
 
-  if ! apt-get $apt_opts install -y sudo git curl; then
+  if ! apt-get $apt_opts install -y git curl; then
     echo "基础命令安装失败"
     return 1
   fi
 
-  for cmd in sudo git curl; do
+  for cmd in git curl; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
       echo "基础命令安装后仍缺少: $cmd"
       return 1
@@ -835,6 +887,8 @@ launch_astrbot(){
 }
 
 run_step(){
+  # v2.18.1：所有路径（start 与 --step）先做 DNS 自举，再进入安装/启动链
+  ensure_container_dns || true
   case "$1" in
     start)
       launch_astrbot

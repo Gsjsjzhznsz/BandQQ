@@ -770,10 +770,15 @@ class MessageBroker(
      * 失败点在协议端——NapCat 对 recallMsg 的 NT 事件等待超时（retcode=1200，
      * "Timeout: NTEvent ... recallMsg ... result: 5"）。该模式在 NapCat 社区为已知
      * 瞬态问题（sendMsg/recallMsg 均有同型 issue）：NT 反馈事件偶发丢失/迟滞，
-     * 重试往往成功，甚至撤回实际已生效。策略：
+     * 重试往往成功。策略：
      * ① 失败重试至多 3 次（间隔 1.2s / 2.5s）；
-     * ② delete_msg 首次 1200 时先经 get_msg 验证——消息已不存在即按成功回帧
-     *   （"超时但实际已撤回"场景）；
+     * ② delete_msg 首次 1200 时先经 get_msg 验证——
+     *   v2.18.1 修正：用户实测证伪了 v2.18 的「get_msg 查无 = 已撤回」推断：
+     *   NapCat recallMsg NT 超时（撤回实际未生效）时 get_msg 同样可能 1200
+     *   （"消息不存在或已被撤回"，NT 服务异常时查询与撤回一起失灵），
+     *   按成功回帧 = 手环显示"撤回成功"而群里消息还在。现在 get_msg 失败
+     *   一律按"无法确认"处理：照样走重试，终败如实回帧失败并给出可行动提示；
+     *   仅 get_msg 成功（消息仍在，撤回确定未生效）也照走重试。
      * ③ 最终失败把协议端 retcode/wording 透传手环，不再笼统"未响应或动作不支持"。
      */
     private fun attemptCall(
@@ -788,29 +793,29 @@ class MessageBroker(
                 return@requestApiAction
             }
             log("v11 action $action -> fail attempt=$attempt retcode=$retcode detail=${detail.take(140)}")
-            // delete_msg + 1200：验证消息是否实际已撤回（NT 超时常见"已生效但反馈丢失"）
+            // delete_msg + 1200：经 get_msg 区分「消息仍在」与「状态无法确认」，
+            // 两种结论都只影响终败文案，不再产生任何假成功（v2.18.1）
             if (action == "delete_msg" && retcode == 1200) {
                 val mid = paramsJson
                     .substringAfter("\"message_id\":", "").trim()
                     .trimEnd('}', ' ')
                 if (mid.isNotEmpty()) {
                     oneBot.requestApiAction("get_msg", "{\"message_id\":$mid}") { graw ->
-                        val (gcode, _) = parseRet(graw)
-                        if (gcode != 0) {
-                            // 消息查不到 = 已撤回或已超出可查窗口 → 按撤回成功处理
-                            log("delete_msg 1200 but get_msg retcode=$gcode → 消息已不存在，按撤回成功回帧")
-                            bandSender(actionResultFrame(seq, label + "成功", targetId))
-                        } else if (attempt < 3) {
+                        val (gcode, gmsg) = parseRet(graw)
+                        log("delete_msg 1200 probe get_msg retcode=$gcode msg=${gmsg.take(60)}")
+                        if (attempt < 3) {
                             retryBackoff(attempt)
                             attemptCall(action, paramsJson, seq, label, targetId, attempt + 1)
                         } else {
-                            bandSender(
-                                actionResultFrame(
-                                    seq,
-                                    label + "失败（协议端 NT 超时 retcode=1200：查 NapCat 版本与群管理权限）",
-                                    targetId
-                                )
-                            )
+                            // 终败：按探测结果给出可行动的如实文案（绝不回"成功"）
+                            val info = if (gcode == 0) {
+                                label + "失败：协议端撤回超时（NapCat recallMsg NT 超时）且消息仍在，" +
+                                    "建议升级/重启 NapCat 后重试"
+                            } else {
+                                label + "失败：协议端超时且撤回结果无法确认（retcode=1200），" +
+                                    "请到 QQ 里确认消息状态；建议升级 NapCat"
+                            }
+                            bandSender(actionResultFrame(seq, info, targetId))
                         }
                     }
                     return@requestApiAction
@@ -821,7 +826,8 @@ class MessageBroker(
                 attemptCall(action, paramsJson, seq, label, targetId, attempt + 1)
             } else {
                 val info = when {
-                    retcode != null && detail.isNotBlank() -> label + "失败（协议端 retcode=$retcode）"
+                    retcode != null && detail.isNotBlank() ->
+                        label + "失败（协议端 retcode=$retcode）：${detail.take(80)}"
                     retcode != null -> label + "失败（协议端 retcode=$retcode）"
                     else -> label + "失败（协议端未响应或动作不支持）"
                 }

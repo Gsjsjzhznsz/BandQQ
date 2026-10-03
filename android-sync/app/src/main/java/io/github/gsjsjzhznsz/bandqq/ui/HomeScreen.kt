@@ -151,10 +151,11 @@ fun HomeScreen(bottomInnerPadding: Dp, isActive: Boolean = true) {
 
             // ===== 实时日志 =====
             SmallTitle(text = "实时日志")
+            // v2.18.1：不再外挂固定 360dp（内部日志盒已定高 300dp，面板自洽），
+            // 避免外层定高与内部定高叠加时把标签行/日志盒挤压出测量歧义
             LogPanel(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(360.dp)
                     .listItemReveal(entered, 3),
             )
 

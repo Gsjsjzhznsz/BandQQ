@@ -4,6 +4,12 @@
        且根高固定后输入触发的重排不再波及中间层，连 v2.13 的"输入一下就恢复"也消失了。
        现在根/懒建层/黑底层三层全部用 kbHpx 显式定高（三分区内容高恒定：
        circle 321 / rect 255+28 / pill 305+28），链路上无任何 auto 测量点，首帧即完整渲染。 -->
+  <!-- v2.18.1 根容器锚向修正：.page 由 bottom:0 改 top:0。v2.18 已把宿主 kb-dock 改为
+       顶部锚定（top=视口高-键盘物理高，构建期写入），但本组件根 .page 仍 bottom:0 ——
+       真机固件上该 bottom 解析到页面文档底而非 kb-dock 底（镜像引擎按最近定位祖先解析
+       所以 VM 取证通过，真机依旧半屏），1px nudge 重排修不了定位错，与"输入也不展开"
+       全部症状吻合。dock 高 == 键盘高（构建期同值写入），top:0 与 bottom:0 在正常固件
+       上等价，在异常固件上 top 锚定已被 v2.18 取证证明全固件可靠（top-bar 恒贴顶）。 -->
   <div class="page" style="flex-direction: column; height: {{kbHpx}}; overflow: {{hide ? 'hidden' : 'visible'}};">
     <!-- 键盘内容懒建：外 if 保证键盘隐藏时整个子树不进 VDOM（chat/search 首进 1s 卡顿根因：
          旧实现 show 只是不可见，200+ 节点/图片在进页瞬间全部创建），首次弹出才创建，
@@ -848,7 +854,7 @@ export default {
         width:100%;
         position:absolute;
         left:0;
-        bottom:0
+        top:0
 }
 .item {
         height:52px;

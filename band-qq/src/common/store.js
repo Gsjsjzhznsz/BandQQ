@@ -584,7 +584,7 @@ export function createStore(storageImpl) {
       messagesByTarget['10001'] = [
         { message_type: 'private', sender_id: '10001', sender_name: '马化腾', content: '在吗？帮个忙', is_self: false, time: now - 122 * min },
         { message_type: 'private', sender_id: '10001', sender_name: '马化腾', content: '手环QQ 体验群 20001 等你', is_self: false, time: now - 118 * min },
-        { message_type: 'private', sender_id: '10001', sender_name: '马化腾', content: degradeContent([{ type: 'reply', data: {} }, { type: 'text', data: { text: '看看这个新版本' } }, { type: 'share', data: { title: 'BandQQ 发布页', content: 'v2.18.0' } }]), is_self: false, time: now - 50 * min },
+        { message_type: 'private', sender_id: '10001', sender_name: '马化腾', content: degradeContent([{ type: 'reply', data: {} }, { type: 'text', data: { text: '看看这个新版本' } }, { type: 'share', data: { title: 'BandQQ 发布页', content: 'v2.18.1' } }]), is_self: false, time: now - 50 * min },
         { message_type: 'private', sender_id: '10001', sender_name: '马化腾', content: '马化腾 拍了拍你', poke: true, is_self: false, time: now - 30 * min }
       ]
       messagesByTarget['10002'] = [

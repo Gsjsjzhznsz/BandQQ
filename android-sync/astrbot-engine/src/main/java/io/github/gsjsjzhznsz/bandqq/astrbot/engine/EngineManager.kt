@@ -75,11 +75,32 @@ object EngineManager {
         return runCatching { p.isAlive }.getOrDefault(false)
     }
 
-    // ---------- 日志（环形缓冲，设置卡片展示最近 N 行） ----------
+    // ---------- 日志（环形缓冲 + v2.18.1 文件落盘，设置卡片展示最近 N 行） ----------
 
     private val logBuf = ArrayDeque<String>()
     private val _log = MutableStateFlow<List<String>>(emptyList())
     val log: StateFlow<List<String>> = _log
+
+    /** v2.18.1：引擎日志落盘上下文与单线程 IO（与 app FileLogger 同目录同名约定） */
+    @Volatile
+    private var logCtx: Context? = null
+    private val logIo = java.util.concurrent.Executors.newSingleThreadExecutor { r ->
+        Thread(r, "engine-file-log").apply { isDaemon = true }
+    }
+
+    /** 引擎日志目录：与主日志同目录（getExternalFilesDir/files 下的 logs/），导出 zip 自动收录 */
+    private fun engineLogDir(ctx: Context): File? = runCatching {
+        val base = ctx.getExternalFilesDir(null) ?: ctx.filesDir
+        File(base, "logs").apply { if (!exists()) mkdirs() }
+    }.getOrNull()
+
+    private fun dayFmt() = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+    private fun tsFmt() = java.text.SimpleDateFormat("MM-dd HH:mm:ss", java.util.Locale.US)
+
+    private fun logFileFor(ctx: Context): File? {
+        val d = engineLogDir(ctx) ?: return null
+        return File(d, "engine-" + dayFmt().format(java.util.Date()) + ".log")
+    }
 
     private fun logLine(s: String) {
         synchronized(logBuf) {
@@ -88,6 +109,33 @@ object EngineManager {
         }
         _log.value = synchronized(logBuf) { logBuf.toList() }
         android.util.Log.i("AstrBotEngine", s)
+        // v2.18.1：异步落盘（用户反馈：引擎日志本地无 log 文件）。单文件 8MB 滚动 .old.log，
+        // 保留策略随 FileLogger.cleanup（同目录 .log/.old.log 7 天统一回收）
+        val ctx = logCtx ?: return
+        val target = logFileFor(ctx) ?: return
+        val ts = tsFmt().format(java.util.Date())
+        logIo.execute {
+            runCatching {
+                if (target.exists() && target.length() > 8L * 1024 * 1024) {
+                    val rolled = File(target.parentFile, target.name.removeSuffix(".log") + ".old.log")
+                    rolled.delete()
+                    target.renameTo(rolled)
+                }
+                target.appendText("$ts $s\n")
+            }
+        }
+    }
+
+    /** v2.18.1：引擎会话头（与 FileLogger 会话头同风格，区分每次引擎启动） */
+    private fun writeEngineSessionHeader(ctx: Context) {
+        logCtx = ctx.applicationContext
+        val target = logFileFor(ctx) ?: return
+        val ts = tsFmt().format(java.util.Date())
+        logIo.execute {
+            runCatching {
+                target.appendText("\n===== AstrBot 引擎会话开始 $ts =====\n")
+            }
+        }
     }
 
     private fun logLinesOf(s: String) = s.split('\n').filter { it.isNotBlank() }
@@ -140,6 +188,7 @@ object EngineManager {
      */
     suspend fun installIfNeeded(ctx: Context): Boolean = mutex.withLock {
         if (isInstalled(ctx)) return true
+        logCtx = ctx.applicationContext
         withContext(Dispatchers.IO) {
             try {
                 val root = engineRoot(ctx)
@@ -362,6 +411,7 @@ object EngineManager {
             return
         }
         _state.value = State.Starting
+        writeEngineSessionHeader(appCtx)
         EngineService.start(appCtx)
         Thread {
             try {

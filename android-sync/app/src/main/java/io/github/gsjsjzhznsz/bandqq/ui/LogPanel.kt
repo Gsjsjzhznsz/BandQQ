@@ -9,7 +9,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -51,8 +51,12 @@ private const val MAX_LOG_LINE = 400
  * 1) 旧实现用 scroll Column + key(time,tag,message)，同毫秒同内容日志会撞 key；
  * 2) 自动滚动用 animateScrollTo，日志风暴时动画不断重启互相打断；
  * 3) 日志盒高度依赖 weight(1f) 单一路径，任何一次异常测量都会塌成 0 高。
- * 新实现：LazyColumn（懒组合 + seq 唯一 key）+ 即时滚动（无动画争抢）+
- * weight 之外再加 heightIn(min) 兜底（高度永远 >= 140dp，坍缩在物理上不可能）。
+ * 新实现：LazyColumn（懒组合 + seq 唯一 key）+ 即时滚动（无动画争抢）。
+ *
+ * v2.18.1 再加固：日志盒彻底去 weight 化，改为固定高 300dp。用户实测（10-03）
+ * 开启服务后日志区高度仍会塌陷：weight(1f)+heightIn(min) 组合在「日志盒上方
+ * 动态插入过滤标签行」时会改变测量路径，异常固件/嵌套滚动容器下 weight 分配
+ * 可能归零。定高后日志视口物理恒定，标签行出现与否、父容器如何测量都不影响。
  */
 @Composable
 fun LogPanel(modifier: Modifier = Modifier) {
@@ -162,10 +166,9 @@ fun LogPanel(modifier: Modifier = Modifier) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f)
-                // v2.9.4 坍缩兜底：即便异常测量路径让 weight 算出 ~0，
-                // 日志盒也不得低于 140dp（宁可向下多占，不可压成一条线）
-                .heightIn(min = 140.dp)
+                // v2.18.1：固定高 300dp（去 weight 化）——日志视口物理恒定，
+                // 不随标签行增减/父容器测量路径变化，坍缩在物理上不再可能
+                .height(300.dp)
                 .background(MiuixTheme.colorScheme.surfaceContainer, RoundedCornerShape(12.dp))
                 .padding(8.dp),
         ) {
