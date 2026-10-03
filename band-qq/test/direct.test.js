@@ -65,6 +65,19 @@ describe('direct.normalizeHistoryMessage', () => {
     }, 'group', 999)
     assert.equal(m.at, true)
   })
+  it('v2.17.0 历史消息透传 message_id（撤回/回应定位）', () => {
+    const m = normalizeHistoryMessage({
+      time: 1700000000, message_id: 123456789,
+      sender: { user_id: 111, nickname: 'n' }, raw_message: 'hi'
+    }, 'private', 999)
+    assert.equal(m.message_id, 123456789)
+  })
+  it('v2.17.0 无 message_id 时不带该字段（旧端兼容）', () => {
+    const m = normalizeHistoryMessage({
+      time: 1700000000, sender: { user_id: 1 }, raw_message: 'x'
+    }, 'private', 2)
+    assert.equal(m.message_id, undefined)
+  })
 })
 
 describe('direct.createDirect 注入 mock', () => {

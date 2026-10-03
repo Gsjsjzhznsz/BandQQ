@@ -428,6 +428,8 @@ fun SettingsScreen(
                         listOf("文本" to "text", "@我" to "at", "图片" to "image"),
                         listOf("表情" to "face", "引用回复" to "reply", "撤回" to "recall"),
                         listOf("语音" to "voice", "文件" to "file", "长文本" to "long"),
+                        // v2.17.0：渲染器智能化新增段型可演示
+                        listOf("红包" to "redpacket", "转发卡片" to "forward", "群签到" to "sign"),
                     ).forEach { rowScenarios ->
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(top = 8.dp),

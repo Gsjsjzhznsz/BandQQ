@@ -319,6 +319,10 @@ class MessageBroker(
                 content = display.content,
                 time = display.time,
                 isSelf = display.isSelf,
+                // v2.17.0 修复：入库保留 message_id（v2.13~2.16 丢在这里 → 撤回事件
+                // recallMessage 按 messageId 匹配必失败 → 对方撤回手环永不灰显；
+                // 且历史帧无 id 可下发，手环端撤回/表情回应菜单整体残废）
+                messageId = display.messageId,
                 atMe = display.atMe
             )
         )
@@ -401,7 +405,7 @@ class MessageBroker(
      * 不入库的消息会在手环下次会话同步/拉历史时被清掉（表现为「手环一会就删除」）。
      *
      * @param chatType "private" | "group"
-     * @param scenario text/at/image/face/reply/recall/voice/file/long
+     * @param scenario text/at/image/face/reply/recall/voice/file/long/redpacket/forward/sign
      * @return 结果描述（供界面 toast），空串表示构造失败
      */
     fun pushTestMessage(chatType: String = "private", scenario: String = "text"): String {
@@ -438,6 +442,15 @@ class MessageBroker(
             "reply" -> arr(seg("reply", "id" to "-1"), text("收到，马上处理！这条是引用回复测试"))
             "voice" -> arr(text("发来一条语音"), seg("record", "file" to "test.amr"))
             "file" -> arr(seg("file", "name" to "需求文档.pdf", "size" to "102400"))
+            // v2.17.0 新场景：渲染器智能化新增段型可演示（红包识别/转发摘要/群签到卡片）
+            "redpacket" -> arr(seg("json", "data" to "{\"prompt\":\"恭喜发财，大吉大利\",\"wcpay\":{\"title\":\"QQ红包\"}}"))
+            "forward" -> arr(
+                seg(
+                    "forward", "content" to
+                    "[{\"content\":{\"content\":[{\"type\":\"text\",\"data\":{\"text\":\"周末组织去爬山，报名接龙\"}}]}},{\"content\":\"群相册已更新 30 张新照片\"}]"
+                )
+            )
+            "sign" -> arr(seg("xml", "data" to "<msg brief=\"群签到\"><title>BandQQ 体验群 签到成功</title></msg>"))
             "long" -> arr(
                 text(
                     "这是一条长文本测试：\n第一行模拟群通知内容，检查多行折行\n" +
@@ -493,7 +506,9 @@ class MessageBroker(
         }
         val label = when (scenario) {
             "at" -> "@我"; "image" -> "图片"; "face" -> "表情"; "reply" -> "引用回复"
-            "voice" -> "语音"; "file" -> "文件"; "long" -> "长文本"; else -> "文本"
+            "voice" -> "语音"; "file" -> "文件"; "long" -> "长文本"
+            "redpacket" -> "红包"; "forward" -> "转发卡片"; "sign" -> "群签到"
+            else -> "文本"
         }
         bandSender(parser.toHandBandFrame(parsed, visible = true, targetName = targetName))
         bandSender(store.buildConversationFrame(0))

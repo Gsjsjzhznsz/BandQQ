@@ -553,8 +553,9 @@ export function createStore(storageImpl) {
       ]
       messagesByTarget['20001'] = [
         { message_type: 'group', sender_id: '10086', sender_name: '小明', content: degradeContent([{ type: 'json', data: { data: JSON.stringify({ meta: { music: { title: '晴天', singer: '周杰伦' } } }) } }]), is_self: false, time: now - 95 * min },
-        { message_type: 'group', sender_id: '10087', sender_name: '测试喵', content: degradeContent([{ type: 'file', data: { name: 'BandQQ-使用手册.pdf' } }]), is_self: false, time: now - 72 * min },
-        { message_type: 'group', sender_id: '10086', sender_name: '小明', content: degradeContent([{ type: 'forward', data: {} }]), is_self: false, time: now - 55 * min },
+        { message_type: 'group', sender_id: '10087', sender_name: '测试喵', content: degradeContent([{ type: 'file', data: { name: 'BandQQ-使用手册.pdf', size: 1572864 } }]), is_self: false, time: now - 72 * min },
+        // v2.17.0：合并转发智能摘要形态（data.content=NapCat 转发节点数组，取前两条文本）
+        { message_type: 'group', sender_id: '10086', sender_name: '小明', content: degradeContent([{ type: 'forward', data: { content: JSON.stringify([{ content: { content: [{ type: 'text', data: { text: '周末组织去爬山，报名接龙' } }] } }, { content: '群相册已更新 30 张新照片' }]) } }]), is_self: false, time: now - 55 * min },
         { message_type: 'group', sender_id: '10087', sender_name: '测试喵', content: '手环上看消息太方便了，回复也快', is_self: false, time: now - 35 * min },
         { message_type: 'group', sender_id: '10086', sender_name: '小明', content: '小明 拍了拍你', poke: true, is_self: false, time: now - 18 * min },
         { message_type: 'group', sender_id: '10087', sender_name: '测试喵', content: '刚刚的方案你觉得怎么样？这条是@我演示消息', at: true, is_self: false, time: now - 6 * min }
@@ -562,6 +563,8 @@ export function createStore(storageImpl) {
       messagesByTarget['30001'] = [
         { message_type: 'group', sender_id: '30002', sender_name: '妈妈', content: '给你炖了汤放冰箱里', is_self: false, time: now - 40 * min },
         { message_type: 'group', sender_id: '30003', sender_name: '老爸', content: degradeContent([{ type: 'xml', data: { data: '<msg brief="恭喜发财"><title>收到一个红包</title></msg>' } }]), is_self: false, time: now - 30 * min },
+        // v2.17.0：JSON 红包卡（wcpay 特征）→ [QQ红包]
+        { message_type: 'group', sender_id: '30002', sender_name: '妈妈', content: degradeContent([{ type: 'json', data: { data: JSON.stringify({ prompt: '恭喜发财，大吉大利', wcpay: { title: 'QQ红包' } }) } }]), is_self: false, time: now - 26 * min },
         { message_type: 'group', sender_id: '30002', sender_name: '妈妈', content: degradeContent([{ type: 'image', data: { url: 'https://example.com/dance.gif' } }]), is_self: false, time: now - 20 * min },
         { message_type: 'group', sender_id: '30003', sender_name: '老爸', content: '降温了记得加衣服', is_self: false, time: now - 12 * min },
         { message_type: 'group', sender_id: '30003', sender_name: '老爸', content: degradeContent([{ type: 'location', data: { title: '老家门口' } }]), is_self: false, time: now - 8 * min },
@@ -573,13 +576,15 @@ export function createStore(storageImpl) {
         { message_type: 'group', sender_id: '40003', sender_name: '王姐', content: degradeContent([{ type: 'dice', data: {} }]), is_self: false, time: now - 38 * min },
         { message_type: 'group', sender_id: '40002', sender_name: '李工', content: degradeContent([{ type: 'mface', data: {} }]), is_self: false, time: now - 33 * min },
         { message_type: 'group', sender_id: '40003', sender_name: '王姐', content: degradeContent([{ type: 'markdown', data: { content: '**验证结论**\n- 键盘首帧完整渲染\n- 引擎安装不再报错\n- `演示模式`已补新特性' } }]), is_self: false, time: now - 26 * min },
+        // v2.17.0：markdown 表格压平形态（手环窄屏不可读表格 → 单元格「；」拼接）
+        { message_type: 'group', sender_id: '40002', sender_name: '李工', content: degradeContent([{ type: 'markdown', data: { content: '**机型适配清单**\n\n| 机型 | 状态 |\n| --- | --- |\n| 手环10 | 通过 |\n| RW5 | 通过 |' } }]), is_self: false, time: now - 23 * min },
         // v2.15.0 撤回形态（rc=1 灰底灰字，与真机撤回同步帧同构）
         { message_type: 'group', sender_id: '40003', sender_name: '王姐', content: '王姐 撤回了一条消息', rc: 1, is_self: false, time: now - 20 * min }
       ]
       messagesByTarget['10001'] = [
         { message_type: 'private', sender_id: '10001', sender_name: '马化腾', content: '在吗？帮个忙', is_self: false, time: now - 122 * min },
         { message_type: 'private', sender_id: '10001', sender_name: '马化腾', content: '手环QQ 体验群 20001 等你', is_self: false, time: now - 118 * min },
-        { message_type: 'private', sender_id: '10001', sender_name: '马化腾', content: degradeContent([{ type: 'reply', data: {} }, { type: 'text', data: { text: '看看这个新版本' } }, { type: 'share', data: { title: 'BandQQ 发布页', content: 'v2.15.0' } }]), is_self: false, time: now - 50 * min },
+        { message_type: 'private', sender_id: '10001', sender_name: '马化腾', content: degradeContent([{ type: 'reply', data: {} }, { type: 'text', data: { text: '看看这个新版本' } }, { type: 'share', data: { title: 'BandQQ 发布页', content: 'v2.17.0' } }]), is_self: false, time: now - 50 * min },
         { message_type: 'private', sender_id: '10001', sender_name: '马化腾', content: '马化腾 拍了拍你', poke: true, is_self: false, time: now - 30 * min }
       ]
       messagesByTarget['10002'] = [

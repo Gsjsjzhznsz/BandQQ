@@ -22,6 +22,14 @@ describe('store', () => {
     assert.deepEqual(await store.getMessages('100'), [])
   })
 
+  it('v2.17.0 history list 保留 message_id（撤回菜单数据源）', async () => {
+    await store.setMessages('t1', [
+      { message_type: 'private', sender_id: 'a', sender_name: 'A', content: 'hi', is_self: true, time: 1, message_id: 987654 }
+    ])
+    const msgs = await store.getMessages('t1')
+    assert.equal(msgs[0].message_id, 987654)
+  })
+
   it('写入消息后更新会话', async () => {
     const msg = { type: 'push_message', message_type: 'group', target_id: '100', sender_id: '1', sender_name: 'A', content: 'hi', time: 1700000000 }
     await store.upsertMessage(msg)
@@ -357,14 +365,15 @@ describe('store v2（未读/快捷回复/翻页合并/显示字段）', () => {
     assert.equal(store.isMuted('20001'), false)
   })
 
-  it('v2.15.0 演示模式：新特性形态补齐（卡片/markdown/文件/转发/GIF/撤回灰显等，经 degradeContent 真实渲染链）', async () => {
+  it('v2.17.0 演示模式：新特性形态补齐（卡片/markdown/文件/转发/GIF/撤回灰显等，经 degradeContent 真实渲染链）', async () => {
     await store.injectDemo()
     const g1 = await store.getMessages('20001')
     assert.equal(g1.some((m) => m.content === '[卡片] 晴天 · 周杰伦'), true, 'JSON 音乐卡经渲染链（meta.music.title+singer）')
-    assert.equal(g1.some((m) => m.content === '[文件] BandQQ-使用手册.pdf'), true, '文件消息带文件名（v2.14 渲染器）')
-    assert.equal(g1.some((m) => m.content === '[合并转发]'), true, '合并转发段型')
+    assert.equal(g1.some((m) => m.content === '[文件] BandQQ-使用手册.pdf · 1.5MB'), true, '文件消息带文件名+大小后缀（v2.14/2.17 渲染器）')
+    assert.equal(g1.some((m) => m.content === '[转发] 周末组织去爬山，报名接龙／群相册已更新 30 张新照片'), true, '合并转发智能摘要（v2.17 渲染器）')
     const g2 = await store.getMessages('30001')
     assert.equal(g2.some((m) => m.content === '[卡片] 收到一个红包'), true, 'XML 红包卡（brief/title 摘要）')
+    assert.equal(g2.some((m) => m.content === '[QQ红包]'), true, 'JSON 红包卡 wcpay 识别（v2.17 渲染器）')
     assert.equal(g2.some((m) => m.content === '[GIF]'), true, 'GIF 识别（url 含 .gif）')
     assert.equal(g2.some((m) => m.content === '[位置] 老家门口'), true, '位置消息带标题')
     const g3 = await store.getMessages('40001')
@@ -374,11 +383,15 @@ describe('store v2（未读/快捷回复/翻页合并/显示字段）', () => {
     assert.ok(md, 'markdown（AstrBot 回复风格）存在')
     assert.equal(md.content.indexOf('**') === -1 && md.content.indexOf('`') === -1, true, 'markdown 已降纯文本（**/反引号剥离）')
     assert.equal(md.content.indexOf('· 键盘首帧完整渲染') >= 0, true, '列表项转 · 前缀')
+    const mdTable = g3.find((m) => m.content.indexOf('机型适配清单') >= 0)
+    assert.ok(mdTable, 'markdown 表格演示存在')
+    assert.equal(mdTable.content.indexOf('|') === -1, true, '表格压平无竖线（v2.17 渲染器）')
+    assert.equal(mdTable.content.indexOf('手环10；通过') >= 0, true, '表格单元格「；」拼接')
     assert.equal(g3.some((m) => m.rc === 1 && m.content === '王姐 撤回了一条消息'), true, '撤回消息 rc=1（聊天页灰显形态）')
     const pm = await store.getMessages('10001')
     const combo = pm.find((m) => m.content.indexOf('[回复]') >= 0)
     assert.ok(combo, 'reply+text+share 组合段存在')
-    assert.equal(combo.content, '[回复]看看这个新版本[链接] BandQQ 发布页 · v2.15.0', '组合段渲染精确匹配')
+    assert.equal(combo.content, '[回复]看看这个新版本[链接] BandQQ 发布页 · v2.17.0', '组合段渲染精确匹配')
     const pm2 = await store.getMessages('10002')
     assert.equal(pm2.some((m) => m.content === '[语音]'), true, '语音段型（record）')
     const convs = await store.getConversations()

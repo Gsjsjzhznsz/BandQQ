@@ -284,6 +284,43 @@ class OneBotParserTest {
     }
 
     @Test
+    fun `渲染器 v2_17 红包识别 json wcpay`() {
+        assertEquals("[QQ红包]", OneBotParser.jsonCardSummary("""{"prompt":"恭喜发财","wcpay":{"title":"QQ红包"}}"""))
+    }
+
+    @Test
+    fun `渲染器 v2_17 红包识别 xml wcpayinfo`() {
+        assertEquals("[QQ红包]", OneBotParser.xmlCardSummary("<msg><title>红包</title><wcpayinfo/></msg>"))
+    }
+
+    @Test
+    fun `渲染器 v2_17 转发摘要取前两条文本`() {
+        val content = "[{\"content\":{\"content\":[{\"type\":\"text\",\"data\":{\"text\":\"周末组织去爬山，报名接龙\"}}]}},{\"content\":\"群相册已更新 30 张新照片\"}]"
+        assertEquals("[转发] 周末组织去爬山，报名接龙／群相册已更新 30 张新照片", OneBotParser.forwardSummary(content))
+    }
+
+    @Test
+    fun `渲染器 v2_17 转发无 content 回退占位`() {
+        assertEquals("[合并转发]", OneBotParser.forwardSummary("not-json{{"))
+    }
+
+    @Test
+    fun `渲染器 v2_17 文件段带大小后缀`() {
+        val arr = com.google.gson.JsonParser.parseString(
+            """[{"type":"file","data":{"name":"需求文档.pdf","size":"1572864"}}]"""
+        ).asJsonArray
+        assertEquals("[文件] 需求文档.pdf · 1.5MB", parser.degradeContent(arr))
+    }
+
+    @Test
+    fun `渲染器 v2_17 markdown 表格压平`() {
+        val out = OneBotParser.markdownToPlain("| 机型 | 状态 |\n| --- | --- |\n| 手环10 | 通过 |")
+        assertEquals(false, out.contains('|'))
+        assertEquals(true, out.contains("机型；状态"))
+        assertEquals(true, out.contains("手环10；通过"))
+    }
+
+    @Test
     fun `渲染器 markdown 降纯文本`() {
         val out = OneBotParser.markdownToPlain("## 标题\n**加粗** 与 `code`\n- 列表项\n[锚](https://x.y)")
         assertEquals(false, out.contains('#'))

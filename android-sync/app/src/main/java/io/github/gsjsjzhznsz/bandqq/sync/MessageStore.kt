@@ -505,6 +505,10 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
             o.addProperty("content", m.content)
             o.addProperty("time", m.time)
             o.addProperty("is_self", m.isSelf)
+            // v2.17.0 修复：历史帧下发 message_id（v2.13~2.16 从未带出 → 手环端
+            // 撤回菜单 if 条件 message_id 恒空，「撤回这条消息」入口永远不出现，
+            // 表情回应同样失效）。为空省字节（与推送帧 toHandBandFrame 同策略）
+            if (m.messageId.isNotEmpty()) o.addProperty("message_id", m.messageId)
             // 样式标志只在为真时下发（省字节）：rc=已撤回（手环灰显），at=@我（手环高亮），poke=拍一拍（手环特效）
             if (m.content == RECALL_MARK) o.addProperty("rc", 1)
             if (m.atMe) o.addProperty("at", 1)

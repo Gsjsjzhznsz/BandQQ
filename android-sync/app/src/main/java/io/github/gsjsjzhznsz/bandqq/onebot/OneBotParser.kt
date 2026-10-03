@@ -187,6 +187,8 @@ class OneBotParser {
          */
         fun jsonCardSummary(jsonStr: String): String {
             return try {
+                // v2.17.0：QQ 红包识别（wcpay 字段特征），优先于通用卡片摘要
+                if (jsonStr.contains("wcpay")) return "[QQ红包]"
                 val obj = JsonParser.parseString(jsonStr).asJsonObject
                 val meta = obj.getAsJsonObject("meta")
                 if (meta != null) {
@@ -214,6 +216,8 @@ class OneBotParser {
         /** XML 卡片提取 title/brief（老版结构化消息：〈msg brief=..〉〈title〉..〈/title〉） */
         fun xmlCardSummary(xml: String): String {
             return try {
+                // v2.17.0：QQ 红包识别（wcpayinfo 特征，老版 xml 红包卡）
+                if (xml.contains("wcpayinfo")) return "[QQ红包]"
                 val brief = Regex("brief=\"([^\"]+)\"").find(xml)?.groupValues?.get(1)
                 val title = Regex("<title[^>]*>([\\s\\S]*?)</title>", RegexOption.IGNORE_CASE)
                     .find(xml)?.groupValues?.get(1)?.trim()
@@ -238,6 +242,13 @@ class OneBotParser {
             s = s.replace(Regex("__([^_]+)__"), "$1")
             s = s.replace(Regex("\\*([^*\\n]+)\\*"), "$1")
             s = s.replace(Regex("`([^`\n]+)`"), "$1")
+            // v2.17.0：表格压平（markdown 表格手环窄屏不可读 → 单元格「；」拼接，分隔行丢弃）
+            s = s.replace(Regex("^[ \\t]*\\|(.+)\\|[ \\t]*$", setOf(RegexOption.MULTILINE))) { m ->
+                m.groupValues[1].split('|')
+                    .map { it.trim() }
+                    .filter { it.isNotEmpty() && !it.matches(Regex(":?-+:?")) }
+                    .joinToString("；")
+            }
             s = s.replace(Regex("^[ \\t]*[-*+]\\s+", setOf(RegexOption.MULTILINE)), "· ")
             s = s.replace(Regex("\n{3,}"), "\n\n")
             return s.trim()
@@ -247,6 +258,63 @@ class OneBotParser {
         private fun fileLabel(name: String?, fallback: String): String {
             val n = name?.trim()?.takeIf { it.isNotBlank() } ?: return fallback
             return "$fallback ${if (n.length > 24) n.take(24) + "…" else n}"
+        }
+
+        /** v2.17.0：文件段大小人类可读后缀（NapCat size/file_size 字节数，缺省/非法返回空串） */
+        private fun fileSizeSuffix(sizeStr: String?): String {
+            val n = sizeStr?.trim()?.toLongOrNull() ?: return ""
+            if (n <= 0) return ""
+            return when {
+                n >= 1L shl 30 -> String.format(" · %.1fGB", n / 1073741824.0)
+                n >= 1L shl 20 -> String.format(" · %.1fMB", n / 1048576.0)
+                n >= 1L shl 10 -> String.format(" · %.0fKB", n / 1024.0)
+                else -> " · ${n}B"
+            }
+        }
+
+        /** 转发节点 content 提取文本（数组段 text 拼接 / 嵌套 content 对象递归 / CQ 字符串剥离） */
+        private fun extractForwardText(content: com.google.gson.JsonElement?): String {
+            if (content == null) return ""
+            if (content.isJsonArray) {
+                val sb = StringBuilder()
+                for (seg in content.asJsonArray) {
+                    if (!seg.isJsonObject) continue
+                    val o = seg.asJsonObject
+                    if (o.get("type")?.asString == "text") {
+                        sb.append(o.getAsJsonObject("data")?.get("text")?.asString ?: "")
+                    }
+                }
+                return sb.toString().trim()
+            }
+            // v2.17.1：嵌套形态 {content:[...]}（NapCat 转发节点包裹层）递归提取
+            if (content.isJsonObject) {
+                return extractForwardText(content.asJsonObject.get("content"))
+            }
+            if (content.isJsonPrimitive) return stripCq(content.asString)
+            return ""
+        }
+
+        /**
+         * v2.17.0：合并转发智能摘要（NapCat forward 段 data.content=JSON 消息节点数组）。
+         * 取前两条节点文本拼「[转发] xxx／yyy」，替代无信息量的「[合并转发]」占位；
+         * 解析失败/无 content 回退原占位（旧协议端无此字段）。
+         */
+        fun forwardSummary(contentJson: String): String {
+            return try {
+                val arr = JsonParser.parseString(contentJson).asJsonArray
+                val parts = mutableListOf<String>()
+                for (elem in arr) {
+                    if (parts.size >= 2) break
+                    if (!elem.isJsonObject) continue
+                    val text = extractForwardText(elem.asJsonObject.get("content"))
+                    if (text.isNotBlank()) {
+                        parts.add(if (text.length > 40) text.take(40) + "…" else text)
+                    }
+                }
+                if (parts.isEmpty()) "[合并转发]" else "[转发] " + parts.joinToString("／")
+            } catch (_: Exception) {
+                "[合并转发]"
+            }
         }
 
         /**
@@ -492,7 +560,10 @@ class OneBotParser {
                 }
                 "record", "voice" -> sb.append("[语音]")
                 "video" -> sb.append("[视频]")
-                "file" -> sb.append(fileLabel(data.str("name") ?: data.str("file"), "[文件]"))
+                "file" -> sb.append(
+                    fileLabel(data.str("name") ?: data.str("file"), "[文件]") +
+                        fileSizeSuffix(data.str("size") ?: data.str("file_size"))
+                )
                 "reply" -> sb.append("[回复]")
                 // v2.14.0 新增段型
                 "json" -> sb.append(data.str("data")?.let { d ->
@@ -502,7 +573,7 @@ class OneBotParser {
                     runCatching { xmlCardSummary(d) }.getOrDefault("[卡片消息]")
                 } ?: "[卡片消息]")
                 "markdown" -> sb.append(markdownToPlain(data.str("content") ?: ""))
-                "forward" -> sb.append("[合并转发]")
+                "forward" -> sb.append(data.str("content")?.let { forwardSummary(it) } ?: "[合并转发]")
                 "mface" -> sb.append("[表情包]")
                 "poke" -> sb.append("[戳一戳]")
                 "dice" -> sb.append("[骰子]")

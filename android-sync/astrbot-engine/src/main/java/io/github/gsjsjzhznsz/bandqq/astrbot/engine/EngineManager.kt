@@ -296,9 +296,6 @@ object EngineManager {
             append("-b '").append(tmp.absolutePath).append("' ")
             append("-b '").append(tmp.absolutePath).append("':/dev/shm ")
             append("-b /proc/self/fd:/dev/fd ")
-            append("-b /proc/self/fd/0:/dev/stdin ")
-            append("-b /proc/self/fd/1:/dev/stdout ")
-            append("-b /proc/self/fd/2:/dev/stderr ")
             append("-w /root ")
             append("/usr/bin/env -i ")
             append("HOME=/root TERM=xterm-256color LANG=C.UTF-8 TZ=").append(tz).append(" ")
@@ -311,7 +308,8 @@ object EngineManager {
     /**
      * 启动引擎：installIfNeeded → 前台服务保活 → bash（PROOT_LOADER 等环境变量）→
      * proot → 容器内 astrbot-startup.sh（首次装 AstrBot/NapCat 需联网数分钟，
-     * 已装则直接拉起；脚本幂等）。stdout 逐行进引擎日志。
+     * 已装则直接拉起；脚本幂等；v2.17 环境不完整时脚本内自动补装自愈）。
+     * stdout 逐行进引擎日志。
      */
     fun start(ctx: Context) {
         val appCtx = ctx.applicationContext
@@ -365,7 +363,7 @@ object EngineManager {
         }.apply { name = "astrbot-engine-main" }.start()
         // 进程拉起即视为 Starting→Running 的过渡：真实"可连"由端口探测确认
         Thread {
-            repeat(120) { // 最多 10 分钟（首次安装 AstrBot 需要下载）
+            repeat(360) { // 最多 30 分钟（v2.17 首次自愈需下载 AstrBot 依赖+LinuxQQ，弱网放宽窗口）
                 if (isRunning() && AstrBotEngineProbe.portsReady()) {
                     _state.value = State.Running
                     logLine("本机 NapCat 就绪（127.0.0.1:3001/3000 可连）")

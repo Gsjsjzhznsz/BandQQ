@@ -176,6 +176,8 @@ function capLen(s) {
 /** JSON 卡片摘要：meta.prompt → meta.{news,music,app}.title(+describe) → title/desc → 兜底 */
 function jsonCardSummary(jsonStr) {
   try {
+    // v2.17.0：QQ 红包识别（wcpay 字段特征），优先于通用卡片摘要
+    if (jsonStr.indexOf('wcpay') >= 0) return '[QQ红包]'
     const obj = JSON.parse(jsonStr)
     if (obj && typeof obj === 'object') {
       const meta = obj.meta || {}
@@ -202,6 +204,8 @@ function jsonCardSummary(jsonStr) {
 /** XML 卡片摘要：brief 属性 / <title> 文本 */
 function xmlCardSummary(xml) {
   try {
+    // v2.17.0：QQ 红包识别（wcpayinfo 特征，老版 xml 红包卡）
+    if (xml.indexOf('wcpayinfo') >= 0) return '[QQ红包]'
     const brief = /brief="([^"]+)"/.exec(xml)
     const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(xml)
     const best = [title && title[1] && title[1].trim(), brief && brief[1]]
@@ -222,6 +226,13 @@ function markdownToPlain(md) {
   s = s.replace(/__([^_]+)__/g, '$1')
   s = s.replace(/\*([^*\n]+)\*/g, '$1')
   s = s.replace(/`([^`\n]+)`/g, '$1')
+  // v2.17.0：表格压平（与手机端同规则：单元格「；」拼接，分隔行丢弃）
+  s = s.replace(/^[ \t]*\|(.+)\|[ \t]*$/gm, (m, inner) =>
+    inner.split('|')
+      .map((c) => c.trim())
+      .filter((c) => c && !/^:?-+:?$/.test(c))
+      .join('；')
+  )
   s = s.replace(/^[ \t]*[-*+]\s+/gm, '· ')
   s = s.replace(/\n{3,}/g, '\n\n')
   return s.trim()
@@ -231,6 +242,56 @@ function fileLabel(name, fallback) {
   const n = name && String(name).trim()
   if (!n) return fallback
   return fallback + ' ' + (n.length > 24 ? n.slice(0, 24) + '…' : n)
+}
+
+/** v2.17.0：文件段大小人类可读后缀（与手机端同规则，缺省/非法返回空串） */
+function fileSizeSuffix(sizeStr) {
+  const n = Number(sizeStr)
+  if (!Number.isFinite(n) || n <= 0) return ''
+  if (n >= 1073741824) return ' · ' + (n / 1073741824).toFixed(1) + 'GB'
+  if (n >= 1048576) return ' · ' + (n / 1048576).toFixed(1) + 'MB'
+  if (n >= 1024) return ' · ' + Math.round(n / 1024) + 'KB'
+  return ' · ' + n + 'B'
+}
+
+/** 转发节点 content 提取文本（数组段 text 拼接 / 嵌套 content 对象递归 / CQ 字符串剥离） */
+function extractForwardText(content) {
+  if (Array.isArray(content)) {
+    let out = ''
+    for (const seg of content) {
+      if (seg && seg.type === 'text' && seg.data && seg.data.text) out += seg.data.text
+    }
+    return out.trim()
+  }
+  // v2.17.1：嵌套形态 {content:[...]}（NapCat 转发节点包裹层）递归提取
+  if (content && typeof content === 'object' && Array.isArray(content.content)) {
+    return extractForwardText(content.content)
+  }
+  if (typeof content === 'string') {
+    return content.replace(/\[CQ:[^\]]*\]/g, '').trim()
+  }
+  return ''
+}
+
+/**
+ * v2.17.0：合并转发智能摘要（与手机端 forwardSummary 同规则）：
+ * 取前两条节点文本拼「[转发] xxx／yyy」，解析失败回退「[合并转发]」。
+ */
+function forwardSummary(contentJson) {
+  try {
+    const arr = JSON.parse(contentJson)
+    if (!Array.isArray(arr)) return '[合并转发]'
+    const parts = []
+    for (const node of arr) {
+      if (parts.length >= 2) break
+      if (!node || typeof node !== 'object') continue
+      const text = extractForwardText(node.content)
+      if (text) parts.push(text.length > 40 ? text.slice(0, 40) + '…' : text)
+    }
+    return parts.length ? '[转发] ' + parts.join('／') : '[合并转发]'
+  } catch (e) {
+    return '[合并转发]'
+  }
 }
 
 function degradeContent(raw) {
@@ -253,12 +314,12 @@ function degradeContent(raw) {
       case 'tts':
         return seg.type === 'tts' ? (data.text || '[语音]') : '[语音]'
       case 'video': return '[视频]'
-      case 'file': return fileLabel(data.name || data.file, '[文件]')
+      case 'file': return fileLabel(data.name || data.file, '[文件]') + fileSizeSuffix(data.size || data.file_size)
       case 'reply': return '[回复]'
       case 'json': return jsonCardSummary(String(data.data || ''))
       case 'xml': return xmlCardSummary(String(data.data || ''))
       case 'markdown': return markdownToPlain(data.content || '')
-      case 'forward': return '[合并转发]'
+      case 'forward': return forwardSummary(String(data.content || ''))
       case 'mface': return '[表情包]'
       case 'poke': return '[戳一戳]'
       case 'dice': return '[骰子]'

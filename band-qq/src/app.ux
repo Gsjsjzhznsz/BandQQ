@@ -143,7 +143,15 @@ function viaDirect(payload) {
   const cfg = store.getDirectCfg()
   if (!cfg) return Promise.reject({ code: 'NO_CHANNEL' })
   return direct.sendPayload(cfg, payload).then(
-    (r) => { console.log('[BANDQQ] v21 direct OK') ; return r },
+    (r) => {
+      console.log('[BANDQQ] v21 direct OK')
+      // v2.17.0：直连发送成功回填 message_id（互联模式由手机端 action_result 帧承担；
+      // 直连此前无人回填 → 自己发的消息撤回菜单缺 id，直连模式撤回不可用）
+      if (payload && payload.type === 'send_message' && r != null && payload.time && payload.target_id) {
+        store.bindMessageId(payload.target_id, payload.time, String(r))
+      }
+      return r
+    },
     (e) => { console.log('[BANDQQ] v21 direct FAIL', JSON.stringify(e)) ; throw e }
   )
 }

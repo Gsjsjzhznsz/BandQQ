@@ -625,9 +625,9 @@ check_astrbot_ready(){
     missing=1
   fi
 
+  # v2.17.0：诊断职责单一化（只报缺失清单）。__ASTRBOT_MANUAL_ENV_REQUIRED__ 标记
+  # 移至 launch_astrbot 自动补装仍失败后输出，避免首次启动自愈前误导用户。
   if [ "$missing" -ne 0 ]; then
-    echo "__ASTRBOT_MANUAL_ENV_REQUIRED__"
-    echo "Environment is not ready. Open Home -> Environment Manager and install the missing steps."
     return 1
   fi
 
@@ -801,7 +801,21 @@ launch_astrbot(){
   local INSTALL_DIR="$HOME/AstrBot"
 
   if ! check_astrbot_ready; then
-    return 1
+    # v2.17.0 启动自愈：BandQQ 无上游「Environment Manager」UI，环境不完整时
+    # 直接在启动流程内按依赖顺序补装（幂等，已装步骤秒过）：
+    # 基础命令(curl/git) → uv → NapCat(LinuxQQ) → AstrBot(clone+uv sync)。
+    # 首次需联网下载数百 MB（约 5~20 分钟，取决于网络）；progress 实时进引擎日志。
+    progress_echo "运行环境不完整，自动补装缺失组件（首次需联网，约数分钟）"
+    install_sudo_curl_git || { echo "自动补装失败：基础命令安装异常（检查网络/存储）"; return 1; }
+    install_uv || { echo "自动补装失败：uv 安装异常"; return 1; }
+    install_napcat || { echo "自动补装失败：NapCat 安装异常"; return 1; }
+    install_astrbot || { echo "自动补装失败：AstrBot 安装异常"; return 1; }
+    if ! check_astrbot_ready; then
+      echo "__ASTRBOT_MANUAL_ENV_REQUIRED__"
+      echo "自动补装后环境仍不完整，请查看上方日志定位网络/存储问题后重启引擎重试"
+      return 1
+    fi
+    progress_echo "环境自愈完成"
   fi
 
   cd "$INSTALL_DIR"

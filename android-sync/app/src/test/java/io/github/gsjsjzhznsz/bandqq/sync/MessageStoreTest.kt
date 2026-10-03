@@ -54,6 +54,20 @@ class MessageStoreTest {
     }
 
     @Test
+    fun `history_list 帧下发 message_id（撤回定位 v2_17_0）`() {
+        store.addMessage("123", StoredMessage("group", "456", "张三", "你好", 1700000000L, messageId = "987654321"))
+        val frame = store.buildHistoryFrame("123", 50, 4)
+        assertTrue(frame.contains("\"message_id\":\"987654321\""))
+    }
+
+    @Test
+    fun `无 message_id 的历史帧不带该字段（省字节）`() {
+        store.addMessage("123", StoredMessage("group", "456", "张三", "旧消息", 1700000000L))
+        val frame = store.buildHistoryFrame("123", 50, 4)
+        assertEquals(false, frame.contains("message_id"))
+    }
+
+    @Test
     fun `conversation_list 帧包含会话`() {
         store.addMessage("123", StoredMessage("group", "456", "张三", "你好", 1700000000L))
         val frame = store.buildConversationFrame(3)

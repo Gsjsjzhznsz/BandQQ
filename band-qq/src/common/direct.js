@@ -133,6 +133,11 @@ function normalizeHistoryMessage(m, chatType, selfId) {
     is_self: isSelf,
     time: (m.time || 0) * 1000
   }
+  // v2.17.0 修复：直连历史消息透传 message_id（此前丢弃 → 直连模式撤回/表情回应
+  // 菜单 id 恒空整体不可用）。保留 OneBot 原始形态（number），发送链 numericId 兜底
+  if (m.message_id !== undefined && m.message_id !== null && m.message_id !== '') {
+    item.message_id = m.message_id
+  }
   if (decoded.at && !isSelf) item.at = true
   if (decoded.poke) item.poke = true
   return item

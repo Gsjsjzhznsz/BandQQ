@@ -33,6 +33,18 @@ class MessageBrokerTest {
     }
 
     @Test
+    fun `onebot 事件入库保留 message_id（撤回事件可定位 v2_17_0）`() {
+        val store = MessageStore()
+        val broker = MessageBroker(parser, FakeOneBot { _, _, _ -> true }, store)
+        broker.handleOneBotEvent(
+            OneBotMessage("group", "123", "456", "张三", "你好", 1700000000L, messageId = "987654321")
+        )
+        // 撤回事件按 messageId 定位：修复前入库丢 id → recallMessage 永远匹配失败
+        // （入库时 normalizeTime 统一毫秒，返回被撤回消息的毫秒时间戳）
+        assertEquals(1700000000000L, store.recallMessage("123", "987654321"))
+    }
+
+    @Test
     fun `get_history 返回存储的最近消息`() {
         val store = MessageStore()
         store.addMessage("123", StoredMessage("group", "456", "张三", "你好", 1700000000L))

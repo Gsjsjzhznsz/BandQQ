@@ -189,7 +189,11 @@
         </div>
         <div else style="position:absolute;top:-11px;width:100%;height:276px;justify-content: center">
           <progress percent="{{percent67}}" style="position:absolute;bottom: 12px;width:80px;color:#ffffff;stroke-width:6px;layer-color:#262626;"></progress>
-          <scroll id="keyboard67" scroll-x="{{true}}" onscroll="handelScroll">
+          <!-- v2.17.0：字母键滚动容器显式高 170px（内容高 60+55+55，margin-top:-5 叠行）。
+               v2.15 只显式化了外层三层，这里的 auto 高度是非手环固件首帧坍缩的最后一个
+               测量点：坍缩时字母键区不渲染，只剩余底部动作行（“键盘只显示一半”，
+               输入触发重排才恢复）。band 固件能容忍，bandpro/redmiwatch（rect）首帧必坍。 -->
+          <scroll id="keyboard67" scroll-x="{{true}}" onscroll="handelScroll" style="height:170px;">
             <div if="{{!numFlag}}" style="left: 6px; flex-direction: column;">
               <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
                 <text class="calbtn67" for="{{item in keys['full'][0]}}" @click="onSelect(item)">{{item}}</text>
@@ -264,7 +268,7 @@
       <div if="{{screentype==='pill-shaped'}}" style="width: 100%;height: 305px">
         <div static style="position:absolute;left:0px;top:34px;width:100%;height:276px;">
           <progress percent="{{30+percent66}}" type="arc" style="start-angle:204deg;total-angle:-48deg;width:188px;height:188px;top:82px;left:2px;position:absolute;color:#ffffff;stroke-width:6px;layer-color:#262626;margin-left: {{(screenWidth - 192)/2}}px;"></progress>
-          <scroll id="keyboard66" scroll-x="{{true}}" onscroll="handelScroll" style="padding-left: {{(screenWidth - 192)/2}}px;padding-right: {{(screenWidth - 192)/2}}px;">
+          <scroll id="keyboard66" scroll-x="{{true}}" onscroll="handelScroll" style="padding-left: {{(screenWidth - 192)/2}}px;padding-right: {{(screenWidth - 192)/2}}px;height:170px;">
             <div if="{{!numFlag}}" style="left: 3px; flex-direction: column;">
               <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
                 <text class="calbtn66" for="{{item in keys['full'][0]}}" @click="onSelect(item)">{{item}}</text>

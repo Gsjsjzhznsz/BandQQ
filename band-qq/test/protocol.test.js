@@ -209,4 +209,47 @@ describe('protocol', () => {
   it('渲染器 v2.14：字符串输入同样过长度护栏', () => {
     assert.equal(degradeContent('y'.repeat(900)).length, 801)
   })
+
+  it('渲染器 v2.17：json 红包 wcpay 识别', () => {
+    assert.equal(
+      degradeContent([{ type: 'json', data: { data: JSON.stringify({ prompt: '恭喜发财', wcpay: { title: 'QQ红包' } }) } }]),
+      '[QQ红包]'
+    )
+  })
+
+  it('渲染器 v2.17：xml 红包 wcpayinfo 识别', () => {
+    assert.equal(
+      degradeContent([{ type: 'xml', data: { data: '<msg><title>红包</title><wcpayinfo/></msg>' } }]),
+      '[QQ红包]'
+    )
+  })
+
+  it('渲染器 v2.17：forward 转发摘要取前两条文本', () => {
+    const content = JSON.stringify([
+      { content: { content: [{ type: 'text', data: { text: '周末组织去爬山，报名接龙' } }] } },
+      { content: '群相册已更新 30 张新照片' }
+    ])
+    assert.equal(
+      degradeContent([{ type: 'forward', data: { content } }]),
+      '[转发] 周末组织去爬山，报名接龙／群相册已更新 30 张新照片'
+    )
+  })
+
+  it('渲染器 v2.17：forward 无 content 回退占位', () => {
+    assert.equal(degradeContent([{ type: 'forward', data: {} }]), '[合并转发]')
+  })
+
+  it('渲染器 v2.17：file 段带大小后缀', () => {
+    assert.equal(
+      degradeContent([{ type: 'file', data: { name: '需求文档.pdf', size: 1572864 } }]),
+      '[文件] 需求文档.pdf · 1.5MB'
+    )
+  })
+
+  it('渲染器 v2.17：markdown 表格压平', () => {
+    const out = degradeContent([{ type: 'markdown', data: { content: '| 机型 | 状态 |\n| --- | --- |\n| 手环10 | 通过 |' } }])
+    assert.equal(out.indexOf('|'), -1)
+    assert.ok(out.indexOf('机型；状态') >= 0)
+    assert.ok(out.indexOf('手环10；通过') >= 0)
+  })
 })
