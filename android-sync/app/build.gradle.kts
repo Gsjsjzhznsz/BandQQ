@@ -12,8 +12,8 @@ android {
         applicationId = "io.github.gsjsjzhznsz.bandqq"
         minSdk = 26
         targetSdk = 34
-        versionCode = 53
-        versionName = "2.13.0"
+        versionCode = 54
+        versionName = "2.14.0"
     }
 
     // v2.13.0 双包分发（用户可二选一安装，同 applicationId 同 versionCode）：

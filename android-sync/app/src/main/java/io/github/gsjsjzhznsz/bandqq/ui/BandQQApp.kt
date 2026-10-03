@@ -44,6 +44,9 @@ enum class AppTab(val label: String) {
     Home("主页"),
     Contacts("联系人"),
     History("聊天记录"),
+    // v2.14.0：胖包专用标签页（bundled VisibleTabs 含此页；companion 4 页不含）。
+    // 页面实现按 flavor 隔离：bundled = 引擎管理全页，companion = 永不渲染的 stub。
+    AstrBot("AstrBot"),
     Settings("设置"),
 }
 
@@ -61,7 +64,7 @@ fun BandQQApp() {
     val glassBar = LocalEnableFloatingBottomBarGlass.current
     val badgeEnabled = LocalEnableNavigationBadge.current
 
-    val pagerState = rememberPagerState(pageCount = { AppTab.entries.size })
+    val pagerState = rememberPagerState(pageCount = { VisibleTabs.size })
     val scope = rememberCoroutineScope()
     // v2.6.0：预测性返回开关不再 recreate（KernelSU 原版同款只落盘），推入页状态
     // 回归 rememberSaveable：进程内配置变更/瞬时重建不再丢导航状态
@@ -194,7 +197,8 @@ fun BandQQApp() {
                     // ⚠️ 必须用 currentPage 而非 settledPage：settled 要等滑动完全落定，
                     // 用户看到的就是「翻完页内容还要再等一拍才入场」的延迟感（v2.4.5 修复）
                     val isCurrentPage = page == pagerState.currentPage
-                    when (AppTab.entries[page]) {
+                    // v2.14.0：页序由 flavor sourceSet 的 VisibleTabs 决定（胖包含 AstrBot 标签页）
+                    when (VisibleTabs[page]) {
                         AppTab.Home -> HomeScreen(
                             bottomInnerPadding = bottomInnerPadding,
                             isActive = isCurrentPage,
@@ -204,6 +208,10 @@ fun BandQQApp() {
                             isActive = isCurrentPage,
                         )
                         AppTab.History -> HistoryScreen(
+                            bottomInnerPadding = bottomInnerPadding,
+                            isActive = isCurrentPage,
+                        )
+                        AppTab.AstrBot -> AstrBotScreen(
                             bottomInnerPadding = bottomInnerPadding,
                             isActive = isCurrentPage,
                         )

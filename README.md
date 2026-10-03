@@ -143,12 +143,21 @@ gradle :devtools:assembleRelease
 
 ## 📦 更新日志
 
-### v2.13.0（当前版本 · vc53）
+### v2.14.0（当前版本 · vc54）
+
+> 四件事：**胖包 AstrBot 独立标签页**（bundled flavor 底栏新增第 4 页「AstrBot」——引擎状态/启动/停止/NapCat 探测/引擎日志（80 行）/一键写入并保存本机直连地址全在标签页完成，设置页仅留指引卡；瘦包 4 页不变，Tab 集按 flavor sourceSet 编译期二选一）+ **键盘两处非手环机型修复**（①空输入时键盘只显示一半、敲一键才恢复——根容器 height:auto 在部分固件首帧测量坍缩，改 JS 侧显式总高（circle 321 / rect 283 / pill 333，rect·pill 恒预留 28px 拼音行，内容高度不再随输入变化），②输入预览行同步受此保护；xiaomis 的 466/480 换算常量同步入构建脚本）+ **智能自动渲染器**（AstrBot/机器人/分享消息首次在手环可读——json 卡片提取 meta.prompt/音乐·新闻·小程序标题、xml 卡片取 title/brief、markdown 降纯文本、合并转发/表情包/GIF/文件名/位置/分享/戳一戳/骰子等 20+ 段型，CQ 字符串同规则，800 字符护栏；手机端 OneBotParser 与手环端兜底 protocol.js 同步升级）+ **libbusybox.so 缺失修复**（EngineManager bin 组装双通道：nativeLibraryDir 缺文件时从 APK 内 lib/arm64-v8a/ 直取，报错附带设备 ABI 与路径诊断）。
+
+- 验证：手环端 node 单测 90 测 89 过（新增渲染器 10 项全绿，api.test.js 1 例存量环境失败基线一致）；bundled/companion 双 APK 编译 + badging vc54/2.14.0；四分支 rpk 解包断言全 PASS（显式高度常量/恒预留拼音行/渲染器标记）
+- 版本：APP/手环 2.14.0（vc54）单轨延续
+
+<details>
+<summary><b>v2.13.0</b> — 键盘全分支换装 NEORUAA + AstrBot 胖/瘦双 APK + OneBot v11 扩展 + DevTools miuix 重写 + AGPL（点击展开）</summary>
 
 > 四件事：**键盘全分支换装 NEORUAA/Vela_input_method**（v2.12.0 的 Revise fork 三快照退役，改用上游单组件内置 circle/rect/pill-shaped 三屏形布局，构建期只做 screentype 写入 + xiaomis 圆屏 466/480 换算；词库升级为 NEORUAA 分片按需加载体系，BandQQ 全量 27398 字合入 cn.txt 频序拱顶保留）+ **AstrBot 胖/瘦双 APK**（胖包 bundled 版把 AstrBot Bubble 的引擎层完整内嵌——proot 套件 + 64MB Ubuntu rootfs + 一体化启动脚本，设置页安装/启动/停止/日志/端口探测全流程卡片；瘦包 companion 版保留 v2.12.0 伴侣模式，双包同 applicationId 二选一安装）+ **OneBot v11 特性扩展**（点赞 send_like / 主动拍一拍 friend_poke·group_poke / 群签到 send_group_sign / 表情回应 set_msg_emoji_like / 撤回自己消息 delete_msg / 资料 get_stranger_info·get_group_member_info，手环长按菜单与聊天页气泡菜单直达，发送应答自动回填 message_id，DevTools 同步模拟）+ **DevTools 1.4.0 miuix 重写**（与主 APK 同一套 HyperOS 设计语言，主题跟随系统深浅色）+ **许可证 MIT → AGPL-3.0**。
 
 - 验证：双 APK（companion 12MB / bundled 80MB）+ devtools 编译全过，badging vc53/2.13.0 与 vc7/1.4.0，EngineManager/EngineService 多 dex 标记 FOUND，rootfs/proot 资产入包确认；手机端单测 104 测 104 过，手环端 79 过（存量基线一致）
 - 版本：APP/手环 2.13.0（vc53）单轨延续，DevTools 1.4.0（vc7）
+</details>
 
 <details>
 <summary><b>v2.12.0</b> — 键盘分支原生化 + 全量拼音字库 + AstrBot 本地伴侣 + README 项目化（点击展开）</summary>

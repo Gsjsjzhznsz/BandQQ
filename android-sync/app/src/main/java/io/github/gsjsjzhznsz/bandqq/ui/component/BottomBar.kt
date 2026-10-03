@@ -15,8 +15,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.gsjsjzhznsz.bandqq.ui.AppTab
+import io.github.gsjsjzhznsz.bandqq.ui.VisibleTabs
 import io.github.gsjsjzhznsz.bandqq.ui.util.BlurredBar
 import top.yukonga.miuix.kmp.icon.MiuixIcons
+import top.yukonga.miuix.kmp.icon.extended.CloudFill
 import top.yukonga.miuix.kmp.icon.extended.Contacts
 import top.yukonga.miuix.kmp.icon.extended.Home
 import top.yukonga.miuix.kmp.icon.extended.Messages
@@ -57,7 +59,8 @@ fun BottomBar(
                 modifier = modifier,
                 color = if (blurBackdrop != null) Color.Transparent else MiuixTheme.colorScheme.surface,
                 content = {
-                    AppTab.entries.forEachIndexed { index, tab ->
+                    // v2.14.0：以 flavor 的 VisibleTabs 为准（胖包 5 页含 AstrBot，瘦包 4 页）
+                    VisibleTabs.forEachIndexed { index, tab ->
                         NavigationBarItem(
                             modifier = Modifier.weight(1f),
                             icon = tab.icon(),
@@ -82,10 +85,10 @@ fun BottomBar(
             selectedIndex = selected,
             onSelected = onSelect,
             backdrop = backdrop,
-            tabsCount = AppTab.entries.size,
+            tabsCount = VisibleTabs.size,
             isBlurEnabled = enableFloatingBottomBarGlass,
         ) { activateTab ->
-            AppTab.entries.forEachIndexed { index, tab ->
+            VisibleTabs.forEachIndexed { index, tab ->
                 FloatingBottomBarItem(
                     selected = selected == index,
                     onClick = { activateTab(index) },
@@ -140,5 +143,6 @@ private fun AppTab.icon(): ImageVector = when (this) {
     AppTab.Home -> MiuixIcons.Home
     AppTab.Contacts -> MiuixIcons.Contacts
     AppTab.History -> MiuixIcons.Messages
+    AppTab.AstrBot -> MiuixIcons.CloudFill
     AppTab.Settings -> MiuixIcons.Settings
 }

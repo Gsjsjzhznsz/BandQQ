@@ -152,21 +152,135 @@ const FACE_EMOJI = {
   76: '👍', 77: '👎', 85: '😘', 96: '😰', 99: '👏', 101: '😏', 104: '🥱', 178: '🤣'
 }
 
-function degradeContent(raw) {
-  if (typeof raw === 'string') return raw
-  if (!Array.isArray(raw)) return ''
-  return raw.map((seg) => {
-    if (seg.type === 'text') return (seg.data && seg.data.text) || ''
-    if (seg.type === 'face') {
-      const id = seg.data && Number(seg.data.id)
-      return (id !== null && FACE_EMOJI[id]) || '[表情]'
+/**
+ * v2.14.0 智能自动渲染器（手环端兜底版，与手机端 OneBotParser 同步降级规则）：
+ * 正常链路手机端已渲染完成，此函数仅在旧版手机端下发未渲染数组时兜底。
+ * 覆盖 20+ 段型：json/xml 卡片摘要、markdown 降纯文本、合并转发/表情包/GIF/
+ * 文件名/位置/分享等，与手机端同款 800 字符长度护栏。
+ */
+const RENDER_MAX_LEN = 800
+
+/** OneBot v11 CQ 码反转义 */
+function cqUnescape(s) {
+  return String(s || '')
+    .replace(/&#91;/g, '[')
+    .replace(/&#93;/g, ']')
+    .replace(/&#44;/g, ',')
+    .replace(/&amp;/g, '&')
+}
+
+function capLen(s) {
+  return s.length > RENDER_MAX_LEN ? s.slice(0, RENDER_MAX_LEN) + '…' : s
+}
+
+/** JSON 卡片摘要：meta.prompt → meta.{news,music,app}.title(+describe) → title/desc → 兜底 */
+function jsonCardSummary(jsonStr) {
+  try {
+    const obj = JSON.parse(jsonStr)
+    if (obj && typeof obj === 'object') {
+      const meta = obj.meta || {}
+      if (meta.prompt && String(meta.prompt).trim()) return String(meta.prompt).trim()
+      for (const key of ['news', 'music', 'app', 'software', 'structured']) {
+        const m = meta[key]
+        if (m && m.title && String(m.title).trim()) {
+          const d = m.describe || m.singer || m.from
+          return '[卡片] ' + String(m.title).trim() + (d && d !== m.title ? ' · ' + d : '')
+        }
+      }
+      const t = obj.title && String(obj.title).trim()
+      const d = (obj.desc || obj.description || '').trim()
+      if (t) return '[卡片] ' + t + (d && d !== t ? ' · ' + d : '')
+      if (d) return '[卡片] ' + d
+      const cfg = obj.config || {}
+      const cd = (cfg.desc || cfg.from || '').trim()
+      if (cd) return '[卡片] ' + cd
     }
-    if (seg.type === 'image') return '[图片]'
-    if (seg.type === 'record' || seg.type === 'voice') return '[语音]'
-    if (seg.type === 'video') return '[视频]'
-    if (seg.type === 'file') return '[文件]'
-    return '[其他]'
-  }).join('')
+  } catch (e) { /* 非法 JSON 走兜底 */ }
+  return '[卡片消息]'
+}
+
+/** XML 卡片摘要：brief 属性 / <title> 文本 */
+function xmlCardSummary(xml) {
+  try {
+    const brief = /brief="([^"]+)"/.exec(xml)
+    const title = /<title[^>]*>([\s\S]*?)<\/title>/i.exec(xml)
+    const best = [title && title[1] && title[1].trim(), brief && brief[1]]
+      .find((x) => x && String(x).trim())
+    if (best) return '[卡片] ' + String(best).slice(0, 60)
+  } catch (e) { /* 兜底 */ }
+  return '[卡片消息]'
+}
+
+/** markdown 降纯文本（AstrBot 回复常用） */
+function markdownToPlain(md) {
+  let s = String(md || '')
+  s = s.replace(/```/g, '\n')
+  s = s.replace(/^#{1,6}\s*/gm, '')
+  s = s.replace(/!\[([^\]]*)\]\([^)]*\)/g, '[图片]')
+  s = s.replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+  s = s.replace(/\*\*([^*]+)\*\*/g, '$1')
+  s = s.replace(/__([^_]+)__/g, '$1')
+  s = s.replace(/\*([^*\n]+)\*/g, '$1')
+  s = s.replace(/`([^`\n]+)`/g, '$1')
+  s = s.replace(/^[ \t]*[-*+]\s+/gm, '· ')
+  s = s.replace(/\n{3,}/g, '\n\n')
+  return s.trim()
+}
+
+function fileLabel(name, fallback) {
+  const n = name && String(name).trim()
+  if (!n) return fallback
+  return fallback + ' ' + (n.length > 24 ? n.slice(0, 24) + '…' : n)
+}
+
+function degradeContent(raw) {
+  if (typeof raw === 'string') return capLen(raw)
+  if (!Array.isArray(raw)) return ''
+  return capLen(raw.map((seg) => {
+    const data = (seg && seg.data) || {}
+    switch (seg && seg.type) {
+      case 'text': return data.text || ''
+      case 'face': {
+        const id = Number(data.id)
+        return (Number.isFinite(id) && FACE_EMOJI[id]) || '[表情]'
+      }
+      case 'image': {
+        const urlish = (data.url || '') + (data.file || '')
+        return urlish.indexOf('.gif') >= 0 ? '[GIF]' : '[图片]'
+      }
+      case 'record':
+      case 'voice':
+      case 'tts':
+        return seg.type === 'tts' ? (data.text || '[语音]') : '[语音]'
+      case 'video': return '[视频]'
+      case 'file': return fileLabel(data.name || data.file, '[文件]')
+      case 'reply': return '[回复]'
+      case 'json': return jsonCardSummary(String(data.data || ''))
+      case 'xml': return xmlCardSummary(String(data.data || ''))
+      case 'markdown': return markdownToPlain(data.content || '')
+      case 'forward': return '[合并转发]'
+      case 'mface': return '[表情包]'
+      case 'poke': return '[戳一戳]'
+      case 'dice': return '[骰子]'
+      case 'rps': return '[猜拳]'
+      case 'share': {
+        const t = [data.title, data.content].filter(Boolean).join(' · ')
+        return t ? '[链接] ' + t : '[链接]'
+      }
+      case 'location': return fileLabel(data.title, '[位置]')
+      case 'contact': return '[联系人]'
+      case 'gift': return '[礼物]'
+      case 'at': {
+        const qq = String(data.qq != null ? data.qq : '')
+        const name = data.name || ''
+        if (qq === 'all') return '@全体成员'
+        if (name) return '@' + name
+        if (qq) return '@' + qq
+        return '@某人'
+      }
+      default: return '[其他]'
+    }
+  }).join(''))
 }
 
 /** 手机端已预算好的字段直接透传；旧版手机端缺失字段时这里做轻量兜底 */

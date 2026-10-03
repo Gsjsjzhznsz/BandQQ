@@ -128,4 +128,85 @@ describe('protocol', () => {
     assert.equal(convSignature([]), '')
     assert.equal(convSignature(null), '')
   })
+
+  // ===== v2.14.0 智能自动渲染器（手环端兜底版与手机端 OneBotParser 同规则）=====
+  it('渲染器 v2.14：json 卡片 meta.prompt 优先（QQ 分享人话摘要）', () => {
+    const card = { meta: { prompt: '[分享]我看到一个很棒的视频，快来看!' } }
+    assert.equal(
+      degradeContent([{ type: 'json', data: { data: JSON.stringify(card) } }]),
+      '[分享]我看到一个很棒的视频，快来看!'
+    )
+  })
+
+  it('渲染器 v2.14：json 音乐卡片 title + singer 组合', () => {
+    const card = { meta: { music: { title: '晴天', singer: '周杰伦' } } }
+    assert.equal(
+      degradeContent([{ type: 'json', data: { data: JSON.stringify(card) } }]),
+      '[卡片] 晴天 · 周杰伦'
+    )
+  })
+
+  it('渲染器 v2.14：非法 json 回退 [卡片消息]', () => {
+    assert.equal(degradeContent([{ type: 'json', data: { data: 'not-json{{' } }]), '[卡片消息]')
+  })
+
+  it('渲染器 v2.14：xml 卡片取 <title>，无 title 取 brief', () => {
+    assert.equal(
+      degradeContent([{ type: 'xml', data: { data: '<msg><title>红包来袭</title></msg>' } }]),
+      '[卡片] 红包来袭'
+    )
+    assert.equal(
+      degradeContent([{ type: 'xml', data: { data: '<msg brief="签到成功"></msg>' } }]),
+      '[卡片] 签到成功'
+    )
+  })
+
+  it('渲染器 v2.14：markdown 降纯文本（AstrBot 回复可读）', () => {
+    const md = '## 今日天气\n**北京** 晴\n- 最低 12°C\n[详情](https://t.cn/x)'
+    const out = degradeContent([{ type: 'markdown', data: { content: md } }])
+    assert.ok(!out.includes('#'))
+    assert.ok(!out.includes('**'))
+    assert.ok(out.includes('北京 晴'))
+    assert.ok(out.includes('详情'))
+    assert.ok(out.includes('· 最低 12°C'))
+  })
+
+  it('渲染器 v2.14：文件带文件名（超长截 24 字符）', () => {
+    assert.equal(
+      degradeContent([{ type: 'file', data: { name: '年度报告.pdf' } }]),
+      '[文件] 年度报告.pdf'
+    )
+    const long = 'a'.repeat(30) + '.pdf'
+    const out = degradeContent([{ type: 'file', data: { name: long } }])
+    assert.ok(out.startsWith('[文件] aaaa'))
+    assert.ok(out.endsWith('…'))
+  })
+
+  it('渲染器 v2.14：GIF 识别 / 合并转发 / 表情包 / 戳一戳 / 骰子', () => {
+    assert.equal(degradeContent([{ type: 'image', data: { url: 'https://x/a.gif' } }]), '[GIF]')
+    assert.equal(degradeContent([{ type: 'forward', data: { id: '1' } }]), '[合并转发]')
+    assert.equal(degradeContent([{ type: 'mface', data: { emoji_id: '1' } }]), '[表情包]')
+    assert.equal(degradeContent([{ type: 'poke' }]), '[戳一戳]')
+    assert.equal(degradeContent([{ type: 'dice' }]), '[骰子]')
+  })
+
+  it('渲染器 v2.14：分享/位置带标题，联系人/礼物占位', () => {
+    assert.equal(
+      degradeContent([{ type: 'share', data: { title: '某文章', content: '摘要' } }]),
+      '[链接] 某文章 · 摘要'
+    )
+    assert.equal(degradeContent([{ type: 'location', data: { title: '北京站' } }]), '[位置] 北京站')
+    assert.equal(degradeContent([{ type: 'contact' }]), '[联系人]')
+    assert.equal(degradeContent([{ type: 'gift' }]), '[礼物]')
+  })
+
+  it('渲染器 v2.14：超长内容 800 字符护栏', () => {
+    const out = degradeContent([{ type: 'text', data: { text: 'x'.repeat(2000) } }])
+    assert.equal(out.length, 801)
+    assert.ok(out.endsWith('…'))
+  })
+
+  it('渲染器 v2.14：字符串输入同样过长度护栏', () => {
+    assert.equal(degradeContent('y'.repeat(900)).length, 801)
+  })
 })

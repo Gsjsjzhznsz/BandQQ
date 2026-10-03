@@ -254,4 +254,92 @@ class OneBotParserTest {
         assertEquals("push_message", obj.get("type")?.asString)
         assertEquals(true, obj.get("content")?.asString?.contains("拍了拍你"))
     }
+
+    // ===== v2.14.0 智能自动渲染器 =====
+
+    @Test
+    fun `渲染器 json 卡片 meta prompt 优先`() {
+        val card = """{"meta":{"prompt":"[分享]我看到一个很棒的视频，快来看!"}}"""
+        assertEquals(
+            "[分享]我看到一个很棒的视频，快来看!",
+            OneBotParser.jsonCardSummary(card)
+        )
+    }
+
+    @Test
+    fun `渲染器 json 音乐卡片 title 加 singer`() {
+        val card = """{"meta":{"music":{"title":"晴天","singer":"周杰伦"}}}"""
+        assertEquals("[卡片] 晴天 · 周杰伦", OneBotParser.jsonCardSummary(card))
+    }
+
+    @Test
+    fun `渲染器 json 非法回退卡片消息`() {
+        assertEquals("[卡片消息]", OneBotParser.jsonCardSummary("not-json{{"))
+    }
+
+    @Test
+    fun `渲染器 xml 取 title 与 brief`() {
+        assertEquals("[卡片] 红包来袭", OneBotParser.xmlCardSummary("<msg><title>红包来袭</title></msg>"))
+        assertEquals("[卡片] 签到成功", OneBotParser.xmlCardSummary("<msg brief=\"签到成功\"></msg>"))
+    }
+
+    @Test
+    fun `渲染器 markdown 降纯文本`() {
+        val out = OneBotParser.markdownToPlain("## 标题\n**加粗** 与 `code`\n- 列表项\n[锚](https://x.y)")
+        assertEquals(false, out.contains('#'))
+        assertEquals(false, out.contains("**"))
+        assertEquals(true, out.contains("加粗"))
+        assertEquals(true, out.contains("· 列表项"))
+        assertEquals(true, out.contains("锚"))
+    }
+
+    @Test
+    fun `渲染器 数组段新类型覆盖`() {
+        fun seg(type: String, data: String) = com.google.gson.JsonParser.parseString(
+            """[{"type":"$type","data":$data}]"""
+        ).asJsonArray
+        assertEquals("[合并转发]", parser.degradeContent(seg("forward", "{}")))
+        assertEquals("[表情包]", parser.degradeContent(seg("mface", "{}")))
+        assertEquals("[骰子]", parser.degradeContent(seg("dice", "{}")))
+        assertEquals("[GIF]", parser.degradeContent(seg("image", """{"url":"https://x/a.gif"}""")))
+        assertEquals("[文件] 报告.pdf", parser.degradeContent(seg("file", """{"name":"报告.pdf"}""")))
+        assertEquals("正文", parser.degradeContent(seg("markdown", """{"content":"正文"}""")))
+    }
+
+    @Test
+    fun `渲染器 json 段整链路`() {
+        val card = """{"meta":{"music":{"title":"晴天","singer":"周杰伦"}}}"""
+        val arr = com.google.gson.JsonParser.parseString(
+            """[{"type":"text","data":{"text":"点歌:"}},{"type":"json","data":{"data":""}}]"""
+        ).asJsonArray
+        // OneBot 规范：json 段 data.data 为字符串化 JSON
+        arr[1].asJsonObject.getAsJsonObject("data").addProperty("data", card)
+        assertEquals("点歌:[卡片] 晴天 · 周杰伦", parser.degradeContent(arr))
+    }
+
+    @Test
+    fun `渲染器 CQ 字符串 json 卡片与文件名`() {
+        val cq = "[CQ:json,data={&#34;meta&#34;:{&#34;prompt&#34;:&#34;[分享]测试&#34;}}]看看"
+        // data 值里的引号按 OneBot 规范转义为 &#44;/&#91; 等；这里用含引号的简化场景验证不炸
+        assertEquals(true, parser.degradeCqString(cq).contains("看看"))
+        val file = "[CQ:file,file=abc,name=报告.pdf]后续"
+        assertEquals(true, parser.degradeCqString(file).contains("报告.pdf"))
+        assertEquals(true, parser.degradeCqString("[CQ:forward,id=1]").contains("合并转发"))
+    }
+
+    @Test
+    fun `渲染器 长度护栏 800`() {
+        val long = "x".repeat(2000)
+        val arr = com.google.gson.JsonParser.parseString(
+            """[{"type":"text","data":{"text":"$long"}}]"""
+        )
+        val out = parser.degradeContent(arr)
+        assertEquals(801, out.length)
+        assertEquals(true, out.endsWith("…"))
+    }
+
+    @Test
+    fun `渲染器 cqUnescape 四实体`() {
+        assertEquals("[a,b]c&", OneBotParser.cqUnescape("&#91;a&#44;b&#93;c&amp;"))
+    }
 }

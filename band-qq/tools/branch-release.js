@@ -85,14 +85,21 @@ function applyScreenType(src, kb) {
   return src.replace(re, 'screentype="' + kb.screentype + '"')
 }
 
-/** 键盘 script 常量换算：circle 滚动总宽按 kbScale（仅 xiaomis 命中，其余 1.0 原样） */
+/** 键盘 script 常量换算：circle 滚动总宽 + v2.14.0 键盘总高常量按 kbScale（仅 xiaomis 命中） */
+const KB_H_CONSTS = { KB_H_CIRCLE: 321, KB_H_RECT: 283, KB_H_PILL: 333 }
 function scaleKeyboardConsts(src, kb) {
   if (kb.kbScale === 1.0) return src
+  let out = src
   const total = Math.round(CIRCLE_SCROLL_TOTAL * kb.kbScale)
-  return src.replace(
+  out = out.replace(
     'event.scrollX / ' + CIRCLE_SCROLL_TOTAL,
     'event.scrollX / ' + total
   )
+  for (const [name, val] of Object.entries(KB_H_CONSTS)) {
+    const scaled = Math.round(val * kb.kbScale)
+    out = out.replace('var ' + name + ' = ' + val, 'var ' + name + ' = ' + scaled)
+  }
+  return out
 }
 
 /** px 换算：1px 细线保留；其余 round(N×k)，负值保持符号 */

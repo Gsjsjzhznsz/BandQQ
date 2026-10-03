@@ -159,6 +159,96 @@ class OneBotParser {
         /** 剥离 CQ 码得到纯文本（用于手环按钮标签，避免显示一堆格式代码） */
         fun stripCq(s: String): String = s.replace(CQ_CODE, "").trim()
 
+        // ================= v2.14.0 智能自动渲染器 =================
+        // 背景：AstrBot / 频道机器人 / 分享链路大量使用 json 卡片、markdown、合并转发等
+        // 富消息段，旧渲染器一律降级「[其他]」，手环上只见占位符。本段把常见段型
+        // 逐一提取出人话摘要，并加长度护栏防长文冲击手环渲染。
+
+        private const val RENDER_MAX_LEN = 800
+
+        /** OneBot v11 CQ 码反转义（&#91; &#93; &#44; &amp;） */
+        fun cqUnescape(s: String): String = s
+            .replace("&#91;", "[")
+            .replace("&#93;", "]")
+            .replace("&#44;", ",")
+            .replace("&amp;", "&")
+
+        private fun JsonObject?.str(k: String): String? =
+            this?.get(k)?.takeIf { it.isJsonPrimitive }?.asString
+
+        /** 渲染长度护栏：超长截断加省略号（手环 DOM/存储双保护） */
+        private fun capLen(s: String): String =
+            if (s.length > RENDER_MAX_LEN) s.take(RENDER_MAX_LEN) + "…" else s
+
+        /**
+         * JSON 卡片智能提取人话摘要（v2.14.0）。优先级：
+         * meta.prompt（QQ 官方生成的「[分享]我看到...」）→ meta.{news,music,app,...}.title
+         * （组合 describe/singer）→ 顶层 title/desc → config.desc → 兑底「[卡片消息]」。
+         */
+        fun jsonCardSummary(jsonStr: String): String {
+            return try {
+                val obj = JsonParser.parseString(jsonStr).asJsonObject
+                val meta = obj.getAsJsonObject("meta")
+                if (meta != null) {
+                    meta.str("prompt")?.trim()?.takeIf { it.isNotBlank() }?.let { return it }
+                    for (key in listOf("news", "music", "app", "software", "structured")) {
+                        val m = meta.getAsJsonObject(key) ?: continue
+                        val t = m.str("title")?.trim()?.takeIf { it.isNotBlank() } ?: continue
+                        val d = m.str("describe") ?: m.str("singer") ?: m.str("from")
+                        return "[卡片] " + t + (if (!d.isNullOrBlank() && d != t) " · $d" else "")
+                    }
+                }
+                val t = obj.str("title")?.trim()?.takeIf { it.isNotBlank() }
+                val d = obj.str("desc")?.trim() ?: obj.str("description")?.trim()
+                if (t != null) return "[卡片] " + t + (if (!d.isNullOrBlank() && d != t) " · $d" else "")
+                if (!d.isNullOrBlank()) return "[卡片] $d"
+                val cfg = obj.getAsJsonObject("config")
+                val cd = cfg?.str("desc")?.trim() ?: cfg?.str("from")?.trim()
+                if (!cd.isNullOrBlank()) return "[卡片] $cd"
+                "[卡片消息]"
+            } catch (_: Exception) {
+                "[卡片消息]"
+            }
+        }
+
+        /** XML 卡片提取 title/brief（老版结构化消息：〈msg brief=..〉〈title〉..〈/title〉） */
+        fun xmlCardSummary(xml: String): String {
+            return try {
+                val brief = Regex("brief=\"([^\"]+)\"").find(xml)?.groupValues?.get(1)
+                val title = Regex("<title[^>]*>([\\s\\S]*?)</title>", RegexOption.IGNORE_CASE)
+                    .find(xml)?.groupValues?.get(1)?.trim()
+                val best = listOf(title, brief).firstOrNull { !it.isNullOrBlank() }
+                if (best != null) "[卡片] " + best.take(60) else "[卡片消息]"
+            } catch (_: Exception) {
+                "[卡片消息]"
+            }
+        }
+
+        /**
+         * Markdown 降纯文本（v2.14.0，AstrBot 回复常用 markdown）：
+         * 去标题#/加粗星号/斜体星号/行内码反引号/链接括号（保留锚文本）/图片→[图片]/列表符号→·，压平多余空行。
+         */
+        fun markdownToPlain(md: String): String {
+            var s = md
+            s = s.replace("```", "\n")
+            s = s.replace(Regex("^#{1,6}\\s*", setOf(RegexOption.MULTILINE)), "")
+            s = s.replace(Regex("!\\[([^\\]]*)\\]\\([^)]*\\)"), "[图片]")
+            s = s.replace(Regex("\\[([^\\]]+)\\]\\([^)]*\\)"), "$1")
+            s = s.replace(Regex("\\*\\*([^*]+)\\*\\*"), "$1")
+            s = s.replace(Regex("__([^_]+)__"), "$1")
+            s = s.replace(Regex("\\*([^*\\n]+)\\*"), "$1")
+            s = s.replace(Regex("`([^`\n]+)`"), "$1")
+            s = s.replace(Regex("^[ \\t]*[-*+]\\s+", setOf(RegexOption.MULTILINE)), "· ")
+            s = s.replace(Regex("\n{3,}"), "\n\n")
+            return s.trim()
+        }
+
+        /** 文件类段型带文件名渲染（文件名过长截 24 字符） */
+        private fun fileLabel(name: String?, fallback: String): String {
+            val n = name?.trim()?.takeIf { it.isNotBlank() } ?: return fallback
+            return "$fallback ${if (n.length > 24) n.take(24) + "…" else n}"
+        }
+
         /**
          * 将用户配置的快捷回复原文解析为 QuickReply 列表。
          * 标签 = 剥离 CQ 码 + 降级 emoji + 截短到 6 字（手环按钮宽度有限）；
@@ -338,6 +428,13 @@ class OneBotParser {
      */
     fun degradeCqString(s: String): String {
         var out = s
+        // v2.14.0：卡片类 CQ 码先于通用剥离做智能渲染（data 值为 CQ 转义串，不含裸 ]）
+        out = out.replace(Regex("\\[CQ:json,data=([^\\]]*)\\]")) { m ->
+            runCatching { jsonCardSummary(cqUnescape(m.groupValues[1])) }.getOrDefault("[卡片消息]")
+        }
+        out = out.replace(Regex("\\[CQ:xml,data=([^\\]]*)\\]")) { m ->
+            runCatching { xmlCardSummary(cqUnescape(m.groupValues[1])) }.getOrDefault("[卡片消息]")
+        }
         out = out.replace(Regex("\\[CQ:at,qq=all[^\\]]*\\]"), "@全体成员")
         out = out.replace(Regex("\\[CQ:at,[^\\]]*name=([^,\\]]+)[^\\]]*\\]")) { m -> "@${m.groupValues[1]}" }
         out = out.replace(Regex("\\[CQ:at,qq=(\\d+)[^\\]]*\\]")) { m -> "@${m.groupValues[1]}" }
@@ -347,18 +444,26 @@ class OneBotParser {
         }
         out = CQ_CODE.replace(out) { m ->
             when {
-                m.value.startsWith("[CQ:image") -> "[图片]"
+                m.value.startsWith("[CQ:image") -> if (m.value.contains(".gif")) "[GIF]" else "[图片]"
                 m.value.startsWith("[CQ:record") || m.value.startsWith("[CQ:voice") -> "[语音]"
                 m.value.startsWith("[CQ:video") -> "[视频]"
-                m.value.startsWith("[CQ:file") -> "[文件]"
+                m.value.startsWith("[CQ:file") ->
+                    fileLabel(Regex("(?:name|filename)=([^,\\]]+)").find(m.value)?.groupValues?.get(1), "[文件]")
                 m.value.startsWith("[CQ:reply") -> "[回复]"
+                m.value.startsWith("[CQ:forward") -> "[合并转发]"
+                m.value.startsWith("[CQ:mface") -> "[表情包]"
                 else -> ""
             }
         }
         // v2.6.0：emoji 原生渲染可配置（Vela 部分固件字形缺失，默认透传，tofu 时用户可关）
-        return if (ConfigHolder.config.emojiNative) out.trim() else markEmoji(out.trim())
+        return capLen(if (ConfigHolder.config.emojiNative) out.trim() else markEmoji(out.trim()))
     }
 
+    /**
+     * v2.14.0 智能自动渲染器（数组段版）：除旧八类外，新增 json/xml 卡片摘要、
+     * markdown 降纯文本、合并转发/表情包/GIF/文件名/位置/猜拳骰子等 20+ 段型，
+     * AstrBot 机器人回复（markdown/json）首次在手环可读；末尾 capLen 长度护栏。
+     */
     fun degradeContent(message: com.google.gson.JsonElement?): String {
         if (message == null) return ""
         if (message.isJsonPrimitive && message.asJsonPrimitive.isString) return degradeCqString(message.asString)
@@ -367,26 +472,54 @@ class OneBotParser {
         val sb = StringBuilder()
         for (elem in arr) {
             val seg = if (elem.isJsonObject) elem.asJsonObject else continue
+            val data = seg.getAsJsonObject("data")
             when (seg.get("type")?.asString) {
                 "text" -> {
-                    val text = seg.getAsJsonObject("data")?.get("text")?.asString ?: ""
+                    val text = data?.get("text")?.asString ?: ""
                     // v2.6.0：emoji 原生渲染可配置（默认透传给手环，tofu 时降级「[表情]」）
                     sb.append(if (ConfigHolder.config.emojiNative) text else markEmoji(text))
                 }
                 "face" -> {
-                    val id = seg.getAsJsonObject("data")?.get("id")?.let {
+                    val id = data?.get("id")?.let {
                         if (it.isJsonPrimitive) it.asString.toIntOrNull() else null
                     }
                     sb.append(if (id != null) faceEmoji(id) else "[表情]")
                 }
-                "image" -> sb.append("[图片]")
+                "image" -> {
+                    // v2.14.0：GIF 识别（url/file 后缀）
+                    val urlish = (data.str("url") ?: "") + (data.str("file") ?: "")
+                    sb.append(if (urlish.contains(".gif", true)) "[GIF]" else "[图片]")
+                }
                 "record", "voice" -> sb.append("[语音]")
                 "video" -> sb.append("[视频]")
-                "file" -> sb.append("[文件]")
+                "file" -> sb.append(fileLabel(data.str("name") ?: data.str("file"), "[文件]"))
                 "reply" -> sb.append("[回复]")
+                // v2.14.0 新增段型
+                "json" -> sb.append(data.str("data")?.let { d ->
+                    runCatching { jsonCardSummary(d) }.getOrDefault("[卡片消息]")
+                } ?: "[卡片消息]")
+                "xml" -> sb.append(data.str("data")?.let { d ->
+                    runCatching { xmlCardSummary(d) }.getOrDefault("[卡片消息]")
+                } ?: "[卡片消息]")
+                "markdown" -> sb.append(markdownToPlain(data.str("content") ?: ""))
+                "forward" -> sb.append("[合并转发]")
+                "mface" -> sb.append("[表情包]")
+                "poke" -> sb.append("[戳一戳]")
+                "dice" -> sb.append("[骰子]")
+                "rps" -> sb.append("[猜拳]")
+                "share" -> sb.append(
+                    fileLabel(
+                        listOfNotNull(data.str("title"), data.str("content"))
+                            .joinToString(" · ").takeIf { it.isNotBlank() },
+                        "[链接]"
+                    )
+                )
+                "location" -> sb.append(fileLabel(data.str("title"), "[位置]"))
+                "tts" -> sb.append(data.str("text") ?: "[语音]")
+                "contact" -> sb.append("[联系人]")
+                "gift" -> sb.append("[礼物]")
                 "at" -> {
                     // v2.5.0：数组段格式的 at 旧逻辑降成 [其他]，这里转为可读 @
-                    val data = seg.getAsJsonObject("data")
                     val qq = data?.get("qq")?.let { if (it.isJsonPrimitive) it.asString else it.toString() }.orEmpty()
                     val name = data?.get("name")?.takeIf { it.isJsonPrimitive }?.asString.orEmpty()
                     when {
@@ -399,7 +532,7 @@ class OneBotParser {
                 else -> sb.append("[其他]")
             }
         }
-        return sb.toString()
+        return capLen(sb.toString())
     }
 
     /**

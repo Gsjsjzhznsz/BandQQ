@@ -8,8 +8,8 @@
 上游：https://github.com/Astroptis/band-qq-assistant ；本仓库为完整版镜像（含签名/产物/legacy）。
 
 ## 版本线
-- 当前正式线：v2.13.0（vc53）—— 键盘全分支换装 NEORUAA + AstrBot 胖/瘦双 APK + OneBot v11 扩展动作 + DevTools 1.4.0 miuix 重写 + 许可证 AGPL-3.0（2026-10-03）
-- 历史线：v2.10.0（51，分支级适配+分页窗口化+eSIM 直连）/ v2.9.6（50，四页 absolute 黑屏根修+版本统一）/ v2.9.5（49，WS 回退+双发根治）/ v2.9.4（48，真实 NapCat 五连修）… 详见各节
+- 当前正式线：v2.14.0（vc54）—— 胖包 AstrBot 独立标签页 + 键盘非手环机型两修复（显式根高/恒预留拼音行）+ 智能自动渲染器（20+ 段型）+ libbusybox 双通道（2026-10-03）
+- 历史线：v2.13.0（53，键盘全分支换装 NEORUAA+AstrBot 胖/瘦双 APK+OneBot v11 扩展+DevTools 1.4.0+AGPL）/ v2.10.0（51，分支级适配+分页窗口化+eSIM 直连）/ v2.9.6（50，四页 absolute 黑屏根修+版本统一）/ v2.9.5（49，WS 回退+双发根治）/ v2.9.4（48，真实 NapCat 五连修）… 详见各节
 - git 分支线 v2.11.x（redmi-watch/xiaomi-watch-s/band-pro）已废弃归档，由构建期四分支包取代
 
 ## v2.1.0 已完成（2026-09-09）
@@ -363,3 +363,25 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 - AstrBot 本地伴侣（APK）：集成 MuFengDR/AstrBot-Bubble-Android-App 为伴侣模式（**不做二进制合并**：对方 Flutter+64MB Ubuntu rootfs）。app/…/astrbot/AstrBotBridge.kt：检测 com.astrbot.astrbot_bubble(+.profile/.debug)→getLaunchIntentForPackage 拉起；probeLocalNapcat TCP 探测 127.0.0.1:3001/3000；LOCAL_WS_URL/LOCAL_HTTP_URL 一键填入。manifest 加 <queries> 包可见性；SettingsScreen 新增「AstrBot 本地机器人」卡片（入场序号 6，后续卡片顺移）
 - README 项目化改版：徽章/分支矩阵含键盘列/功能分区/安装指向 Releases/更新日志 <details> 折叠/引用致谢表（Vela-Input-Method-Revise、NEORUAA、上游、stapxs、merqury-vela、AstrBot-Bubble、AstrBot、miuix）
 - 验证：四分支 rpk 解包 68 断言全 PASS；node 单测 80/79（基线）；APK badging vc52/2.12.0 + AstrBotBridge 多 dex FOUND；构建环境第 N 次重建：/home/z/tools+jdk17、/home/z/android-sdk 存活，scripts/setup-buildenv.sh 已改腾讯 gradle 镜像
+
+## v2.14.0（2026-10-03，versionCode 54）
+
+**胖包 AstrBot 独立标签页**：
+- Tab 体系 flavor 分治：`AppTab` 枚举（main）新增 `AstrBot`（History 与 Settings 之间）；每 flavor sourceSet 一份 `AppTabSet.kt` 定义 `VisibleTabs`——bundled 5 页（含 AstrBot）/ companion 4 页不变；BandQQApp 的 HorizontalPager 与 BottomBar 全部改以 VisibleTabs 为准。
+- bundled 新增 `AstrBotScreen.kt`（PageScaffold 全页）：状态卡（含 Installing 百分比/Error 详情）+ 启动/停止 + 检测本机 NapCat + 日志开关 + **一键填入并保存**（直接 configManager.save endpoint.copy(ws/http=127.0.0.1, Token 保持) + pushQuickRepliesNow，不再回设置页手填）+ 日志区放宽 80 行。companion 同签名 stub（永不渲染，仅满足 main when 编译）。
+- bundled 设置页 `AstrBotSection` 降级为指引卡（防双入口状态不同步）；companion 卡片（伴侣模式）原样保留。
+
+**键盘非手环机型两修复**（用户报：①看不到输入预览 ②无输入时键盘只显示一半、输入一下恢复）：
+- 根因：InputMethod 根容器 `position:absolute;bottom:0` + `height:auto`——部分固件首帧对 auto 测量坍缩（bottom 锚定后内容下半出屏），任意数据变化触发重排才恢复；拼音行随输入增减高度是同族触发器。对照上游 NEORUAA 原文件逐字节一致 → 宿主/固件布局时序问题非合并引入。
+- 修复：①根高显式化——脚本顶部 `KB_H_CIRCLE=321/KB_H_RECT=283/KB_H_PILL=333` + `kbTotalFor()`，onInit/watchHidePropsChange 同步 `kbHpx`（hide→0px），模板改 `height:{{kbHpx}}`；②拼音行 `show` 从 wrap 移到 text——wrap 恒在流内占 28px，键盘总高不随输入变化（常量布局，首帧即完整）。
+- branch-release.js `scaleKeyboardConsts` 扩展：kbScale≠1（xiaomis）时三个 KB_H 常量按 466/480 同步换算（312/275/323），与样式逐值换算（321→312/255→248+28→27）恒一致。
+
+**智能自动渲染器**（"自动渲染器智能化"落点=消息段→手环可读文本链路）：
+- 手机端 OneBotParser：新增 `cqUnescape`/`jsonCardSummary`（meta.prompt → meta.{news,music,app,software,structured}.title+describe/singer → 顶层 title/desc → config.desc → 兜底）/`xmlCardSummary`（brief 属性/<title>）/`markdownToPlain`（AstrBot 回复可读：去 #/**/*/__/`/链接括号保留锚文本/图片→[图片]/列表→·）/`fileLabel`（文件名截 24）/`capLen`（800 字符护栏）。
+- degradeContent 数组段 8 类 → 20+ 类：json/xml/markdown/forward/mface/poke/dice/rps/share/location/tts/contact/gift + image GIF 识别（url/file 后缀）+ file 带文件名；degradeCqString 增加 [CQ:json/xml] 卡片渲染（data 值 CQ 转义先反转义）、file 提取 name=/filename=、forward/mface/image.gif 判定。
+- 手环端 protocol.js degradeContent（旧手机端兜底通道）同步同规则；测试：protocol.test.js +10 项、OneBotParserTest +11 项（json prompt/音乐/非法/xml title+brief/markdown/新段型矩阵/json 整链/CQ 串/800 护栏/cqUnescape）。
+
+**libbusybox.so 缺失（用户真机报"缺失 libbusybox.so（仅支持 arm64 真机）"）**：
+- EngineManager.installIfNeeded bin 组装改双通道：nativeLibraryDir 有 → copy；缺 → `extractSoFromApk`（ZipFile 扫 applicationInfo.sourceDir 内 lib/arm64-v8a/<so>，退化匹配任意 lib/<abi>/）；两者皆无 → 报错附带 nativeLibraryDir 路径 + Build.SUPPORTED_ABIS + APK 路径诊断。覆盖 ROM 解压目录不全 / 历版 APK 未打 .so 场景。
+
+**验证基线**：手环端 node 单测 90 测 89 过（新增 10 项渲染器全绿；api.test.js 1 例存量环境失败基线一致）；构建/解包断言详见当轮 worklog。

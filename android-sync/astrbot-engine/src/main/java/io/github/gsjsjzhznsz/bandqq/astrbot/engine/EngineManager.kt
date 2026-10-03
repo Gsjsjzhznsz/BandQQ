@@ -106,8 +106,25 @@ object EngineManager {
     const val ROOTFS_ASSET = "ubuntu-noble-aarch64-pd-v4.18.0.tar.xz"
 
     /**
+     * v2.14.0：从 APK 压缩包内直接读取 jniLibs 产物（回退通道）。
+     * 优先精确匹配 lib/arm64-v8a/<so>，退化匹配任意 abi 目录下同名项。
+     */
+    private fun extractSoFromApk(ctx: Context, soName: String): ByteArray? = runCatching {
+        val apkFile = File(ctx.applicationInfo.sourceDir)
+        java.util.zip.ZipFile(apkFile).use { zip ->
+            val names = zip.entries().asSequence().map { it.name }.toList()
+            val target = names.firstOrNull { it == "lib/arm64-v8a/$soName" }
+                ?: names.firstOrNull { it.endsWith("/$soName") && it.startsWith("lib/") }
+                ?: return null
+            zip.getInputStream(zip.getEntry(target)).use { it.readBytes() }
+        }
+    }.getOrNull()
+
+    /**
      * 安装引擎（幂等）：已装直接返回 true。三步：
-     *  ① jniLibs 复制到 filesDir/bin 并 chmod 755（Android 11+ nativeLibraryDir 只读）
+     *  ① jniLibs 复制到 filesDir/bin 并 chmod 755（Android 11+ nativeLibraryDir 只读；
+     *     v2.14.0 双通道：nativeLibraryDir 缺文件时从 APK 内 lib/arm64-v8a/ 直取，
+     *     覆盖部分 ROM 解压目录不全 / split APK 场景）
      *  ② busybox xz -d -c | tar -x 解压 rootfs（C 实现，62MB → 约 3~10s）
      *  ③ 启动脚本与 AstrBot 配置模板拷入容器 /root
      */
@@ -125,12 +142,25 @@ object EngineManager {
                 val nativeDir = File(ctx.applicationInfo.nativeLibraryDir)
                 for ((so, name) in BIN_MAP) {
                     val src = File(nativeDir, so)
-                    if (!src.exists()) {
-                        logLine("缺失 $so（仅支持 arm64 真机）")
-                        throw IllegalStateException("native 库缺失: $so")
-                    }
                     val dst = File(bin, name)
-                    src.copyTo(dst, overwrite = true)
+                    if (src.exists()) {
+                        src.copyTo(dst, overwrite = true)
+                    } else {
+                        // v2.14.0 回退通道：部分真机 ROM 的 nativeLibraryDir 不含全部 jniLibs
+                        // （或用户装的是历版缺包 APK），直接从 APK 压缩包内提取同名 .so
+                        val bytes = extractSoFromApk(ctx, so)
+                        if (bytes == null) {
+                            val abis = Build.SUPPORTED_ABIS.joinToString("/")
+                            logLine(
+                                "缺失 $so：nativeLibraryDir=$nativeDir 无此文件，" +
+                                    "APK(${ctx.applicationInfo.sourceDir}) 内也无 lib/arm64-v8a/$so"
+                            )
+                            logLine("设备 ABI 列表：$abis；本引擎仅支持 arm64-v8a 真机")
+                            throw IllegalStateException("native 库缺失: $so（设备 ABI: $abis，仅支持 arm64 真机）")
+                        }
+                        logLine("$so 从 nativeLibraryDir 缺失，已从 APK 内直取（${bytes.size / 1024}KB）")
+                        dst.writeBytes(bytes)
+                    }
                     dst.setExecutable(true, false)
                     dst.setReadable(true, false)
                 }
