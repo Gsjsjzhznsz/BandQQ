@@ -8,7 +8,7 @@
 上游：https://github.com/Astroptis/band-qq-assistant ；本仓库为完整版镜像（含签名/产物/legacy）。
 
 ## 版本线
-- 当前正式线：v2.15.0（vc55）—— busybox error=13 根修（targetSdk 28 W^X 豁免）+ 键盘高度链全显式化（三层 kbHpx）+ 演示模式补齐 v2.13/2.14 新特性（2026-10-03）
+- 当前正式线：v2.16.0（vc56）—— rootfs 顶层前缀拍平（"缺 bin/bash"根修）+ message_id 数字形态（NapCat 按 number 索引）+ 直连 v11 动作翻译 + compose 键盘宿主去 flex 化（VM 实测驱动）（2026-10-03）
 - 历史线：v2.13.0（53，键盘全分支换装 NEORUAA+AstrBot 胖/瘦双 APK+OneBot v11 扩展+DevTools 1.4.0+AGPL）/ v2.10.0（51，分支级适配+分页窗口化+eSIM 直连）/ v2.9.6（50，四页 absolute 黑屏根修+版本统一）/ v2.9.5（49，WS 回退+双发根治）/ v2.9.4（48，真实 NapCat 五连修）… 详见各节
 - git 分支线 v2.11.x（redmi-watch/xiaomi-watch-s/band-pro）已废弃归档，由构建期四分支包取代
 

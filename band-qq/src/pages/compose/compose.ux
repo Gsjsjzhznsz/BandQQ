@@ -1,14 +1,16 @@
 <import name="input-method" src="../../components/InputMethod/InputMethod.ux"></import>
 <template>
+  <!-- v2.16.0 键盘宿主去 flex 化：真机固件对 flex:1 兄弟的计算异常会把键盘挤出屏/压半
+       （v2.13 "输入一下就恢复"=重排偶发修正；v2.14/15 显式定高反而冻结布局）。
+       现在预览区与键盘全部绝对锚定：top-bar 流内固定高，preview-box absolute 铺剩余，
+       kb-dock absolute 贴底锚（显式高=键盘物理高，分支 override 对齐）——键盘位置与 flex 计算彻底解耦。 -->
   <div class="page">
     <div class="top-bar">
       <image class="btn" src="../../common/ui/back.png" onclick="goBack"></image>
       <text class="done-btn" onclick="confirmDraft">完成</text>
     </div>
     <div class="preview-box">
-      <scroll class="preview-scroll" scroll-y="true">
-        <text class="preview-text">{{draft || '在这里输入内容，点击下方键盘按键'}}</text>
-      </scroll>
+      <text class="preview-text">{{draft || '在这里输入内容，点击下方键盘按键'}}</text>
     </div>
     <!-- 键盘换装（v2.13.0 全分支统一 NEORUAA/Vela_input_method 上游单组件）：
          单文件内置 circle/rect/pill-shaped 三屏形布局（QWERTY+T9，中/英/日），
@@ -19,14 +21,16 @@
            xiaomis=circle(466/480换算) / redmiwatch=rect(432自适应宽)。
          事件接口：complete 选字上屏 / delete 拼音清空后删草稿字符（上游原生支持），
          与旧胶囊版一致，compose 用法无需改动 -->
-    <input-method
-      hide="{{false}}"
-      maxlength="5"
-      vibratemode="short"
-      screentype="pill-shaped"
-      @complete="onComplete"
-      @delete="onDelete"
-    ></input-method>
+    <div class="kb-dock">
+      <input-method
+        hide="{{false}}"
+        maxlength="5"
+        vibratemode="short"
+        screentype="pill-shaped"
+        @complete="onComplete"
+        @delete="onDelete"
+      ></input-method>
+    </div>
 
     <div class="mask" if="{{confirmShow}}">
       <div class="confirm-box">
@@ -44,15 +48,16 @@
 </template>
 
 <style>
-  .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; }
+  .page { width: 100%; height: 100%; flex-direction: column; background-color: #000000; position: relative; }
   .top-bar { height: 78px; flex-direction: row; align-items: center; justify-content: space-between; padding: 0 8px; }
   .btn { width: 48px; height: 34px; }
   .done-btn { width: 112px; height: 48px; text-align: center; line-height: 48px; font-size: 22px; color: #ffffff; background-color: #07c160; border-radius: 24px; }
-  /* v2.9.6 RW5E 黑屏根修：preview-box relative + scroll absolute 铺满（index v2.9.1 同构方案），
-     padding 转移到 preview-text 上 */
-  .preview-box { position: relative; flex: 1; }
-  .preview-scroll { position: absolute; left: 0; top: 0; width: 100%; height: 100%; }
-  .preview-text { padding: 8px 10px; font-size: 24px; color: #0d84ff; line-height: 34px; text-align: left; word-break: break-all; }
+  /* v2.16.0：preview-box 绝对锚定（top 与 top-bar 等高、底到屏幕底），不再参与 flex 分配；
+     padding-bottom 由分支 override 精确设为键盘物理高（文字不被键盘遮住） */
+  .preview-box { position: absolute; left: 0; top: 78px; width: 100%; height: 412px; }
+  .preview-text { padding: 8px 10px; padding-bottom: 333px; font-size: 24px; color: #0d84ff; line-height: 34px; text-align: left; word-break: break-all; lines: 3; text-overflow: ellipsis; }
+  /* v2.16.0：键盘绝对贴底锚（kb-dock 显式高防 absolute 容器零高裁剪（铁律 V4），分支 override 对齐键盘物理高） */
+  .kb-dock { position: absolute; left: 0; bottom: 0; width: 100%; height: 333px; }
   .mask { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.65); align-items: center; justify-content: center; }
   .confirm-box { width: 176px; background-color: #2b2b2b; border-radius: 14px; padding: 14px; flex-direction: column; }
   .confirm-title { font-size: 18px; color: #ffffff; font-weight: bold; text-align: center; margin-bottom: 8px; }

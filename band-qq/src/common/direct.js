@@ -89,6 +89,18 @@ function callOneBot(cfg, action, params) {
   })
 }
 
+/**
+ * v2.16.0：OneBot v11 规范里 message_id/user_id/group_id 是 int32（JSON number）。
+ * NapCat 内部按数值 key 索引消息（MessageUnique Map），字符串 key 查不到 → 动作
+ * 静默失败。safe-integer 范围内转数字下发；超长字符串形态 id（LLOneBot 等实现）
+ * Number 转换会丢精度，保留字符串原样。
+ */
+function numericId(v) {
+  if (v === undefined || v === null || v === '') return v
+  const n = Number(v)
+  return (Number.isSafeInteger(n) && String(n) === String(v)) ? n : v
+}
+
 /** CQ 码轻量降级（直连模式下 raw_message → 纯文本 + at/poke 检测） */
 function cqText(raw) {
   if (typeof raw !== 'string') return { text: '', at: false, poke: false }
@@ -208,6 +220,30 @@ export function createDirect(impl) {
       case 'ping':
         // 无直连对应的静默成功（读上报/会话聚合/设置以互联与本地为准）
         return Promise.resolve(null)
+      // v2.16.0 OneBot v11 扩展动作直连翻译：eSIM 独立线路（互联断开）时
+      // 点赞/拍一拍/群签到/撤回/表情回应/资料查询不再整体失效。
+      // 结果 toast 在互联模式下由手机端 action_result 帧承担；直连模式动作
+      // 生效为准（成功静默，失败 reject 交上游 catch）。
+      case 'send_like':
+        return call(cfg, 'send_like', { user_id: numericId(payload.target_id), times: payload.times || 10 })
+      case 'send_poke':
+        return payload.chat_type === 'group'
+          ? call(cfg, 'group_poke', { group_id: numericId(payload.target_id), user_id: numericId(payload.target_id) })
+          : call(cfg, 'friend_poke', { user_id: numericId(payload.target_id) })
+      case 'group_sign':
+        return call(cfg, 'send_group_sign', { group_id: numericId(payload.target_id) })
+      case 'message_action':
+        if (payload.sub_action === 'delete') {
+          return call(cfg, 'delete_msg', { message_id: numericId(payload.message_id) })
+        }
+        return call(cfg, 'set_msg_emoji_like', {
+          message_id: numericId(payload.message_id),
+          emoji_id: String(payload.emoji_id || '128077')
+        })
+      case 'get_user_info':
+        return payload.chat_type === 'group' && payload.group_id
+          ? call(cfg, 'get_group_member_info', { group_id: numericId(payload.group_id), user_id: numericId(payload.target_id) })
+          : call(cfg, 'get_stranger_info', { user_id: numericId(payload.target_id) })
       default:
         return Promise.reject({ code: 1011, msg: 'unsupported direct frame: ' + payload.type })
     }

@@ -226,6 +226,42 @@ class MessageBrokerTest {
             MessageBus.clear()
         }
     }
+
+@Test
+    fun `message_action delete 下发数字 message_id（NapCat 按 number 索引）`() {
+        val captured = mutableListOf<Pair<String, String>>()
+        val oneBot = object : MessageSender {
+            override fun sendMessage(messageType: String, targetId: String, content: String, httpUrlOverride: String?, callback: (ok: Boolean, messageId: String) -> Unit) {}
+            override fun requestApiAction(action: String, paramsJson: String, callback: (String?) -> Unit) {
+                captured.add(action to paramsJson)
+                callback("""{"retcode":0,"status":"ok"}""")
+            }
+        }
+        val broker = MessageBroker(OneBotParser(), oneBot, MessageStore())
+        val handled = broker.onBandFrame("""{"type":"message_action","seq":9,"sub_action":"delete","message_id":"123456"}""")
+        assertTrue(handled)
+        assertEquals("delete_msg", captured[0].first)
+        // v2.16.0：数字形态去引号，规范 message_id 为 int32
+        assertEquals("""{"message_id":123456}""", captured[0].second)
+    }
+
+    @Test
+    fun `message_action emoji 下发数值 message_id 与字符串 emoji_id`() {
+        val captured = mutableListOf<Pair<String, String>>()
+        val oneBot = object : MessageSender {
+            override fun sendMessage(messageType: String, targetId: String, content: String, httpUrlOverride: String?, callback: (ok: Boolean, messageId: String) -> Unit) {}
+            override fun requestApiAction(action: String, paramsJson: String, callback: (String?) -> Unit) {
+                captured.add(action to paramsJson)
+                callback("""{"retcode":0,"status":"ok"}""")
+            }
+        }
+        val broker = MessageBroker(OneBotParser(), oneBot, MessageStore())
+        val handled = broker.onBandFrame("""{"type":"message_action","seq":10,"sub_action":"emoji","message_id":"777","emoji_id":"128077"}""")
+        assertTrue(handled)
+        assertEquals("set_msg_emoji_like", captured[0].first)
+        assertEquals("""{"message_id":777,"emoji_id":"128077"}""", captured[0].second)
+    }
+
 }
 
 class FakeOneBot(private val onSend: (String, String, String) -> Boolean) : MessageSender {

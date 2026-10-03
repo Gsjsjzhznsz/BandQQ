@@ -132,6 +132,26 @@ function overridesFor(tag) {
     // 大屏分支：消息行宽度从固定 192 系值改为 100%（铺满内容区，self 气泡贴右缘）
     rules.push(['src/pages/chat/chat.ux', /\.msg-item \{ width: \d+px;/, '.msg-item { width: 100%;'])
     rules.push(['src/pages/chat/chat.ux', /\.poke-wrap \{ width: \d+px;/, '.poke-wrap { width: 100%;'])
+    // v2.16.0 compose 去 flex 化：preview-text padding-bottom 源值 333（band 基准），
+    // 换算后与本分支键盘物理高对齐（键盘 kbHpx：bandpro/redmiwatch 283、xiaomis 312）
+    const kbFinal = { bandpro: 283, xiaomis: 312, redmiwatch: 283 }
+    // preview-box 显式高 = 屏高 - top-bar 物理高（absolute 容器零高裁剪同防）
+    const pvFinal = { bandpro: 382, xiaomis: 361, redmiwatch: 420 }
+    rules.push([
+      'src/pages/compose/compose.ux',
+      /(\.preview-box \{[^}]*?height: )\d+px/,
+      '$1' + pvFinal[tag] + 'px'
+    ])
+    rules.push([
+      'src/pages/compose/compose.ux',
+      /(\.preview-text \{[^}]*?padding-bottom: )\d+px/,
+      '$1' + kbFinal[tag] + 'px'
+    ])
+    rules.push([
+      'src/pages/compose/compose.ux',
+      /(\.kb-dock \{[^}]*?height: )\d+px/,
+      '$1' + kbFinal[tag] + 'px'
+    ])
   }
   if (tag === 'xiaomis') {
     // 圆屏：列表/聊天左右安全边距加大，防四角裁切

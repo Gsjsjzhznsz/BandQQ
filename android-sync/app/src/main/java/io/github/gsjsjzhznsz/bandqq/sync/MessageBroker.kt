@@ -169,15 +169,20 @@ class MessageBroker(
                 // v2.13.0 OneBot v11 扩展：消息级动作（表情回应 / 撤回自己消息）
                 val messageId = obj.get("message_id")?.asString ?: return false
                 val sub = obj.get("sub_action")?.asString ?: ""
+                // v2.16.0 修复：OneBot v11 规范 message_id 为 int32，NapCat 内部按数值
+                // 索引（MessageUnique Map 的 key 是 number），字符串 key 查不到 → 撤回/
+                // 表情回应全部失败（"协议端未响应或动作不支持"）。数字形态去引号下发，
+                // 非 safe-integer 字符串形态（LLOneBot 等长数字串 id）保留原样。
+                val midParam = messageId.toLongOrNull()?.toString() ?: "\"$messageId\""
                 when (sub) {
                     "delete" -> callOneBot(
-                        "delete_msg", "{\"message_id\":\"$messageId\"}", seq, "撤回消息", ""
+                        "delete_msg", "{\"message_id\":$midParam}", seq, "撤回消息", ""
                     )
                     "emoji" -> {
                         val emojiId = obj.get("emoji_id")?.takeIf { it.isJsonPrimitive }?.asString ?: "128077"
                         callOneBot(
                             "set_msg_emoji_like",
-                            "{\"message_id\":\"$messageId\",\"emoji_id\":\"$emojiId\"}",
+                            "{\"message_id\":$midParam,\"emoji_id\":\"$emojiId\"}",
                             seq, "表情回应 $emojiId", ""
                         )
                     }

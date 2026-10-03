@@ -192,3 +192,67 @@ describe('store 消息容量与排序幂等', () => {
     assert.equal(m2, m1)
   })
 })
+
+describe('direct v2.16.0 OneBot v11 扩展动作直连翻译', () => {
+  const cfg = { url: 'http://10.0.0.5:3000', token: 'abc' }
+  function withCall(handler) {
+    return createDirect({ callOneBot: (c, action, params) => handler(c, action, params) })
+  }
+  it('send_like 数字 user_id + times', async () => {
+    let cap = null
+    const d = withCall((c, action, params) => { cap = { action, params }; return Promise.resolve({}) })
+    await d.sendPayload(cfg, { type: 'send_like', target_id: '111', times: 10 })
+    assert.equal(cap.action, 'send_like')
+    assert.equal(cap.params.user_id, 111)
+    assert.equal(cap.params.times, 10)
+  })
+  it('send_poke 私聊 friend_poke / 群聊 group_poke', async () => {
+    let cap = null
+    const d = withCall((c, action, params) => { cap = { action, params }; return Promise.resolve({}) })
+    await d.sendPayload(cfg, { type: 'send_poke', target_id: '111', chat_type: 'private' })
+    assert.equal(cap.action, 'friend_poke')
+    await d.sendPayload(cfg, { type: 'send_poke', target_id: '20001', chat_type: 'group' })
+    assert.equal(cap.action, 'group_poke')
+    assert.equal(cap.params.group_id, 20001)
+  })
+  it('group_sign → send_group_sign', async () => {
+    let cap = null
+    const d = withCall((c, action, params) => { cap = { action, params }; return Promise.resolve({}) })
+    await d.sendPayload(cfg, { type: 'group_sign', target_id: '20001' })
+    assert.equal(cap.action, 'send_group_sign')
+    assert.equal(cap.params.group_id, 20001)
+  })
+  it('message_action delete → delete_msg 数值 message_id（NapCat 按 number 索引）', async () => {
+    let cap = null
+    const d = withCall((c, action, params) => { cap = { action, params }; return Promise.resolve({}) })
+    await d.sendPayload(cfg, { type: 'message_action', sub_action: 'delete', message_id: '123456' })
+    assert.equal(cap.action, 'delete_msg')
+    assert.equal(cap.params.message_id, 123456)
+    assert.equal(typeof cap.params.message_id, 'number')
+  })
+  it('message_action emoji → set_msg_emoji_like 数值 id + 字符串 emoji_id', async () => {
+    let cap = null
+    const d = withCall((c, action, params) => { cap = { action, params }; return Promise.resolve({}) })
+    await d.sendPayload(cfg, { type: 'message_action', sub_action: 'emoji', message_id: '777', emoji_id: '128077' })
+    assert.equal(cap.action, 'set_msg_emoji_like')
+    assert.equal(cap.params.message_id, 777)
+    assert.equal(cap.params.emoji_id, '128077')
+  })
+  it('超长字符串 message_id（LLOneBot 形态）保留字符串不丢精度', async () => {
+    let cap = null
+    const d = withCall((c, action, params) => { cap = { action, params }; return Promise.resolve({}) })
+    const longId = '7352845278123456789'
+    await d.sendPayload(cfg, { type: 'message_action', sub_action: 'delete', message_id: longId })
+    assert.equal(cap.params.message_id, longId)
+    assert.equal(typeof cap.params.message_id, 'string')
+  })
+  it('get_user_info 私聊 stranger / 群聊 member', async () => {
+    let cap = null
+    const d = withCall((c, action, params) => { cap = { action, params }; return Promise.resolve({ nickname: 'x' }) })
+    await d.sendPayload(cfg, { type: 'get_user_info', target_id: '111', chat_type: 'private' })
+    assert.equal(cap.action, 'get_stranger_info')
+    await d.sendPayload(cfg, { type: 'get_user_info', target_id: '111', chat_type: 'group', group_id: '20001' })
+    assert.equal(cap.action, 'get_group_member_info')
+    assert.equal(cap.params.group_id, 20001)
+  })
+})

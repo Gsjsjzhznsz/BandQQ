@@ -105,6 +105,16 @@ object EngineManager {
 
     const val ROOTFS_ASSET = "ubuntu-noble-aarch64-pd-v4.18.0.tar.xz"
 
+    /** 诊断：busybox 支持的 applet 清单（失败时打进日志，便于定位 ROM 差异） */
+    private fun busyboxApplets(bin: File): String = runCatching {
+        val p = ProcessBuilder(File(bin, "busybox").absolutePath, "--list")
+            .redirectErrorStream(true).start()
+        val out = p.inputStream.bufferedReader().readText()
+        p.waitFor()
+        out.split('\n').filter { it.isNotBlank() }
+            .let { l -> if (l.size > 24) "${l.take(24).joinToString(",")}…共${l.size}" else l.joinToString(",") }
+    }.getOrDefault("无法获取（busybox --list 执行失败）")
+
     /**
      * v2.14.0：从 APK 压缩包内直接读取 jniLibs 产物（回退通道）。
      * 优先精确匹配 lib/arm64-v8a/<so>，退化匹配任意 abi 目录下同名项。
@@ -166,8 +176,15 @@ object EngineManager {
                 }
                 logLine("bin 组装完成（${BIN_MAP.size} 个可执行）")
 
-                // ② 解压 rootfs（busybox xz | tar 管道，单进程 sh -c）
+                // ② 解压 rootfs。
+                // v2.16.0 根因修复：proot-distro 发行包（pd-v4.18.0）全部条目带
+                // ubuntu-noble-aarch64/ 顶层前缀，v2.15 直接 tar -x -C rootfs 后实体落在
+                // <rootfs>/ubuntu-noble-aarch64/ 之下，"rootfs/bin/bash" 校验必然失败
+                // （报"缺 bin/bash，包可能损坏"）。改为：清残留 → xz 两段解压（退出码
+                // 独立可判）→ 前缀拍平（rename 上移，兼容无前缀包）→ 双路径校验。
                 val rootfs = rootfsDir(ctx)
+                // 历史版本半成品不可信（无 stamp 即未完成安装），整体清空重装
+                if (rootfs.exists()) rootfs.deleteRecursively()
                 rootfs.mkdirs()
                 _state.value = State.Installing("解压 Ubuntu rootfs（首次约 3~10 秒）", 20)
                 val tar = File(ctx.cacheDir, ROOTFS_ASSET)
@@ -177,23 +194,54 @@ object EngineManager {
                         tar.outputStream().use { input.copyTo(it) }
                     }
                 }
-                logLine("rootfs 包就绪（${tar.length() / 1024 / 1024}MB），开始解压…")
-                val extractor = ProcessBuilder(
-                    File(bin, "busybox").absolutePath, "sh", "-c",
-                    "exec ${File(bin, "busybox").absolutePath} xz -d -c '${tar.absolutePath}' | " +
-                        "exec ${File(bin, "busybox").absolutePath} tar -x -C '${rootfs.absolutePath}'"
+                logLine("rootfs 包就绪（${tar.length() / 1024 / 1024}MB），xz 解压中…")
+                val tarPlain = File(ctx.cacheDir, "rootfs-plain.tar")
+                val xz = ProcessBuilder(
+                    File(bin, "busybox").absolutePath, "xz", "-d", "-c", tar.absolutePath
+                ).redirectErrorStream(true).redirectOutput(tarPlain).start()
+                val xzCode = xz.waitFor()
+                if (xzCode != 0 || !tarPlain.exists() || tarPlain.length() == 0L) {
+                    tarPlain.delete()
+                    logLine("busybox xz 失败 exit=$xzCode（applet 清单：${busyboxApplets(bin)}）")
+                    throw IllegalStateException("rootfs xz 解压失败 exit=$xzCode")
+                }
+                logLine("xz 完成（${tarPlain.length() / 1024 / 1024}MB），tar 解包中…")
+                val untar = ProcessBuilder(
+                    File(bin, "busybox").absolutePath, "tar", "-x", "-f",
+                    tarPlain.absolutePath, "-C", rootfs.absolutePath
                 ).redirectErrorStream(true).start()
-                val tail = StringBuilder()
-                extractor.inputStream.bufferedReader().forEachLine {
-                    if (tail.length < 2000) tail.appendLine(it)
+                val tarTail = StringBuilder()
+                untar.inputStream.bufferedReader().forEachLine {
+                    if (tarTail.length < 2000) tarTail.appendLine(it)
                 }
-                val code = extractor.waitFor()
-                if (code != 0) {
-                    logLine("解压失败 exit=$code：${tail.takeLast(500)}")
-                    throw IllegalStateException("rootfs 解压失败 exit=$code")
+                val tarCode = untar.waitFor()
+                tarPlain.delete()
+                if (tarCode != 0) {
+                    logLine("tar 解包失败 exit=$tarCode：${tarTail.takeLast(500)}")
+                    throw IllegalStateException("rootfs tar 解包失败 exit=$tarCode")
                 }
-                if (!File(rootfs, "bin/bash").exists()) {
-                    throw IllegalStateException("rootfs 解压后缺 bin/bash，包可能损坏")
+
+                // 前缀拍平：条目带 <distro>/ 顶层目录时把实体逐项 rename 上移
+                if (!File(rootfs, "usr/bin/env").exists()) {
+                    val nested = rootfs.listFiles { f -> f.isDirectory && File(f, "usr/bin").isDirectory }
+                        ?.firstOrNull()
+                    if (nested == null) {
+                        logLine("解压产物：${rootfs.listFiles()?.joinToString(limit = 12) { it.name }}")
+                        throw IllegalStateException("rootfs 解压后缺 usr/bin/env，包可能损坏")
+                    }
+                    logLine("检测到顶层前缀 ${nested.name}/，拍平…")
+                    nested.listFiles()?.forEach { child ->
+                        val dst = File(rootfs, child.name)
+                        if (dst.exists()) dst.deleteRecursively()
+                        if (!child.renameTo(dst)) {
+                            throw IllegalStateException("rootfs 前缀拍平失败: ${child.name}")
+                        }
+                    }
+                    nested.delete()
+                }
+                if (!File(rootfs, "usr/bin/bash").exists() || !File(rootfs, "bin/bash").exists()) {
+                    logLine("解压产物：${rootfs.listFiles()?.joinToString(limit = 12) { it.name }}")
+                    throw IllegalStateException("rootfs 解压后缺 usr/bin/bash 或 bin 链接，包可能损坏")
                 }
                 tar.delete()
                 logLine("rootfs 解压完成")
