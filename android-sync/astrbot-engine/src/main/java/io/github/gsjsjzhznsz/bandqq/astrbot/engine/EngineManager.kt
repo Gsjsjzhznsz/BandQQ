@@ -54,6 +54,9 @@ object EngineManager {
     fun rootfsDir(ctx: Context): File =
         File(engineRoot(ctx), "var/lib/proot-distro/installed-rootfs/ubuntu")
 
+    /** v2.19.0：宿主侧生成的 resolv.conf（proot -b 绑定进容器 /etc/resolv.conf） */
+    fun containerEtcDir(ctx: Context): File = File(engineRoot(ctx), "etc")
+
     private fun installStamp(ctx: Context): File = File(engineRoot(ctx), ".installed-4.18.0")
 
     /** 引擎是否已安装（bin 完整 + rootfs 关键文件存在 + 版本标记匹配） */
@@ -331,11 +334,45 @@ object EngineManager {
     // ---------- 启动 / 停止 ----------
 
     /**
+     * v2.19.0：生成容器 resolv.conf（宿主侧）。rootfs 发行包自带的 resolv.conf 烙着
+     * 构建机 systemd-resolved 桩（nameserver 127.0.0.53，proot 内无监听 → 解析必死）；
+     * 启动脚本内的无条件重写是第一道防线，这里是第二道：proot -b 直接把本文件绑定
+     * 到 /etc/resolv.conf，绑定层优先于 rootfs 文件，不依赖脚本执行时机。
+     * DNS 优先取系统当前网络的 DNS（ConnectivityManager，覆盖仅内网 DNS 可达的
+     * 载波/路由器场景），公共解析器（阿里/腾讯/114/谷歌）兑底。
+     */
+    private fun writeContainerResolvConf(ctx: Context) {
+        val servers = mutableListOf<String>()
+        runCatching {
+            val cm = ctx.getSystemService(android.net.ConnectivityManager::class.java)
+            val lp = cm?.activeNetwork?.let { cm.getLinkProperties(it) }
+            lp?.dnsServers?.forEach { dns ->
+                val host = dns?.hostAddress ?: return@forEach
+                if (!host.contains(':') && host !in servers) servers.add(host)
+            }
+        }
+        listOf("223.5.5.5", "119.29.29.29", "114.114.114.114", "8.8.8.8").forEach {
+            if (it !in servers) servers.add(it)
+        }
+        val text = buildString {
+            servers.take(5).forEach { append("nameserver ").append(it).append('\n') }
+            append("options timeout:2 attempts:3 rotate\n")
+        }
+        runCatching {
+            val dir = containerEtcDir(ctx)
+            if (!dir.exists()) dir.mkdirs()
+            File(dir, "resolv.conf").writeText(text)
+        }.onFailure { logLine("resolv.conf 写入失败: ${it.message}") }
+    }
+
+    /**
      * 组装 proot 启动命令并 exec。命令逐参数对齐上游 scripts.dart（仅去掉 sdcard
      * 绑定：引擎全部数据自包含于容器，不需要手机存储，减少权限面）。
+     * v2.19.0：新增 -b resolv.conf 绑定（Termux proot-distro 同款做法，见上）。
      */
     private fun buildLaunchScript(ctx: Context, bin: File, tmp: File, ubuntu: File): String {
         val tz = java.util.TimeZone.getDefault().id
+        val resolv = File(containerEtcDir(ctx), "resolv.conf")
         return buildString {
             append("exec ").append(bin.absolutePath).append("/proot ")
             append("-0 ")
@@ -344,6 +381,9 @@ object EngineManager {
             append("-b /dev -b /proc -b /sys -b /dev/pts ")
             append("-b '").append(tmp.absolutePath).append("' ")
             append("-b '").append(tmp.absolutePath).append("':/dev/shm ")
+            if (resolv.exists()) {
+                append("-b '").append(resolv.absolutePath).append("':/etc/resolv.conf ")
+            }
             append("-b /proc/self/fd:/dev/fd ")
             append("-w /root ")
             append("/usr/bin/env -i ")
@@ -431,6 +471,7 @@ object EngineManager {
                     _state.value = State.Starting
                 }
                 refreshContainerScripts(appCtx)
+                writeContainerResolvConf(appCtx)
                 val script = buildLaunchScript(appCtx, bin, tmp, ubuntu)
                 logLine("拉起容器（proot → astrbot-startup.sh）…")
                 val pb = ProcessBuilder(File(bin, "bash").absolutePath, "-lc", script)

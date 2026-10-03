@@ -143,7 +143,14 @@ gradle :devtools:assembleRelease
 
 ## 📦 更新日志
 
-### v2.18.1（当前版本 · vc59）
+### v2.19.0（当前版本 · vc60）
+
+> 三线修复+增强：**① 方形分支键盘「只显示一半」VM 实测根治**（redmiw5 官方模拟器 432×514（与真机 Watch 5 同规格）复现取证：固件底部有 ~49px 手势保留区，页面可用高 ≈465 而 device.getInfo 的 screenHeight 仍报 514——v2.18/2.18.1 的 top=屏高−键盘高 构建期常量把键盘整体推进保留区（Z 行被视口拦腰截断）；且该固件对 `<scroll>` 内容注入「上方静态流高度」的幻影纵向偏移（实测 83~85px），v2.17 起字母滚动区改显式高后预算不足即末行被裁——这正是历代"半屏键盘"反复复发的共同机制。修法：**kb-dock 改 bottom:0 锚定**（引擎按可用底解析，零视口常量，天然适配全部机型/镜像）+ rect 字母区纯流式重构（动作行移到字母区下方、T9 死代码删除、旧进度条删除）+ 字母滚动区显式高 261=幻影 85+行 180+余量 6（KB_H_RECT 283→349）+ 预览区改 bottom 锚定（自动贴合键盘顶）+ 预览文字单行紧凑化。**VM 实测截图全过**：bandpro 336×480 / redmiwatch 432×514 / band9 192×490 键盘全部完整、拼音组合（b'g→不过/报告/表哥）+ 候选词横滚正常）；**② AstrBot 容器 DNS 根修+多源竞速**（用户 10-04 日志依旧 Temporary failure resolving 'ports.ubuntu.com'——rootfs 资产取证实锤：发行包 /etc/resolv.conf 是普通文件且烙着构建机 systemd-resolved 毒桩 `nameserver 127.0.0.53`（Azure VM 残留），v2.18.1「已有 nameserver 即跳过」的幂等检查恰好被毒桩骗过、修复从未生效。修法：脚本侧 ensure_container_dns **无条件重写**公共解析器+getent 解析自检（与 apt 同一条 glibc 解析路径）；EngineManager 侧生成宿主 resolv.conf 并 `proot -b` 绑定进容器（Termux proot-distro 同款，DNS 优先取系统当前网络 DNS、公共解析器兜底）双保险。**多源竞速+多任务并行**：ubuntu-ports 源 6 镜像（清华/USTC/阿里/腾讯/华为/官方）bash /dev/tcp 并行探测 ≤10s 首个打通者胜出，update 失败自动遍历其余可达源重试；GitHub 12 代理从串行逐个测（最坏 240s）改全并发竞速（≤15s）+直连兜底；napcat.sh 下载走竞速代理（原直连 raw.githubusercontent.com 被墙必死）；uv sync 失败自动换 Python 构建镜像重试；apt 通信硬化（Retries 3/超时 15s/ForceIPv4）提前落盘全链受益）；**③ APK 实时日志面板位置回移**（高度正常后「开服务后标签行插入把日志盒推到原塌陷位」：过滤标签并入标题行横向滚动，任何时刻不再新增行，日志盒 y 坐标恒定不跳）。
+
+- 验证：四分支 rpk 解包断言 verify_2190 68/68 PASS（新增 kb-dock bottom:0/幻影预算滚动高 261/动作行位序/T9 死代码删除/预览 bottom 锚定/调试零残留断言）；手环端 node 单测 107 测 106 过（存量基线 1 不变）；APP 单测 125+125 双 flavor 全绿；VM 实测 bandpro/redmiwatch/band9 三档案键盘截图全过；bundled/companion 双 APK badging vc60/2.19.0，胖包资产含 DNS 竞速版启动脚本
+- 版本：APP/手环 2.19.0（vc60）单轨延续
+
+### v2.18.1（vc59）
 
 > 五项修复：**① 键盘半屏真机根修**（v2.18 已把宿主 kb-dock 改顶部锚定，但键盘组件根容器 .page 仍 bottom:0 —— 真机固件上该 bottom 解析到页面文档底而非 dock 底（镜像引擎按最近定位祖先解析所以 VM 取证通过、真机依旧半屏），1px nudge 重排修不了定位错，与「输入也不展开」全部症状吻合；改 top:0 与 dock 同源锚定，dock 高==键盘高构建期同值写入，正常固件两锚等价、异常固件 top 锚已被 v2.18 取证证明全固件可靠）；**② 撤回假成功回帧修正**（用户实测证伪 v2.18 的「get_msg 查无=已撤回」推断：NapCat recallMsg NT 超时（撤回未生效）时 get_msg 同样可能 1200，导致手环显示“撤回成功”而群里消息还在；现在 get_msg 探测只区分「消息仍在/状态无法确认」两种终败文案，任何路径不再回假成功，重试链保持）；**③ AstrBot 自动补装 DNS 根修**（用户 10-03 日志：自动补装首步 apt-get update 即 Temporary failure resolving 'ports.ubuntu.com'——proot 不提供网络栈配置、发行版 rootfs 缺 /etc/resolv.conf，glibc 解析必败；启动/装步前写入公共解析器（阿里/腾讯/谷歌）+ update 失败自动切清华 ubuntu-ports 镜像重试一次 + 必装清单去 sudo（proot 恒为 root，包名清单越长源不可达时死得越早））；**④ 引擎日志落盘**（用户反馈引擎日志无本地 log 文件：EngineManager 全量输出异步写入 Android/data/<pkg>/files/logs/engine-*.log（与主日志同目录，导出 zip 自动收录，8MB 滚动 7 天回收），AstrBot 标签页日志块同步改定高滚动+显示落盘路径）；**⑤ APK 通讯日志面板定高加固**（开启服务后日志区高度塌陷：日志盒彻底去 weight 化改固定 300dp，不随过滤标签行增减/父容器测量路径变化）。
 

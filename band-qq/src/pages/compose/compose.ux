@@ -54,8 +54,8 @@
   .done-btn { width: 112px; height: 48px; text-align: center; line-height: 48px; font-size: 22px; color: #ffffff; background-color: #07c160; border-radius: 24px; }
   /* v2.16.0：preview-box 绝对锚定（top 与 top-bar 等高、底到屏幕底），不再参与 flex 分配；
      padding-bottom 由分支 override 精确设为键盘物理高（文字不被键盘遮住） */
-  .preview-box { position: absolute; left: 0; top: 78px; width: 100%; height: 412px; }
-  .preview-text { padding: 8px 10px; padding-bottom: 333px; font-size: 24px; color: #0d84ff; line-height: 34px; text-align: left; word-break: break-all; lines: 3; text-overflow: ellipsis; }
+  .preview-box { position: absolute; left: 0; top: 78px; bottom: 333px; width: 100%; }
+  .preview-text { padding: 2px 10px 0; font-size: 18px; color: #0d84ff; line-height: 22px; text-align: left; word-break: break-all; lines: 1; text-overflow: ellipsis; }
   /* v2.18.0 键盘 dock 改顶部锚定：band9 镜像实测（VM 取证 217-band9）页面高度解析异常
      （内容高≈665 > 视口 490），absolute bottom:0 锚到内容底而非视口底 → 键盘整体下移
      ≈175px，第三排字母被腰斩、进度条不可见（用户口径“键盘只显示一半，输入不展开”）。
@@ -63,7 +63,7 @@
      top = 视口高 - 键盘物理高，分支构建期写入精确值：
        band 490-333=157（源码基准）/ bandpro 480-283=197 / xiaomis 466-312=154 /
        redmiwatch 514-283=231（见 tools/branch-release.js overridesFor）。 */
-  .kb-dock { position: absolute; left: 0; top: 157px; width: 100%; height: 333px; }
+  .kb-dock { position: absolute; left: 0; bottom: 0; width: 100%; height: 333px; }
   .mask { position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.65); align-items: center; justify-content: center; }
   .confirm-box { width: 176px; background-color: #2b2b2b; border-radius: 14px; padding: 14px; flex-direction: column; }
   .confirm-title { font-size: 18px; color: #ffffff; font-weight: bold; text-align: center; margin-bottom: 8px; }

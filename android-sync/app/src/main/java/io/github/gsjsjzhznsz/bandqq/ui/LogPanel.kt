@@ -2,7 +2,9 @@ package io.github.gsjsjzhznsz.bandqq.ui
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.DragInteraction
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -57,6 +59,11 @@ private const val MAX_LOG_LINE = 400
  * 开启服务后日志区高度仍会塌陷：weight(1f)+heightIn(min) 组合在「日志盒上方
  * 动态插入过滤标签行」时会改变测量路径，异常固件/嵌套滚动容器下 weight 分配
  * 可能归零。定高后日志视口物理恒定，标签行出现与否、父容器如何测量都不影响。
+ *
+ * v2.19.0 位置回移：用户实测（10-04）高度正常了，但「开服务后标签行在标题与
+ * 日志盒之间插入，把日志盒整体向下推到原塌陷位」。修法：过滤标签并入标题行
+ * （标题左侧 + 标签横向滚动 + 导出/清空右侧同行），任何时刻不再新增行，
+ * 日志盒 y 坐标恒定不跳。
  */
 @Composable
 fun LogPanel(modifier: Modifier = Modifier) {
@@ -109,9 +116,34 @@ fun LogPanel(modifier: Modifier = Modifier) {
     ) {
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically,
         ) {
-            Text(text = "实时日志", color = MiuixTheme.colorScheme.onSurfaceSecondary)
+            Text(
+                text = "实时日志",
+                color = MiuixTheme.colorScheme.onSurfaceSecondary,
+            )
+            // v2.19.0：过滤标签并入标题行（横向滚动），不再独立成行——
+            // 开启服务后标签出现时日志盒不再被向下推移
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                tags.forEach { tag ->
+                    val selected = filter == tag
+                    Text(
+                        text = tag,
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (selected) MiuixTheme.colorScheme.primary else Color.Transparent)
+                            .clickable { filter = if (selected) null else tag }
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                        color = if (selected) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSurfaceSecondary,
+                    )
+                }
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text(
                     text = filter ?: "全部",
@@ -140,27 +172,6 @@ fun LogPanel(modifier: Modifier = Modifier) {
                         .padding(horizontal = 6.dp, vertical = 2.dp),
                     color = MiuixTheme.colorScheme.primary,
                 )
-            }
-        }
-        if (tags.size > 1) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 4.dp),
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                tags.forEach { tag ->
-                    val selected = filter == tag
-                    Text(
-                        text = tag,
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(if (selected) MiuixTheme.colorScheme.primary else Color.Transparent)
-                            .clickable { filter = if (selected) null else tag }
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                        color = if (selected) MiuixTheme.colorScheme.onPrimary else MiuixTheme.colorScheme.onSurfaceSecondary,
-                    )
-                }
             }
         }
         Box(

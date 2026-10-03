@@ -79,30 +79,110 @@ bump_progress(){
   printf "$next" > "$TMPDIR/progress"
 }
 
-# v2.18.1：容器 DNS 自举。实证（用户 10-03 日志）：自动补装首步 apt-get update 即
-# "Temporary failure resolving 'ports.ubuntu.com'" → git/curl 全装不上 →
-# 自动补装链整体烂死。根因：proot 不提供网络栈配置，发行版 rootfs 常缺
-# /etc/resolv.conf（或为指向 systemd-resolved stub 的断链），glibc 解析必败。
-# 修法：启动/装步前写入公共解析器（阿里/腾讯/谷歌，国内优先），幂等。
+# v2.19.0：容器 DNS 根修。实证（用户 10-04 日志 + rootfs 资产取证）：发行包
+# /etc/resolv.conf 是普通文件且烙着构建机 systemd-resolved 桩 —— nameserver 127.0.0.53
+# （Azure VM 残留），proot 内 127.0.0.53 无监听 → glibc 解析必死；v2.18.1 的
+# 「已有 nameserver 即跳过」幂等检查恰好被这个毒桩骗过，修复从未生效。
+# 改法：每次启动无条件重写为公共解析器（幂等，成本可忽略）+ getent 解析自检。
 ensure_container_dns(){
   local rc=/etc/resolv.conf
-  if [ -s "$rc" ] && grep -qE '^[[:space:]]*nameserver' "$rc" 2>/dev/null; then
-    return 0
-  fi
-  echo "[AstrBot Android] 容器 DNS 缺失/不可用，写入公共解析器..."
-  if [ -L "$rc" ] || [ -e "$rc" ]; then rm -f "$rc" 2>/dev/null; fi
+  local old=""
+  [ -f "$rc" ] && old=$(grep -m1 '^nameserver' "$rc" 2>/dev/null)
   {
     echo "nameserver 223.5.5.5"
     echo "nameserver 119.29.29.29"
+    echo "nameserver 114.114.114.114"
     echo "nameserver 8.8.8.8"
     echo "options timeout:2 attempts:3 rotate"
-  } > "$rc" 2>/dev/null || { echo "警告: 无法写入 $rc（rootfs 只读?），网络安装可能失败"; return 1; }
+  } > "$rc" 2>/dev/null || { echo "[AstrBot Android] 警告: 无法写入 $rc（rootfs 只读?）"; return 1; }
+  if [ -n "$old" ]; then
+    echo "[AstrBot Android] resolv.conf 已重写（原: $old → 公共解析器x4）"
+  fi
   # 极简 rootfs 可能缺 nsswitch.conf（glibc 缺省含 dns，显式补上更稳）
   if [ ! -f /etc/nsswitch.conf ]; then
     printf 'hosts: files dns\nnetworks: files\n' > /etc/nsswitch.conf 2>/dev/null || true
   fi
-  echo "[AstrBot Android] DNS 已就绪（$(grep -c '^nameserver' "$rc" 2>/dev/null || echo 0) 个解析器）"
+  # 解析自检：getent 与 apt 同一条 glibc 解析路径，成败即 apt 前置判定
+  if command -v getent >/dev/null 2>&1; then
+    if getent hosts mirrors.tuna.tsinghua.edu.cn >/dev/null 2>&1; then
+      echo "[AstrBot Android] DNS 自检通过（getent 解析正常）"
+    else
+      echo "[AstrBot Android] DNS 自检失败（域名解析不可用；若持续失败请检查系统网络/VPN/私人DNS）"
+    fi
+  fi
   return 0
+}
+
+# v2.19.0：ubuntu-ports 多源竞速。apt 无内置多源并行，此处用 bash /dev/tcp 在容器内
+# 并发探测（DNS+TCP:80 一体，与 apt 同一条解析路径），全部后台并发、首个打通者按
+# 国内优先级胜出，总耗时 ≤10s；curl 尚未安装也能跑（不依赖任何外部工具）。
+APT_MIRROR_CANDIDATES=(
+  "http://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports"
+  "http://mirrors.ustc.edu.cn/ubuntu-ports"
+  "http://mirrors.aliyun.com/ubuntu-ports"
+  "http://mirrors.cloud.tencent.com/ubuntu-ports"
+  "http://mirrors.huaweicloud.com/ubuntu-ports"
+  "http://ports.ubuntu.com/ubuntu-ports"
+)
+APT_MIRROR_KNOWN=(
+  "http://ports.ubuntu.com/ubuntu-ports"
+  "https://ports.ubuntu.com/ubuntu-ports"
+  "http://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports"
+  "https://mirrors.tuna.tsinghua.edu.cn/ubuntu-ports"
+  "http://mirrors.ustc.edu.cn/ubuntu-ports"
+  "https://mirrors.ustc.edu.cn/ubuntu-ports"
+  "http://mirrors.aliyun.com/ubuntu-ports"
+  "https://mirrors.aliyun.com/ubuntu-ports"
+  "http://mirrors.cloud.tencent.com/ubuntu-ports"
+  "https://mirrors.cloud.tencent.com/ubuntu-ports"
+  "http://mirrors.huaweicloud.com/ubuntu-ports"
+  "https://mirrors.huaweicloud.com/ubuntu-ports"
+)
+set_apt_mirror(){
+  local want="$1" file before after changed=0
+  for file in /etc/apt/sources.list /etc/apt/sources.list.d/*.list /etc/apt/sources.list.d/*.sources; do
+    [ -f "$file" ] || continue
+    before=$(cat "$file" 2>/dev/null) || continue
+    after="$before"
+    for known in "${APT_MIRROR_KNOWN[@]}"; do
+      [ "$known" = "$want" ] && continue
+      after="${after//$known/$want}"
+    done
+    if [ "$after" != "$before" ]; then
+      printf '%s' "$after" > "$file" 2>/dev/null || continue
+      changed=1
+    fi
+  done
+  if [ "$changed" -eq 1 ]; then echo "软件源已切换: $want"; else echo "软件源保持: $want"; fi
+  return 0
+}
+pick_apt_mirror(){
+  # 同一会话只竞速一次（CHOSEN_APT_MIRROR 缓存）
+  if [ -n "${CHOSEN_APT_MIRROR:-}" ]; then echo "复用已选镜像: $CHOSEN_APT_MIRROR"; return 0; fi
+  local race_dir="$TMPDIR/apt-mirror-race"
+  rm -rf "$race_dir"; mkdir -p "$race_dir"
+  echo "[AstrBot Android] ubuntu-ports 多源竞速（${#APT_MIRROR_CANDIDATES[@]} 源并行探测，≤10s）..."
+  local url h
+  for url in "${APT_MIRROR_CANDIDATES[@]}"; do
+    h="${url#http://}"; h="${h%%/*}"
+    (
+      if timeout 10 bash -c "exec 3<>/dev/tcp/$h/80" 2>/dev/null; then
+        echo "$url" > "$race_dir/$(echo "$h" | tr '.' '_').ok"
+      fi
+    ) &
+  done
+  wait
+  for url in "${APT_MIRROR_CANDIDATES[@]}"; do
+    h="${url#http://}"; h="${h%%/*}"
+    if [ -f "$race_dir/$(echo "$h" | tr '.' '_').ok" ]; then
+      CHOSEN_APT_MIRROR="$url"
+      echo "[AstrBot Android] 竞速胜出镜像: $url"
+      set_apt_mirror "$url"
+      return 0
+    fi
+  done
+  echo "[AstrBot Android] 警告: 所有镜像 TCP 探测均失败（容器网络不通或 DNS 不可用），保持默认源"
+  return 1
 }
 
 # v2.18.1：ubuntu-ports 官方源在国内弱网下可用性差；update 失败后切清华镜像重试一次。
@@ -142,15 +222,30 @@ install_sudo_curl_git(){
   progress_echo "基础命令缺失: ${missing[*]}, 开始安装..."
 
   export DEBIAN_FRONTEND=noninteractive
-  apt_opts="-o Acquire::ForceIPv4=true"
+  # v2.19.0：apt 通信硬化提前落盘（超时/重试/IPv4），所有 apt 调用统一受益
+  mkdir -p /etc/apt/apt.conf.d
+  printf 'Acquire::ForceIPv4 "true";\nAcquire::Retries "3";\nAcquire::http::Timeout "15";\nAcquire::https::Timeout "15";\n' > /etc/apt/apt.conf.d/99bandqq-net 2>/dev/null || true
+  apt_opts="-o Acquire::ForceIPv4=true -o Acquire::Retries=3 -o Acquire::http::Timeout=15 -o Acquire::https::Timeout=15"
 
-  if ! apt-get $apt_opts update; then
-    echo "apt-get update 失败，切换清华 ports 镜像后重试一次..."
-    if switch_apt_mirror_tuna && apt-get $apt_opts update; then
-      echo "镜像切换后 update 成功"
-    else
-      echo "警告: apt-get update 仍失败（检查网络/DNS），继续尝试安装..."
-    fi
+  # v2.19.0：先多源竞速选镜像再 update（≤10s）；失败再遍历其余可达源逐个重试
+  pick_apt_mirror || true
+  local ok=0 url h
+  if apt-get $apt_opts update; then
+    ok=1
+  else
+    echo "apt-get update 失败（当前源），遍历其余可达镜像重试..."
+    for url in "${APT_MIRROR_CANDIDATES[@]}"; do
+      [ "$url" = "${CHOSEN_APT_MIRROR:-}" ] && continue
+      h="${url#http://}"; h="${h%%/*}"
+      [ -f "$TMPDIR/apt-mirror-race/$(echo "$h" | tr '.' '_').ok" ] || continue
+      echo "切换镜像重试: $url"
+      set_apt_mirror "$url"
+      CHOSEN_APT_MIRROR="$url"
+      if apt-get $apt_opts update; then ok=1; break; fi
+    done
+  fi
+  if [ "$ok" -ne 1 ]; then
+    echo "警告: apt-get update 在所有可达镜像上均失败（DNS/网络异常），继续尝试安装（依赖旧索引）..."
   fi
 
   if ! apt-get $apt_opts install -y git curl; then
@@ -170,7 +265,6 @@ install_sudo_curl_git(){
 
 network_test() {
     local timeout=10
-    local status=0
     local found=0
     target_proxy=""
     echo "开始网络测试: Github..."
@@ -190,30 +284,41 @@ network_test() {
     proxy_arr=("https://ghfast.top" "https://gh-proxy.com" "https://ghproxy.net" "https://ghproxy.cc" "https://gh.dpik.top" "https://gh.monlor.com" "https://gh.chjina.com" "https://github.boki.moe" "https://gh.jasonzeng.dev" "https://gh.geekertao.top" "https://gh.nxnow.top" "https://down.npee.cn")
     check_url="https://raw.githubusercontent.com/astral-sh/uv/main/README.md"
 
+    # v2.19.0：多任务并行竞速（原串行逐个测 12 个代理最坏 240s；现全部并发发出，
+    # 每个 --max-time 12s，首个 200 按列表优先序胜出，总耗时 ≤15s）
+    local race_dir="$TMPDIR/gh-proxy-race"
+    rm -rf "$race_dir"; mkdir -p "$race_dir"
+    local i=0 proxy code
     for proxy in "${proxy_arr[@]}"; do
-        echo "测试代理: ${proxy}"
-        status=$(curl -fL --connect-timeout ${timeout} --max-time $((timeout*2)) -o /dev/null -s -w "%{http_code}" "${proxy}/${check_url}")
-        curl_exit=$?
-        if [ $curl_exit -ne 0 ]; then
-            echo "代理 ${proxy} 测试失败或超时，错误码: $curl_exit"
-            continue
-        fi
-        if [ "${status}" = "200" ]; then
+        i=$((i+1))
+        (
+            code=$(curl -fL --connect-timeout 8 --max-time 12 -o /dev/null -s -w "%{http_code}" "${proxy}/${check_url}" 2>/dev/null)
+            [ "$code" = "200" ] && echo "$proxy" > "$race_dir/$i.ok"
+        ) &
+    done
+    # 直连 GitHub 同步并发探测（全部代理都挂时兑底判定）
+    (
+        code=$(curl -fL --connect-timeout 8 --max-time 12 -o /dev/null -s -w "%{http_code}" "${check_url}" 2>/dev/null)
+        [ "$code" = "200" ] && echo direct > "$race_dir/direct.ok"
+    ) &
+    wait
+    i=0
+    for proxy in "${proxy_arr[@]}"; do
+        i=$((i+1))
+        if [ -f "$race_dir/$i.ok" ]; then
             found=1
-            target_proxy="${proxy}"
-            echo "将使用Github代理: ${proxy}"
+            target_proxy="$proxy"
+            echo "将使用Github代理: $target_proxy（多源竞速）"
             break
         fi
     done
 
     if [ ${found} -eq 0 ]; then
-        echo "警告: 无法找到可用的Github代理，将尝试直连..."
-        status=$(curl -fL --connect-timeout ${timeout} --max-time $((timeout*2)) -o /dev/null -s -w "%{http_code}" "${check_url}")
-        if [ $? -eq 0 ] && [ "${status}" = "200" ]; then
+        if [ -f "$race_dir/direct.ok" ]; then
             echo "直连Github成功，将不使用代理"
             target_proxy=""
         else
-            echo "警告: 无法连接到Github，请检查网络。将继续尝试安装，但可能会失败。"
+            echo "警告: 无法找到可用的Github代理且直连不可达。将继续尝试安装，但可能会失败。"
         fi
     fi
 }
@@ -515,7 +620,10 @@ install_napcat(){
     rm -rf "$HOME/napcat" "$HOME/napcat.sh" "$HOME/launcher.sh" "$HOME/launcher.cpp" "$HOME/libnapcat_launcher.so"
     cd $HOME
     echo "Napcat $L_NOT_INSTALLED，$L_INSTALLING..."
-    if ! curl -fL -o napcat.sh https://raw.githubusercontent.com/NapNeko/napcat-linux-installer/refs/heads/main/install.sh; then
+    # v2.19.0：napcat.sh 走 network_test 竞速代理（原直连 raw.githubusercontent.com
+    # 在被墙网络必死；此时代码链已保证 curl 可用）
+    network_test || true
+    if ! curl -fL --connect-timeout 15 --max-time 120 -o napcat.sh ${target_proxy:+${target_proxy}/}https://raw.githubusercontent.com/NapNeko/napcat-linux-installer/refs/heads/main/install.sh; then
       echo "下载 napcat.sh 失败"
       exit 1
     fi
@@ -816,8 +924,13 @@ install_astrbot(){
     # 使用 uv sync 同步依赖
     echo "同步 AstrBot 依赖..."
     if ! $HOME/.local/bin/uv sync; then
-      echo "依赖同步失败"
-      exit 1
+      # v2.19.0：Python 构建镜像单点兜底——默认 ghfast.top 挂掉时换代理重试一次
+      echo "依赖同步失败，切换 Python 构建镜像后重试一次..."
+      export UV_PYTHON_INSTALL_MIRROR="https://gh-proxy.com/https://github.com/astral-sh/python-build-standalone/releases/download"
+      if ! $HOME/.local/bin/uv sync; then
+        echo "依赖同步失败"
+        exit 1
+      fi
     fi
 
     REINSTALL_PLUGINS_FLAG=1  # .venv 不存在，需要重装插件依赖

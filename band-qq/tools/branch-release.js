@@ -86,7 +86,7 @@ function applyScreenType(src, kb) {
 }
 
 /** 键盘 script 常量换算：circle 滚动总宽 + v2.14.0 键盘总高常量按 kbScale（仅 xiaomis 命中） */
-const KB_H_CONSTS = { KB_H_CIRCLE: 321, KB_H_RECT: 283, KB_H_PILL: 333 }
+const KB_H_CONSTS = { KB_H_CIRCLE: 321, KB_H_RECT: 349, KB_H_PILL: 333 }
 function scaleKeyboardConsts(src, kb) {
   if (kb.kbScale === 1.0) return src
   let out = src
@@ -134,31 +134,22 @@ function overridesFor(tag) {
     rules.push(['src/pages/chat/chat.ux', /\.poke-wrap \{ width: \d+px;/, '.poke-wrap { width: 100%;'])
     // v2.16.0 compose 去 flex 化：preview-text padding-bottom 源值 333（band 基准），
     // 换算后与本分支键盘物理高对齐（键盘 kbHpx：bandpro/redmiwatch 283、xiaomis 312）
-    const kbFinal = { bandpro: 283, xiaomis: 312, redmiwatch: 283 }
+    const kbFinal = { bandpro: 349, xiaomis: 312, redmiwatch: 349 }
     // preview-box 显式高 = 屏高 - top-bar 物理高（absolute 容器零高裁剪同防）
-    const pvFinal = { bandpro: 382, xiaomis: 361, redmiwatch: 420 }
-    // v2.18.0 kb-dock 顶部锚定：top = 视口高 - 键盘物理高（band9 镜像实测 bottom:0
-    // 在页面高度解析异常的固件上把键盘推出屏外；页面顶部锚定全固件可靠）
-    const dockTop = { bandpro: 197, xiaomis: 154, redmiwatch: 231 }
+    // v2.19.0 kb-dock 锚定改为 bottom:0（compose.ux 源码级，全分支统一）。
+    // v2.18.0/2.18.1 的 top=视口高-键盘高 构建期常量在 redmiw5 VM（432×514）实测翻车：
+    // 固件底部有 ~49px 手势保留区，device.getInfo 完全不可见（SH 仍报 514），写死的
+    // top 把键盘整体推进保留区 → Z 行被视口拦腰截断（用户口径"键盘只显示一半"）。
+    // bottom:0 由引擎按页面可用底解析，天然适配全部机型/镜像/保留区高度。
     rules.push([
       'src/pages/compose/compose.ux',
-      /(\.preview-box \{[^}]*?height: )\d+px/,
-      '$1' + pvFinal[tag] + 'px'
-    ])
-    rules.push([
-      'src/pages/compose/compose.ux',
-      /(\.preview-text \{[^}]*?padding-bottom: )\d+px/,
+      /(\.preview-box \{[^}]*?bottom: )\d+px/,
       '$1' + kbFinal[tag] + 'px'
     ])
     rules.push([
       'src/pages/compose/compose.ux',
       /(\.kb-dock \{[^}]*?height: )\d+px/,
       '$1' + kbFinal[tag] + 'px'
-    ])
-    rules.push([
-      'src/pages/compose/compose.ux',
-      /(\.kb-dock \{[^}]*?top: )\d+px/,
-      '$1' + dockTop[tag] + 'px'
     ])
   }
   if (tag === 'xiaomis') {

@@ -172,34 +172,9 @@
         </div>
       </div>
       <!-- 方屏67 -->
-      <div if="{{screentype==='rect'}}" style="width: 100%;height: 255px;flex-direction: column">
-        <!-- 九键中文 -->
-        <div if="{{keyboardtype=='T9' && !numFlag}}" style="position:absolute;top:-11px;width:100%;height:276px;justify-content: center;">
-          <div style="top:77px;height:189px;width:100%;align-items: stretch;justify-content: space-between;flex-direction: column;padding:6px 3px">
-            <div class="keyboard-rows-rect-t9">
-              <text class="calbtnt9 calbtnt9-rect" @click="onSelect('select')">
-                选择
-                <span if="{{waitingList.length != 0}}" class="waiting-keys" style="color:rgb(13,132,255);" @click="onSelectWaiting(waitingIndex)">
-                  {{waitingList[waitingIndex].toUpperCase()}}
-                </span>
-              </text>
-              <text class="calbtnt9 calbtnt9-rect" for="{{item in keys['t9'][0]}}" @click="onSelect(item)">{{item.toUpperCase()}}</text>
-            </div>
-            <div class="keyboard-rows-rect-t9">
-              <text class="calbtnt9 calbtnt9-rect" for="{{item in keys['t9'][1]}}" @click="onSelect(item)">{{item.toUpperCase()}}</text>
-            </div>
-            <div class="keyboard-rows-rect-t9">
-              <text class="calbtnt9 calbtnt9-rect" for="{{item in keys['t9'][2]}}" @click="onSelect(item)">{{item.toUpperCase()}}</text>
-            </div>
-          </div>
-        </div>
-        <div else style="position:absolute;top:-11px;width:100%;height:276px;justify-content: center">
-          <progress percent="{{percent67}}" style="position:absolute;bottom: 12px;width:80px;color:#ffffff;stroke-width:6px;layer-color:#262626;"></progress>
-          <!-- v2.17.0：字母键滚动容器显式高 170px（内容高 60+55+55，margin-top:-5 叠行）。
-               v2.15 只显式化了外层三层，这里的 auto 高度是非手环固件首帧坍缩的最后一个
-               测量点：坍缩时字母键区不渲染，只剩余底部动作行（“键盘只显示一半”，
-               输入触发重排才恢复）。band 固件能容忍，bandpro/redmiwatch（rect）首帧必坍。 -->
-          <scroll id="keyboard67" scroll-x="{{true}}" onscroll="handelScroll" style="height:170px;">
+      <div if="{{screentype==='rect'}}" style="width: 100%;height: 274px;flex-direction: column">
+        <div style="width:100%;height:261px;">
+          <scroll id="keyboard67" scroll-x="{{true}}" onscroll="handelScroll" style="height:261px;">
             <div if="{{!numFlag}}" style="left: 6px; flex-direction: column;">
               <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
                 <text class="calbtn67" for="{{item in keys['full'][0]}}" @click="onSelect(item)">{{item}}</text>
@@ -236,7 +211,7 @@
             </div>
           </scroll>
         </div>
-        <div style="width: 100%; flex-direction: row; justify-content: center; top:6px; padding:0 6px;">
+        <div style="width: 100%;height: 60px;flex-direction: row; justify-content: center; padding:0 6px;">
           <img src="./assets/horizontal/cn.png" style="padding: 6px;width: 60px;height: 60px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang==='cn'}}" />
           <img src="./assets/horizontal/jp.png" style="padding:6px;width:60px;height:60px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang==='jp'}}" />
           <div if="{{(lang === 'cn' || lang === 'jp') && !numFlag}}" style="margin-left: 6px;flex: 1;height: 60px;background-color:#262626;border-color: #333333; border-width: 3px; border-radius: 100px;flex-direction: row;align-items:center">
@@ -259,7 +234,7 @@
           <img else src="./assets/horizontal/del2.png" style="margin-left: 6px;padding: 6px;" @click="onBtnClick('D')" />
         </div>
         <!-- 这里使用show会导致每次输入都会加载全部候选列表，很卡 -->
-        <div style="position: absolute;left: 0px;top: 0px;width: 100%;height: 252px;background-color: black; justify-content:center; flex-direction:column; align-items:center" if="{{downFlag==='down'}}">
+        <div style="position: absolute;left: 0px;top: 0px;width: 100%;height: 321px;background-color: black; justify-content:center; flex-direction:column; align-items:center" if="{{downFlag==='down'}}">
           <div static class="list67">
             <scroll class="expanded-scroll" scroll-y="{{true}}" style="width:100%;height:100%;">
               <div class="expanded-candidates">
@@ -362,7 +337,7 @@ function deleteLast(t) {
 //   circle 321（拼音行在键盘内部，不占外高）/ rect 255+28 / pill 305+28（拼音行恒预留）
 //   根容器 + 懒建层 + 黑底层三层全部以此显式定高（见模板头注释）
 var KB_H_CIRCLE = 321;
-var KB_H_RECT = 283;
+var KB_H_RECT = 349;
 var KB_H_PILL = 333;
 function kbTotalFor(screentype) {
   if (screentype === "circle") return KB_H_CIRCLE;
