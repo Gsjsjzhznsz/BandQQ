@@ -11,9 +11,15 @@ android {
     defaultConfig {
         applicationId = "io.github.gsjsjzhznsz.bandqq"
         minSdk = 26
-        targetSdk = 34
-        versionCode = 54
-        versionName = "2.14.0"
+        // v2.15.0 targetSdk 34 → 28（busybox error=13 根修）：Android 10+ 对 targetSdk≥29
+        // 的应用启用 W^X（SELinux untrusted_app_29+ 禁止执行 app 数据目录内任何二进制），
+        // 胖包引擎链路 busybox/bash/proot→rootfs 全在 files/engine 下，逐级 exec 全被拦
+        // （"Cannot run program .../files/engine/bin/busybox: error=13, Permission denied"）。
+        // 降回 28 走 legacy untrusted_app 域，恢复数据目录 exec 权限 —— 与 Termux/UserLAnd
+        // 同款方案（GitHub 直发无商店 targetSdk 约束）；运行时权限代码均按 SDK_INT 守卫，不受影响。
+        targetSdk = 28
+        versionCode = 55
+        versionName = "2.15.0"
     }
 
     // v2.13.0 双包分发（用户可二选一安装，同 applicationId 同 versionCode）：

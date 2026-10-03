@@ -1,14 +1,15 @@
 <template>
-  <!-- v2.14.0 根容器显式高度：height:auto 在部分固件（非手环机型）首帧测量明坍缩
-       （键盘只显示一半，输入一次触发重排才恢复）。三分区内容高恒定：
-       circle 321 / rect 255+28 / pill 305+28（后两者恒预留 28px 拼音预览行），由 JS 侧算好 kbHpx。
-       同时拼音行不再随输入增减高度（常量布局），预览行永远不会被过期根高度裁掉。 -->
+  <!-- v2.15.0 高度链全显式化：v2.14 只把根容器显式化了，但内层两级（if 懒建层 + 黑底 show 层）
+       仍是 height:auto —— 部分固件首帧对 auto 层测量坍缩依旧存在（键盘只显示一半），
+       且根高固定后输入触发的重排不再波及中间层，连 v2.13 的"输入一下就恢复"也消失了。
+       现在根/懒建层/黑底层三层全部用 kbHpx 显式定高（三分区内容高恒定：
+       circle 321 / rect 255+28 / pill 305+28），链路上无任何 auto 测量点，首帧即完整渲染。 -->
   <div class="page" style="flex-direction: column; height: {{kbHpx}}; overflow: {{hide ? 'hidden' : 'visible'}};">
     <!-- 键盘内容懒建：外 if 保证键盘隐藏时整个子树不进 VDOM（chat/search 首进 1s 卡顿根因：
          旧实现 show 只是不可见，200+ 节点/图片在进页瞬间全部创建），首次弹出才创建，
          之后 keyboardCreated 保活、hide 切换只走内层 show 显隐，不重复重建。 -->
-    <div if="{{!hide || keyboardCreated}}">
-      <div show="{{!hide}}" style="background-color:black;flex-direction: column;" >
+    <div if="{{!hide || keyboardCreated}}" style="height: {{kbHpx}};">
+      <div show="{{!hide}}" style="background-color:black;flex-direction: column;height: {{kbHpx}};" >
       <!-- 拼音小字行：键盘框外上方单独一行，黑底覆盖，仅中/日模式且有 cval 时显示，只展示不可点。
            circle 屏彻底不建此节点（键盘固定 480x321，外置 28px 行会挤压键盘且顶部多一条黑条），
            circle 的拼音改在键盘内部绝对定位显示；if 而非 show：show 隐藏时节点仍在 VDOM，
@@ -347,8 +348,9 @@ function deleteLast(t) {
   return "";
 }
 
-// v2.14.0 键盘总高常量（与模板/样式分区高度一一对应；branch-release.js 按 kbScale 同步换算）：
+// v2.15.0 键盘总高常量（与模板/样式分区高度一一对应；branch-release.js 按 kbScale 同步换算）：
 //   circle 321（拼音行在键盘内部，不占外高）/ rect 255+28 / pill 305+28（拼音行恒预留）
+//   根容器 + 懒建层 + 黑底层三层全部以此显式定高（见模板头注释）
 var KB_H_CIRCLE = 321;
 var KB_H_RECT = 283;
 var KB_H_PILL = 333;
@@ -380,7 +382,7 @@ export default {
   },
   data: {
     cval: "",
-    // v2.14.0 键盘根容器显式高度（onInit 按 screentype 算好；hide 切换时同步归 0）
+    // v2.15.0 键盘全链显式高度（onInit 按 screentype 算好；hide 切换时同步归 0）
     kbHpx: "0px",
     // 拼音分词显示串（如 ni'hao），在 resetResultList 中随 cval 同步更新
     cvalDisplay: "",
@@ -464,7 +466,7 @@ export default {
     if (this.screentype === "rect" || this.screentype === "pill-shaped") {
       this.adjustScreenWidth();
     }
-    // v2.14.0：根容器显式高度（首帧即完整键盘，不再依赖 height:auto 的固件测量）
+    // v2.15.0：根/懒建层/黑底层三层显式高度（首帧即完整键盘，不再依赖 auto 测量）
     this.kbHpx = this.hide ? "0px" : kbTotalFor(this.screentype) + "px";
     if (!this.hide) this.keyboardCreated = true;
     this.$watch("hide", "watchHidePropsChange");
@@ -750,7 +752,7 @@ export default {
   },
   watchHidePropsChange(newV, oldV) {
     this.$emit("visibilityChange", { visible: newV });
-    // v2.14.0：显隐切换同步根高度（与 kbHpx 显式化配套）
+    // v2.15.0：显隐切换同步三层高度（与 kbHpx 全链显式化配套）
     this.kbHpx = newV ? "0px" : kbTotalFor(this.screentype) + "px";
     if (newV === false) {
       this.keyboardCreated = true;

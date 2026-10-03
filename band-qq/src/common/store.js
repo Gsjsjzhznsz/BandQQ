@@ -534,6 +534,10 @@ export function createStore(storageImpl) {
      * v2.9.0 演示模式：关于页版本号连点 7 次触发（无需手机 APP）。
      * v2.9.1 扩充为 5 个会话铺满 212×520 整页列表（此前仅 2 条致主页面下半空白），
      * 覆盖 @我 高亮、拍一拍特效、免打扰灰点（双会话）、无未读纯时间戳全部形态。
+     * v2.15.0 补齐 v2.13/2.14 新特性演示：JSON 音乐卡 / XML 红包卡 / markdown（AstrBot
+     * 回复风格）/ 文件名 / 合并转发 / GIF / 表情包 / 骰子 / 位置 / 链接 / 回复+链接 /
+     * 语音 / 撤回灰显（rc）——全部经 degradeContent 真实渲染链生成（与真机同路径），
+     * 不再手写字符串，渲染器回归退化即刻暴露在演示模式里。
      * 连接手机端后会被真实数据正常覆盖。
      */
     async injectDemo() {
@@ -548,37 +552,47 @@ export function createStore(storageImpl) {
         { id: '10002', type: 'private', name: '张三' }
       ]
       messagesByTarget['20001'] = [
-        { message_type: 'group', sender_id: '10086', sender_name: '小明', content: '今晚八点组队开黑，来吗？', is_self: false, time: now - 48 * min },
+        { message_type: 'group', sender_id: '10086', sender_name: '小明', content: degradeContent([{ type: 'json', data: { data: JSON.stringify({ meta: { music: { title: '晴天', singer: '周杰伦' } } }) } }]), is_self: false, time: now - 95 * min },
+        { message_type: 'group', sender_id: '10087', sender_name: '测试喵', content: degradeContent([{ type: 'file', data: { name: 'BandQQ-使用手册.pdf' } }]), is_self: false, time: now - 72 * min },
+        { message_type: 'group', sender_id: '10086', sender_name: '小明', content: degradeContent([{ type: 'forward', data: {} }]), is_self: false, time: now - 55 * min },
         { message_type: 'group', sender_id: '10087', sender_name: '测试喵', content: '手环上看消息太方便了，回复也快', is_self: false, time: now - 35 * min },
         { message_type: 'group', sender_id: '10086', sender_name: '小明', content: '小明 拍了拍你', poke: true, is_self: false, time: now - 18 * min },
         { message_type: 'group', sender_id: '10087', sender_name: '测试喵', content: '刚刚的方案你觉得怎么样？这条是@我演示消息', at: true, is_self: false, time: now - 6 * min }
       ]
       messagesByTarget['30001'] = [
         { message_type: 'group', sender_id: '30002', sender_name: '妈妈', content: '给你炖了汤放冰箱里', is_self: false, time: now - 40 * min },
-        { message_type: 'group', sender_id: '30003', sender_name: '老爸', content: '降温了记得加衣服', is_self: false, time: now - 25 * min },
-        { message_type: 'group', sender_id: '30002', sender_name: '妈妈', content: '这周末回家吃饭吗？', is_self: false, time: now - 12 * min },
+        { message_type: 'group', sender_id: '30003', sender_name: '老爸', content: degradeContent([{ type: 'xml', data: { data: '<msg brief="恭喜发财"><title>收到一个红包</title></msg>' } }]), is_self: false, time: now - 30 * min },
+        { message_type: 'group', sender_id: '30002', sender_name: '妈妈', content: degradeContent([{ type: 'image', data: { url: 'https://example.com/dance.gif' } }]), is_self: false, time: now - 20 * min },
+        { message_type: 'group', sender_id: '30003', sender_name: '老爸', content: '降温了记得加衣服', is_self: false, time: now - 12 * min },
+        { message_type: 'group', sender_id: '30003', sender_name: '老爸', content: degradeContent([{ type: 'location', data: { title: '老家门口' } }]), is_self: false, time: now - 8 * min },
         { message_type: 'group', sender_id: '30003', sender_name: '老爸', content: '老爸 拍了拍你', poke: true, is_self: false, time: now - 5 * min }
       ]
       messagesByTarget['40001'] = [
         { message_type: 'group', sender_id: '40002', sender_name: '李工', content: '新固件已推测试通道，大家帮忙验证', is_self: false, time: now - 60 * min },
         { message_type: 'group', sender_id: '40003', sender_name: '王姐', content: '收到，下午给结果', is_self: false, time: now - 45 * min },
-        { message_type: 'group', sender_id: '40002', sender_name: '李工', content: '同步一份会议纪要到群里', is_self: false, time: now - 26 * min }
+        { message_type: 'group', sender_id: '40003', sender_name: '王姐', content: degradeContent([{ type: 'dice', data: {} }]), is_self: false, time: now - 38 * min },
+        { message_type: 'group', sender_id: '40002', sender_name: '李工', content: degradeContent([{ type: 'mface', data: {} }]), is_self: false, time: now - 33 * min },
+        { message_type: 'group', sender_id: '40003', sender_name: '王姐', content: degradeContent([{ type: 'markdown', data: { content: '**验证结论**\n- 键盘首帧完整渲染\n- 引擎安装不再报错\n- `演示模式`已补新特性' } }]), is_self: false, time: now - 26 * min },
+        // v2.15.0 撤回形态（rc=1 灰底灰字，与真机撤回同步帧同构）
+        { message_type: 'group', sender_id: '40003', sender_name: '王姐', content: '王姐 撤回了一条消息', rc: 1, is_self: false, time: now - 20 * min }
       ]
       messagesByTarget['10001'] = [
         { message_type: 'private', sender_id: '10001', sender_name: '马化腾', content: '在吗？帮个忙', is_self: false, time: now - 122 * min },
         { message_type: 'private', sender_id: '10001', sender_name: '马化腾', content: '手环QQ 体验群 20001 等你', is_self: false, time: now - 118 * min },
+        { message_type: 'private', sender_id: '10001', sender_name: '马化腾', content: degradeContent([{ type: 'reply', data: {} }, { type: 'text', data: { text: '看看这个新版本' } }, { type: 'share', data: { title: 'BandQQ 发布页', content: 'v2.15.0' } }]), is_self: false, time: now - 50 * min },
         { message_type: 'private', sender_id: '10001', sender_name: '马化腾', content: '马化腾 拍了拍你', poke: true, is_self: false, time: now - 30 * min }
       ]
       messagesByTarget['10002'] = [
         { message_type: 'private', sender_id: '10002', sender_name: '张三', content: '明天上午十点老地方见', is_self: false, time: now - 90 * min },
-        { message_type: 'private', sender_id: '10002', sender_name: '张三', content: '收到，明天见', is_self: false, time: now - 58 * min }
+        { message_type: 'private', sender_id: '10002', sender_name: '张三', content: degradeContent([{ type: 'record', data: {} }]), is_self: false, time: now - 58 * min },
+        { message_type: 'private', sender_id: '10002', sender_name: '张三', content: '收到，明天见', is_self: false, time: now - 15 * min }
       ]
       conversations = [
         decorate({ id: '20001', type: 'group', name: 'BandQQ 体验群', last_msg: '刚刚的方案你觉得怎么样？', time: now - 6 * min, unread: 3, cat: 1, is_temporary: false }),
         decorate({ id: '30001', type: 'group', name: '家人群', last_msg: '老爸 拍了拍你', time: now - 5 * min, unread: 2, cat: 0, is_temporary: false }),
-        decorate({ id: '40001', type: 'group', name: '项目同步群', last_msg: '同步一份会议纪要到群里', time: now - 26 * min, unread: 1, cat: 0, is_temporary: false }),
+        decorate({ id: '40001', type: 'group', name: '项目同步群', last_msg: '王姐 撤回了一条消息', time: now - 20 * min, unread: 1, cat: 0, is_temporary: false }),
         decorate({ id: '10001', type: 'private', name: '马化腾', last_msg: '马化腾 拍了拍你', time: now - 30 * min, unread: 1, cat: 0, is_temporary: false }),
-        decorate({ id: '10002', type: 'private', name: '张三', last_msg: '收到，明天见', time: now - 58 * min, unread: 0, cat: 0, is_temporary: false })
+        decorate({ id: '10002', type: 'private', name: '张三', last_msg: '收到，明天见', time: now - 15 * min, unread: 0, cat: 0, is_temporary: false })
       ]
       // 双会话演示免打扰（红点变灰）：项目同步群 + 马化腾
       settings.mute_list = '40001,10001'

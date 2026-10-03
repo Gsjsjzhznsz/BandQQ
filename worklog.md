@@ -163,3 +163,24 @@ Work Log:
 Stage Summary:
 - 产物：bandqq-watch-release-2.9.6.rpk + bandqq-sync-release-2.9.6.apk（GitHub Release 分发）
 - 回归建议：①RW5E 实装：点 3 个点进设置（应见分组卡片非黑屏）→ 关于 → 返回 ②聊天页消息滚动/快捷回复 ③撰写页键盘+预览 ④手环 9/10/11 全页回归（渲染路径改动）⑤两端关于页版本号应同显 2.9.6
+
+---
+
+## v2.14.0（2026-10-03，versionCode 54）—— 胖包 AstrBot 独立标签页 + 键盘非手环机型两修复 + 智能自动渲染器 + libbusybox 双通道
+
+- 用户四指令：胖包 AstrBot 单独开一个标签页 / 缺失 libbusybox.so（仅支持 arm64 真机）/ 非手环机型键盘看不到输入预览 + 空输入时只显示一半输入一下恢复 / 加强自动渲染器智能化（CI 一事用户撤回）。
+- 现场：本地浅克隆落后 11 提交，ff 到 4db491d（v2.13.0）；Token 重新写入 remote URL 持久保留。
+- Tab 分治、键盘显式根高（KB_H_* 常量 + kbHpx + 拼音行恒占 28px + xiaomis 312/275/323 换算）、渲染器 20+ 段型（OneBotParser + protocol.js 双端同规则）、EngineManager APK 直取回退 —— 详见 MEMORY.md v2.14.0 节。
+- 构建环境重建：setup-buildenv.sh 的 adoptium 源失效 → 清华 Adoptium 镜像（17.0.20.1_1）+ 腾讯 gradle 8.13 + google cmdtools；android-37 目录陷阱修复照旧。gradle 首跑 daemon 被 OOM 杀（4GB 容器）→ 分模块 --no-daemon -Xmx1024m workers.max=1 分步完成。
+- 验证：verify_2140.js 42 项全 PASS（kbHpx 入包 / xiaomis 常量 312 / screentype 逐分支 / 渲染器标记）；APP 单测 228/228（双 flavor，历史首次全绿，含新增 11 项渲染器）；手环端 89/90（新增 10 项全绿，api.test.js 1 例存量基线）；胖包 lib/arm64-v8a/libbusybox.so 在包核实（用户报错根因=设备主 ABI 非 arm64 或历版包缺 so，双通道均覆盖）。
+- 推送 4db491d..071d719（remote 凭据保留）；Release v2.14.0 八资产（scripts/gh_release_2140.py，可复用模式：下版改 TAG/ASSETS/BODY）。
+
+## v2.15.0（2026-10-03，versionCode 55）—— busybox error=13 根修（targetSdk 28）+ 键盘高度链全显式化 + 演示模式补齐新特性
+
+- 用户真机反馈三件：①胖包装引擎报 `Cannot run program .../files/engine/bin/busybox: error=13, Permission denied`；②键盘还是只显示一半、输入都没有展开（v2.14 修复无效）；③演示模式把新加的特性补上。
+- error=13 根因定案：Android 10+ 对 targetSdk≥29 应用启用 W^X（SELinux untrusted_app_29+ 禁止 exec app 数据目录内二进制），v2.14 的"双通道"只解决了 so 来源问题，没有解决 exec 位置问题——引擎链路 busybox/bash/proot→rootfs 全在 files/engine 下，逐级 exec 全被拦。根修 = targetSdk 34→28（Termux/UserLAnd 同款方案；权限代码全按 SDK_INT 守卫，POST_NOTIFICATIONS/BLUETOOTH_CONNECT 运行时申请不受 targetSdk 影响；FGS 类型已声明）。EngineManager 安装/启动两处 catch 附 W^X 诊断提示（旧包用户可自诊）。
+- 键盘根因定案：v2.14 只显式化了根容器，懒建层（if）与黑底层（show）仍 height:auto —— 固件首帧 auto 测量坍缩依旧；且根高固定后输入重排不再波及中间层，v2.13 的"输入一下就恢复"随之消失（用户实测吻合）。修复 = 根/懒建层/黑底层三层全部 kbHpx 显式定高，高度链零 auto 测量点；KB_H_* 分区常量不变。
+- 演示模式：injectDemo 补齐 v2.13/2.14 新形态（JSON 音乐卡/XML 红包卡/markdown/文件名/合并转发/GIF/表情包/骰子/位置/链接/回复+链接组合/语音/撤回 rc 灰显），全部经 degradeContent 真实渲染链生成（与真机同路径，渲染器退化即刻暴露）；store.test.js 新增 14 项断言。
+- 验证：verify_2150.js 63/63 PASS（kbHpx≥3 处绑定/演示模式 4 标记/渲染器标记/版本单轨/designWidth 逐分支）；APP 单测 228/228（双 flavor 各 114）；手环端 90/91（api.test.js 1 例存量基线）；双 APK badging vc55/2.15.0/targetSdk 28；胖包 lib/arm64-v8a 五件套 + 64MB rootfs 在包；dex 检索 W^X 提示/extractSoFromApk 在包；签名 af8819e2 同源。
+- 构建：setup-buildenv.sh 全自动重建（JDK/gradle/cmdtools/SDK 均幂等跳过或直装）；gradle 分模块 --no-daemon -Xmx1024m（daemon 首跑仍被 OOM 杀，产物经 badging+时间戳核实为 fresh）。
+- Release v2.15.0 八资产（scripts/gh_release_2150.py）；交付 download/bandqq-2.15.0/。

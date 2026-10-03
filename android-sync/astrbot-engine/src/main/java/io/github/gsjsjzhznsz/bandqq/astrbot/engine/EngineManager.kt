@@ -219,7 +219,13 @@ object EngineManager {
                 logLine("引擎安装完成")
                 true
             } catch (t: Throwable) {
-                _state.value = State.Error("安装失败: ${t.message}")
+                // v2.15.0 诊断增强：exec 被系统拒绝（error=13 / Permission denied）
+                // 几乎必然是 targetSdk≥29 的旧安装包撞上 W^X，给出可行动的提示
+                val raw = t.message ?: ""
+                val msg = if (raw.contains("error=13") || raw.contains("Permission denied")) {
+                    "$raw —— W^X 拒绝执行：本安装包 targetSdk≥29 或 ROM 收紧；请安装 v2.15.0+（targetSdk 28）胖包"
+                } else raw
+                _state.value = State.Error("安装失败: $msg")
                 false
             }
         }
@@ -296,7 +302,14 @@ object EngineManager {
                     logLine("引擎进程退出 exit=$code")
                 }
             } catch (t: Throwable) {
-                logLine("启动异常: ${t.message}")
+                val raw = t.message ?: ""
+                logLine(
+                    if (raw.contains("error=13") || raw.contains("Permission denied")) {
+                        "启动异常: $raw —— W^X 拒绝执行（targetSdk≥29 安装包）；请安装 v2.15.0+（targetSdk 28）胖包"
+                    } else {
+                        "启动异常: $raw"
+                    }
+                )
             } finally {
                 processRef.set(null)
                 if (_state.value !is State.Error) _state.value = State.Stopped
