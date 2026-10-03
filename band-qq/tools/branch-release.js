@@ -137,6 +137,9 @@ function overridesFor(tag) {
     const kbFinal = { bandpro: 283, xiaomis: 312, redmiwatch: 283 }
     // preview-box 显式高 = 屏高 - top-bar 物理高（absolute 容器零高裁剪同防）
     const pvFinal = { bandpro: 382, xiaomis: 361, redmiwatch: 420 }
+    // v2.18.0 kb-dock 顶部锚定：top = 视口高 - 键盘物理高（band9 镜像实测 bottom:0
+    // 在页面高度解析异常的固件上把键盘推出屏外；页面顶部锚定全固件可靠）
+    const dockTop = { bandpro: 197, xiaomis: 154, redmiwatch: 231 }
     rules.push([
       'src/pages/compose/compose.ux',
       /(\.preview-box \{[^}]*?height: )\d+px/,
@@ -151,6 +154,11 @@ function overridesFor(tag) {
       'src/pages/compose/compose.ux',
       /(\.kb-dock \{[^}]*?height: )\d+px/,
       '$1' + kbFinal[tag] + 'px'
+    ])
+    rules.push([
+      'src/pages/compose/compose.ux',
+      /(\.kb-dock \{[^}]*?top: )\d+px/,
+      '$1' + dockTop[tag] + 'px'
     ])
   }
   if (tag === 'xiaomis') {

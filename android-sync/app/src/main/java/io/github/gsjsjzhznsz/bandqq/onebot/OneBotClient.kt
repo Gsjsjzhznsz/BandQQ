@@ -70,6 +70,13 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
     private val pendingWsApi = java.util.concurrent.ConcurrentHashMap<String, (String?) -> Unit>()
     private val wsApiSeq = java.util.concurrent.atomic.AtomicLong(0)
 
+    // v2.18.0：HTTP 自适应降级——真实 NapCat 部署常只开 WS，而 HTTP 地址留默认
+    // （127.0.0.1:3000）。历史上每个动作都先空转两路 HTTP（ConnectException 拒连）
+    // 再回退 WS：日志刷屏 + 每动作多几百毫秒延迟。连续拒连 3 次后本会话内
+    // 10 分钟直接走 WS（有 HTTP 应答即重置计数；configure 换配置时重置）。
+    @Volatile private var httpFailStreak = 0
+    @Volatile private var httpDisabledUntil = 0L
+
     fun start(config: EndpointConfig, listener: OneBotListener) {
         this.config = config
         this.listener = listener
@@ -83,6 +90,35 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
     /** 仅更新 HTTP/WS 端点配置（含 token），不建立连接。用于界面侧手动拉取联系人。 */
     fun configure(endpoint: EndpointConfig) {
         this.config = endpoint
+        // v2.18.0：换配置后重新信任 HTTP 通道
+        httpFailStreak = 0
+        httpDisabledUntil = 0L
+    }
+
+    /** v2.18.0：HTTP 通道是否可用（空地址或降级窗口内不可用） */
+    private fun httpUsable(): Boolean {
+        val root = config.httpUrl.trim().trimEnd('/')
+        if (root.isBlank()) return false
+        return System.currentTimeMillis() >= httpDisabledUntil
+    }
+
+    /** v2.18.0：HTTP 拒连计数（仅连接被拒/网络不可达才累计；有应答即重置） */
+    private fun noteHttpFailure(e: java.io.IOException?) {
+        val refused = e is java.net.ConnectException ||
+            (e?.message ?: "").contains("Failed to connect", ignoreCase = true) ||
+            (e?.message ?: "").contains("ECONNREFUSED", ignoreCase = true)
+        if (!refused) return
+        val streak = ++httpFailStreak
+        if (streak >= 3) {
+            httpDisabledUntil = System.currentTimeMillis() + 10 * 60 * 1000L
+            httpFailStreak = 0
+            try {
+                LogBus.log(
+                    "OneBotClient", LogLevel.WARN,
+                    "HTTP 拒连 ${streak} 次连续失败，降级 WS-only 10 分钟（换配置自动恢复）"
+                )
+            } catch (_: Throwable) {}
+        }
     }
 
     fun stop() {
@@ -237,10 +273,12 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
             client.newCall(request).enqueue(object : okhttp3.Callback {
                 override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {
                     try { LogBus.log("OneBotClient", LogLevel.ERROR, "send failed: $url: $e") } catch (t: Throwable) {}
+                    noteHttpFailure(e)
                     onFail()
                 }
 
                 override fun onResponse(call: okhttp3.Call, response: Response) {
+                    httpFailStreak = 0
                     response.use {
                         val resp = it.body?.string() ?: ""
                         if (it.isSuccessful) {
@@ -256,6 +294,11 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
             })
         }
         val root = baseUrl.trimEnd('/')
+        // v2.18.0：HTTP 降级窗口内/空地址直接走 WS，不再空转拒连
+        if (!httpUsable()) {
+            sendViaWs(body, action, callback)
+            return
+        }
         doSend("$root/$action") {
             doSend("$root/api/$action") {
                 // v2.9.5：HTTP 两路均不可达（真实 NapCat 常只开 WS，HTTP API 是独立开关）
@@ -335,10 +378,12 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
             client.newCall(request).enqueue(object : okhttp3.Callback {
                 override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {
                     try { LogBus.log("OneBotClient", LogLevel.DEBUG, "api $action http fail: $url") } catch (t: Throwable) {}
+                    noteHttpFailure(e)
                     onFail()
                 }
 
                 override fun onResponse(call: okhttp3.Call, response: Response) {
+                    httpFailStreak = 0
                     response.use {
                         val resp = it.body?.string() ?: ""
                         if (it.isSuccessful) {
@@ -353,6 +398,11 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
             })
         }
         val root = baseUrl.trimEnd('/')
+        // v2.18.0：HTTP 降级窗口内/空地址直接走 WS，不再空转拒连
+        if (!httpUsable()) {
+            requestViaWs(action, paramsJson, callback)
+            return
+        }
         doRequest("$root/$action") {
             doRequest("$root/api/$action") {
                 // v2.9.4：HTTP 不可达（NapCat 只开 WS 是最常见部署）→ 经 WS 通道调用

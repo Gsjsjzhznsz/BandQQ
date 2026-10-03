@@ -8,8 +8,8 @@
 上游：https://github.com/Astroptis/band-qq-assistant ；本仓库为完整版镜像（含签名/产物/legacy）。
 
 ## 版本线
-- 当前正式线：v2.17.0（vc57）—— 引擎启动自愈（无 Environment Manager UI → 脚本内自动补装 curl-git-uv-NapCat-AstrBot）+ proot fd 告警摘除 + message_id 撤回链三断点（入库丢 id-历史帧不下发-直连历史丢 id-直连发送不回填）+ 键盘内层字母键 scroll 显式高（非手环固件首帧坍缩最后一个 auto 测量点）+ 渲染器智能化 v2.17（QQ红包识别-转发摘要-文件大小-表格压平）+ 演示模式同步补齐（2026-10-03）
-- 历史线：v2.13.0（53，键盘全分支换装 NEORUAA+AstrBot 胖/瘦双 APK+OneBot v11 扩展+DevTools 1.4.0+AGPL）/ v2.10.0（51，分支级适配+分页窗口化+eSIM 直连）/ v2.9.6（50，四页 absolute 黑屏根修+版本统一）/ v2.9.5（49，WS 回退+双发根治）/ v2.9.4（48，真实 NapCat 五连修）… 详见各节
+- 当前正式线：v2.18.0（vc58）—— 三线修复：①引擎「环境不完整」根治（升级用户设备上 v2.17 自愈脚本从未部署：isInstalled=true 跳过安装流程=旧脚本常驻容器；修=每次启动前 assets 强制刷新容器内三脚本/配置（内容一致跳写+保留 REINSTALL_PLUGINS_FLAG），start() 前置 installIfNeeded）②撤回/v11 重试+验证+明细（用户 10-03 日志实证 BandQQ 侧链路全通、失败点=NapCat recallMsg NT 事件超时 retcode=1200 result 5 社区已知瞬态型；v11 通道失败自动重试 3 次 1.2s/2.5s，delete_msg 1200 先 get_msg 验证（消息已不存在按成功回帧），终败透传协议端 retcode；另 HTTP 拒连自适应降级：连 3 次拒连→10min WS-only，configure() 重置）③键盘 dock 顶部锚定+挂载自愈（Vela VM 四分支实测：band9 镜像页面高度解析异常内容高≈665>视口 490，bottom:0 把键盘推出屏外≈175px=用户"只显示一半"；top=视口高−键盘物理高（band157/bandpro197/xiaomis154/redmiwatch231 构建期写入，页面顶部锚定全固件可靠）+ 弹出后 120ms/650ms 两拍 1px 收缩还原强制重排（"输入一下就恢复"的自动版））（2026-10-03）
+- 历史线：v2.17.0（57，引擎启动自愈+proot fd 告警摘除+message_id 撤回链三断点+键盘内层 scroll 显式高+渲染器 v2.17）/ v2.16.0（56，rootfs 前缀拍平+message_id 数字形态+直连六类 v11+键盘宿主去 flex 化）/ v2.15.0（55，targetSdk 28 W^X 根修+三层 kbHpx+演示模式补齐）/ v2.14.0（54，AstrBot 独立 Tab+键盘显式总高+智能渲染器+libbusybox 双通道）/ v2.13.0（53，键盘 NEORUAA 换装+AstrBot 胖/瘦双 APK+OneBot v11 扩展+AGPL）/ v2.10.0（51，分支级适配+分页窗口化+eSIM 直连）/ v2.9.6（50，四页 absolute 黑屏根修+版本统一）… 详见各节与 README
 - git 分支线 v2.11.x（redmi-watch/xiaomi-watch-s/band-pro）已废弃归档，由构建期四分支包取代
 
 ## v2.1.0 已完成（2026-09-09）

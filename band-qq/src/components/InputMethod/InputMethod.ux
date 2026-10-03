@@ -472,12 +472,17 @@ export default {
     }
     // v2.15.0：根/懒建层/黑底层三层显式高度（首帧即完整键盘，不再依赖 auto 测量）
     this.kbHpx = this.hide ? "0px" : kbTotalFor(this.screentype) + "px";
-    if (!this.hide) this.keyboardCreated = true;
+    if (!this.hide) {
+      this.keyboardCreated = true;
+      // v2.18.0：compose 宿主 hide 恒为 false（$watch 不触发），挂载路径同样自动重排自愈
+      this.nudgeRelayout();
+    }
     this.$watch("hide", "watchHidePropsChange");
     this.$watch("maxlength", "watchMaxLengthPropsChange");
     this.$watch("keyboardtype", "watchKeyboardTypePropsChange");
   },
   onDestroy() {
+    this.clearNudgeTimers();
     this._dictionary.destroy();
   },
   addAllTxt(txt) {
@@ -761,9 +766,35 @@ export default {
     if (newV === false) {
       this.keyboardCreated = true;
       this.resetResultList();
+      // v2.18.0：弹出后自动重排自愈（部分固件首帧对 absolute 子树测量坍缩：
+      // 键盘只显示一半，历史版“输入一下就恢复”即重排自愈；现在无需用户输入）
+      this.nudgeRelayout();
     } else {
       this._dictionary.release();
       this.clearCandidates();
+    }
+  },
+  /** v2.18.0：1px 收缩→还原两次（肉眼不可见），强制固件重测键盘子树。
+   *  首次弹出 120ms/650ms 两拍；rebound 期间若 hide 已切走则中止（kbHpx 归 0 优先）。 */
+  nudgeRelayout() {
+    const full = kbTotalFor(this.screentype);
+    const tick = (delay, fn) => { this._nudgeTimers.push(setTimeout(fn, delay)) };
+    if (!this._nudgeTimers) this._nudgeTimers = [];
+    this.clearNudgeTimers();
+    const pulse = (delay) => {
+      tick(delay, () => {
+        if (this.hide) return;
+        this.kbHpx = (full - 1) + "px";
+        tick(60, () => { if (!this.hide) this.kbHpx = full + "px"; });
+      });
+    };
+    pulse(120);
+    pulse(650);
+  },
+  clearNudgeTimers() {
+    if (this._nudgeTimers) {
+      this._nudgeTimers.forEach((t) => clearTimeout(t));
+      this._nudgeTimers = [];
     }
   },
   watchMaxLengthPropsChange(newV, oldV) {

@@ -202,3 +202,23 @@ Stage Summary:
 - 渲染器智能化 v2.17（双端同规则同步）：QQ红包识别（json wcpay/xml wcpayinfo）；forward 转发摘要（NapCat 节点数组前两条文本，兼容嵌套 content 包裹+递归+CQ 字符串）；file 段大小人类可读；markdown 表格压平（分隔行丢弃）。演示模式 injectDemo 补四形态；手机端 pushTestMessage 新增 redpacket/forward/sign 三场景 + SettingsScreen 按钮行。
 - 验证：verify_2170.js 120/120 PASS（四分支+universal；键盘内层 scroll 显式高逐包 170/165、渲染器 v2.17 标记、直连 message_id 链、演示模式新形态、版本 57）；APP 单测 125+125 全绿（双 flavor，新增渲染器 6 例+message_id 链 4 例；注意 Kotlin 反引号函数名禁 `.`、测试断言时间按 normalizeTime 毫秒）；手环端 106/107（新增 8 例全绿，api.test.js 1 例存量基线）；双 APK badging vc57/2.17.0/targetSdk 28、签名 af8819e2 同源；胖包五件套+64MB rootfs+自愈脚本在包、dex 无 fd0 绑定残留。
 - 发布：commit+push（Token 保留 remote）→ Release v2.17.0 九资产 → download/bandqq-2.17.0/ 九件（含 README 本版修复说明）。
+
+---
+Task ID: 27
+Agent: Super Z (main)
+Task: band-qq v2.18.0 —— 用户四报修复：AstrBot 环境缺失自愈未部署根修 + NapCat retcode=1200 撤回重试验证 + 键盘 band9 镜像 bottom:0 锚定实证与顶部锚定重做
+
+Work Log:
+- 同步：本地 264763e → origin/main 23a18f5（v2.17.0，ff-only；remote URL 补回用户 Token 持久保留）
+- 撤回链实证（用户 10-03 20:57 日志）：message_action delete → 数字 message_id → WS delete_msg → NapCat 应答 {"retcode":1200,"message":"Timeout: NTEvent NodeIKernelMsgService/recallMsg EventRet:{result:5}"}——BandQQ 侧四断点已通（v2.17 生效），失败点在协议端；社区检索证实 1200+NTEvent Timeout 为 sendMsg/recallMsg 均有的已知瞬态型问题
+- 引擎根修（EngineManager.kt）：升级用户设备上 v2.17 自愈脚本从未部署（isInstalled=true 时安装流程整体跳过=旧脚本常驻容器，日志铁证=旧版英文 "Environment Manager" 提示 + 无"自动补装"进度行 + 无 fd 告警）；新增 refreshContainerScripts()：每次启动前 assets 重写 astrbot-startup.sh/installer-bootstrap/cmd_config.json（内容一致跳写、保留 REINSTALL_PLUGINS_FLAG=1）；start() 前置 installIfNeeded（未装引擎直接启动必败老问题）
+- 撤回/v11（MessageBroker.kt）：callOneBot → attemptCall 三次重试（1.2s/2.5s 间隔），delete_msg retcode=1200 先 get_msg 验证（查无此消息=已撤回按成功回帧），终败 toast 透传协议端 retcode；OneBotClient.kt：HTTP 拒连自适应降级（ConnectException 连 3 次→10min WS-only，onResponse/configure() 重置），砍掉每动作两路空转与日志刷屏
+- 键盘（VM 四分支实测取证）：重建 QEMU 环境（镜像 581MB 分片下载+lib64 深拷贝修复 setup2 浅拷贝缺陷）；xiaomis/redmiwatch/bandpro 键盘完整，band9（192x490 镜像）实证页面高度解析异常（内容高≈665>视口 490）→ kb-dock absolute bottom:0 锚到内容底，键盘整体下移≈175px、第三排字母腰斩、进度条不可见=用户"只显示一半，输入不展开"；页面顶部锚定四分支截图全精确 → compose.ux kb-dock 改 top=视口高−键盘物理高（band 157 源码基准/bandpro 197/xiaomis 154/redmiwatch 231 由 branch-release.js 构建期写入，摘除 bottom:0）；InputMethod.ux nudgeRelayout()（弹出后 120ms/650ms 两拍 1px 收缩还原强制重排，"输入一下就恢复"自动化，onInit+watch 双路径，onDestroy 清理）
+- 修复 A/B 实证：band9 同会话旧包（半键盘）→ 新包（完整胶囊键盘，60px 键 3.2 键/屏原生横滚）全链截图归档 vm-shots/217-*、218-*
+- 构建：vc58/2.18.0 四分支 rpk + verify_2180 124/124 PASS（新增 dockTop 四值/不再 bottom 锚定/nudgeRelayout 断言）；node 单测 107 测 106 过（基线 1 不变）；双 APK badging vc58/2.18.0/targetSdk28，bundled 80MB（rootfs+libbusybox+refreshContainerScripts 在包）/companion 12MB（flavor 隔离正确），apksigner af8819e2 同源
+- 文档：README v2.18.0 节 + v2.15~v2.17 折叠补录；MEMORY 版本线更新；产物交付 download/bandqq-2.18.0/
+
+Stage Summary:
+- 产物：bandqq-{2.18.0-bundled,2.18.0-companion}.apk + bandqq-{band,bandpro,xiaomis,redmiwatch}-2.18.0.rpk
+- 待用户回归：①胖包 AstrBot 启动：应出现"启动脚本已与 APK 资产对齐"→"运行环境不完整，自动补装"进度→首次联网装 curl/git/uv/NapCat/AstrBot（数百 MB，数分钟）②撤回：失败自动重试，NapCat 瞬态超时多数自愈；若 toast 报 retcode 请反馈数值 ③键盘：手环/手表端 compose 输入页键盘应完整；若再遇半键盘请说明机型与分支包
+- 建议用户：手机 APK 与手环 rpk 需同时更新（手环端 rpk 装对应分支包：RW5=redmiwatch）

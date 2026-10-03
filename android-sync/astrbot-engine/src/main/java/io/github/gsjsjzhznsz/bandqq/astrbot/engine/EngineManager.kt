@@ -306,6 +306,50 @@ object EngineManager {
     }
 
     /**
+     * v2.18.0：APK 升级后容器内脚本可能仍是旧版——历史实现只在安装流程③写入一次，
+     * 而 isInstalled=true 时安装流程整体跳过。用户从 v2.16.0 升级后容器保留，
+     * v2.17.0 的「启动自愈」版脚本从未落到设备，表现为：启动即报 missing dependency
+     * 清单 + 立即 MANUAL_ENV（旧脚本无自愈分支，且提示里还有已废弃的 Environment Manager）。
+     * 修法：每次启动前用 assets 重写三个脚本/配置；内容一致则跳过写盘；
+     * 保留旧脚本的 REINSTALL_PLUGINS_FLAG=1 标记（脚本自身用 sed 消费后清零）。
+     */
+    private fun refreshContainerScripts(ctx: Context) {
+        val rootHome = File(rootfsDir(ctx), "root")
+        if (!rootHome.isDirectory) return
+        val keepReinstallFlag = runCatching {
+            File(rootHome, "astrbot-startup.sh").takeIf { it.exists() }
+                ?.bufferedReader()?.useLines { lines -> lines.any { it.trim() == "REINSTALL_PLUGINS_FLAG=1" } }
+        }.getOrNull() == true
+        val entries = listOf(
+            "astrbot-startup.sh" to true,
+            "astrbot-installer-bootstrap.sh" to false,
+            "cmd_config.json" to false,
+        )
+        for ((asset, exec) in entries) {
+            val dst = File(rootHome, asset)
+            try {
+                val fresh = ctx.assets.open(asset).use { it.readBytes() }
+                if (!dst.exists() || !dst.readBytes().contentEquals(fresh)) {
+                    dst.outputStream().use { it.write(fresh) }
+                }
+                if (exec) dst.setExecutable(true, false)
+            } catch (t: Throwable) {
+                logLine("脚本刷新失败 $asset: ${t.message}")
+            }
+        }
+        if (keepReinstallFlag) {
+            runCatching {
+                val f = File(rootHome, "astrbot-startup.sh")
+                val txt = f.readText()
+                if (!txt.contains("REINSTALL_PLUGINS_FLAG=1")) {
+                    f.writeText(txt.replaceFirst("REINSTALL_PLUGINS_FLAG=0", "REINSTALL_PLUGINS_FLAG=1"))
+                }
+            }
+        }
+        logLine("启动脚本已与 APK 资产对齐（v2.18 每次启动强制刷新）")
+    }
+
+    /**
      * 启动引擎：installIfNeeded → 前台服务保活 → bash（PROOT_LOADER 等环境变量）→
      * proot → 容器内 astrbot-startup.sh（首次装 AstrBot/NapCat 需联网数分钟，
      * 已装则直接拉起；脚本幂等；v2.17 环境不完整时脚本内自动补装自愈）。
@@ -325,6 +369,18 @@ object EngineManager {
                 val tmp = tmpDir(appCtx)
                 val ubuntu = rootfsDir(appCtx)
                 tmp.mkdirs()
+                // v2.18.0：启动前保证引擎已安装（历史上 start 不装引擎，未安装直接拉起必败），
+                // 且每次启动强制刷新容器内脚本（修 v2.17 自愈脚本在升级用户设备上从未部署的断链）
+                if (!isInstalled(appCtx)) {
+                    logLine("引擎未安装，先执行安装（解压 rootfs 约 62MB）…")
+                    val ok = kotlinx.coroutines.runBlocking { installIfNeeded(appCtx) }
+                    if (!ok) {
+                        // installIfNeeded 内部已置 State.Error 与日志
+                        return@Thread
+                    }
+                    _state.value = State.Starting
+                }
+                refreshContainerScripts(appCtx)
                 val script = buildLaunchScript(appCtx, bin, tmp, ubuntu)
                 logLine("拉起容器（proot → astrbot-startup.sh）…")
                 val pb = ProcessBuilder(File(bin, "bash").absolutePath, "-lc", script)

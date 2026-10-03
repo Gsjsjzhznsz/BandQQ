@@ -143,7 +143,22 @@ gradle :devtools:assembleRelease
 
 ## 📦 更新日志
 
-### v2.14.0（当前版本 · vc54）
+### v2.18.0（当前版本 · vc58）
+
+> 三线修复：**① AstrBot 引擎「环境不完整」根治**（升级用户设备上 v2.17 自愈脚本从未部署——历史实现只在首次安装时写脚本，isInstalled=true 时安装流程整体跳过，容器里跑的还是旧版预检脚本，报 missing curl/git/uv + MANUAL_ENV 后退出；现每次启动前用 APK 资产强制刷新容器内三脚本/配置（内容一致跳写、保留重装标记），且 start() 前置 installIfNeeded（未装引擎直接启动必败的老问题一并修掉））；**② 撤回/v11 动作重试+验证+明细**（用户 10-03 日志实证撤回链路 BandQQ 侧已全通、失败点在协议端 NapCat recallMsg NT 事件超时 retcode=1200（社区已知瞬态型问题）——v11 动作统一通道改为失败自动重试 3 次（1.2s/2.5s 间隔），delete_msg 1200 时先经 get_msg 验证（消息已不存在按撤回成功回帧，覆盖"已生效但反馈丢失"场景），最终失败透传协议端 retcode 到手环 toast；另：HTTP 拒连自适应降级（连续 3 次拒连 → 10 分钟 WS-only，换配置自动恢复，砍掉每动作两路空转））；**③ 键盘 dock 顶部锚定 + 挂载自愈**（Vela VM 四分支实测取证：band9 镜像页面高度解析异常（内容高≈665>视口 490），absolute bottom:0 把键盘整体推出屏外≈175px——第三排字母腰斩、进度条不可见，即用户口径"键盘只显示一半，输入不展开"；页面顶部锚定在全部固件/镜像上精确可靠，kb-dock 改 top=视口高−键盘物理高（band 157/bandpro 197/xiaomis 154/redmiwatch 231，构建期分支写入）+ 键盘弹出后 120ms/650ms 两拍 1px 收缩还原强制重排（历史"输入一下就恢复"的自愈无需用户输入））。
+
+- 验证：四分支 rpk 解包断言 verify_2180 124/124 PASS（新增 dockTop 四分支值/不再 bottom 锚定/nudgeRelayout 在包）；手环端 node 单测 107 测 106 过（存量基线 1 不变）；bundled/companion 双 APK 编译 badging vc58/2.18.0
+- 版本：APP/手环 2.18.0（vc58）单轨延续
+
+<details>
+<summary><b>v2.15.0 ~ v2.17.0</b> — 引擎三连修 / message_id 撤回链 / 渲染器 v2.17（点击展开）</summary>
+
+- **v2.15.0**：busybox error=13 根修（targetSdk 34→28，Termux/UserLAnd 同款 W^X 豁免方案）+ 键盘高度链全显式化（根/懒建/黑底三层 kbHpx）+ 演示模式补齐新特性形态
+- **v2.16.0**：rootfs 前缀拍平（pd 发行包 ubuntu-noble-aarch64/ 顶层前缀致 bin/bash 校验必败 → 两段式解压+逐项上移）+ message_id 数字形态（NapCat MessageUnique 按 number 索引，字符串 key 静默失败）+ 直连六类 v11 动作 + 键盘宿主去 flex 化（Vela VM 实测驱动，xiaomis 取证通过）
+- **v2.17.0**：引擎启动自愈（预检失败自动补装 curl/git→uv→NapCat→AstrBot 全幂等；本轮发现升级用户设备未部署，v2.18 修）+ proot fd 绑定告警摘除 + message_id 撤回链四处断点全接 + 键盘内层字母键 scroll 显式高 + 渲染器 v2.17（QQ红包/转发摘要/文件大小/表格压平）+ 演示模式同步补齐
+</details>
+
+### v2.14.0（vc54）
 
 > 四件事：**胖包 AstrBot 独立标签页**（bundled flavor 底栏新增第 4 页「AstrBot」——引擎状态/启动/停止/NapCat 探测/引擎日志（80 行）/一键写入并保存本机直连地址全在标签页完成，设置页仅留指引卡；瘦包 4 页不变，Tab 集按 flavor sourceSet 编译期二选一）+ **键盘两处非手环机型修复**（①空输入时键盘只显示一半、敲一键才恢复——根容器 height:auto 在部分固件首帧测量坍缩，改 JS 侧显式总高（circle 321 / rect 283 / pill 333，rect·pill 恒预留 28px 拼音行，内容高度不再随输入变化），②输入预览行同步受此保护；xiaomis 的 466/480 换算常量同步入构建脚本）+ **智能自动渲染器**（AstrBot/机器人/分享消息首次在手环可读——json 卡片提取 meta.prompt/音乐·新闻·小程序标题、xml 卡片取 title/brief、markdown 降纯文本、合并转发/表情包/GIF/文件名/位置/分享/戳一戳/骰子等 20+ 段型，CQ 字符串同规则，800 字符护栏；手机端 OneBotParser 与手环端兜底 protocol.js 同步升级）+ **libbusybox.so 缺失修复**（EngineManager bin 组装双通道：nativeLibraryDir 缺文件时从 APK 内 lib/arm64-v8a/ 直取，报错附带设备 ABI 与路径诊断）。
 

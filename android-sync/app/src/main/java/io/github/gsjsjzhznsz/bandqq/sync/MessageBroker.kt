@@ -759,17 +759,93 @@ class MessageBroker(
     /**
      * v2.13.0 OneBot v11 扩展动作统一通道：requestApiAction（HTTP 优先、WS 回退）→
      * retcode==0 判成功 → action_result 帧回手环（toast 展示）。
+     * v2.18.0：带重试与结果明细（见 attemptCall）。
      */
     private fun callOneBot(action: String, paramsJson: String, seq: Int, label: String, targetId: String) {
+        attemptCall(action, paramsJson, seq, label, targetId, 1)
+    }
+
+    /**
+     * v2.18.0：v11 动作重试通道。实证（用户 10-03 日志）：撤回链路 BandQQ 侧已全通，
+     * 失败点在协议端——NapCat 对 recallMsg 的 NT 事件等待超时（retcode=1200，
+     * "Timeout: NTEvent ... recallMsg ... result: 5"）。该模式在 NapCat 社区为已知
+     * 瞬态问题（sendMsg/recallMsg 均有同型 issue）：NT 反馈事件偶发丢失/迟滞，
+     * 重试往往成功，甚至撤回实际已生效。策略：
+     * ① 失败重试至多 3 次（间隔 1.2s / 2.5s）；
+     * ② delete_msg 首次 1200 时先经 get_msg 验证——消息已不存在即按成功回帧
+     *   （"超时但实际已撤回"场景）；
+     * ③ 最终失败把协议端 retcode/wording 透传手环，不再笼统"未响应或动作不支持"。
+     */
+    private fun attemptCall(
+        action: String, paramsJson: String, seq: Int, label: String,
+        targetId: String, attempt: Int
+    ) {
         oneBot.requestApiAction(action, paramsJson) { raw ->
-            val ok = raw != null && try {
-                JsonParser.parseString(raw).asJsonObject
-                    .get("retcode")?.takeIf { it.isJsonPrimitive }?.asInt == 0
-            } catch (t: Throwable) {
-                false
+            val (retcode, detail) = parseRet(raw)
+            if (retcode == 0) {
+                log("v11 action $action -> ok (attempt=$attempt)")
+                bandSender(actionResultFrame(seq, label + "成功", targetId))
+                return@requestApiAction
             }
-            log("v11 action $action -> ${if (ok) "ok" else "fail"}")
-            bandSender(actionResultFrame(seq, if (ok) label + "成功" else label + "失败（协议端未响应或动作不支持）", targetId))
+            log("v11 action $action -> fail attempt=$attempt retcode=$retcode detail=${detail.take(140)}")
+            // delete_msg + 1200：验证消息是否实际已撤回（NT 超时常见"已生效但反馈丢失"）
+            if (action == "delete_msg" && retcode == 1200) {
+                val mid = paramsJson
+                    .substringAfter("\"message_id\":", "").trim()
+                    .trimEnd('}', ' ')
+                if (mid.isNotEmpty()) {
+                    oneBot.requestApiAction("get_msg", "{\"message_id\":$mid}") { graw ->
+                        val (gcode, _) = parseRet(graw)
+                        if (gcode != 0) {
+                            // 消息查不到 = 已撤回或已超出可查窗口 → 按撤回成功处理
+                            log("delete_msg 1200 but get_msg retcode=$gcode → 消息已不存在，按撤回成功回帧")
+                            bandSender(actionResultFrame(seq, label + "成功", targetId))
+                        } else if (attempt < 3) {
+                            retryBackoff(attempt)
+                            attemptCall(action, paramsJson, seq, label, targetId, attempt + 1)
+                        } else {
+                            bandSender(
+                                actionResultFrame(
+                                    seq,
+                                    label + "失败（协议端 NT 超时 retcode=1200：查 NapCat 版本与群管理权限）",
+                                    targetId
+                                )
+                            )
+                        }
+                    }
+                    return@requestApiAction
+                }
+            }
+            if (attempt < 3) {
+                retryBackoff(attempt)
+                attemptCall(action, paramsJson, seq, label, targetId, attempt + 1)
+            } else {
+                val info = when {
+                    retcode != null && detail.isNotBlank() -> label + "失败（协议端 retcode=$retcode）"
+                    retcode != null -> label + "失败（协议端 retcode=$retcode）"
+                    else -> label + "失败（协议端未响应或动作不支持）"
+                }
+                bandSender(actionResultFrame(seq, info, targetId))
+            }
+        }
+    }
+
+    /** v2.18.0：解析 retcode 与可读错误明细（wording 优先，message 兜底） */
+    private fun parseRet(raw: String?): Pair<Int?, String> = try {
+        val o = JsonParser.parseString(raw).asJsonObject
+        val code = o.get("retcode")?.takeIf { it.isJsonPrimitive }?.asInt
+        val msg = o.get("wording")?.takeIf { it.isJsonPrimitive }?.asString
+            ?: o.get("message")?.takeIf { it.isJsonPrimitive }?.asString ?: ""
+        code to msg
+    } catch (t: Throwable) {
+        null to ""
+    }
+
+    /** v2.18.0：重试间隔（1.2s / 2.5s），回调线程短暂阻塞可接受 */
+    private fun retryBackoff(attempt: Int) {
+        try {
+            Thread.sleep(if (attempt == 1) 1200L else 2500L)
+        } catch (_: Throwable) {
         }
     }
 
