@@ -1,0 +1,415 @@
+
+===== BandQQ 2.18.1(vc59) 会话开始 10-04 01:29:49.511 =====
+10-04 01:29:49.494 I/FileLogger: 设备: Xiaomi 22041216C (xaga)
+10-04 01:29:49.497 I/FileLogger: 系统: Android 15 (SDK 35) HyperOS OS2.0
+10-04 01:29:49.497 I/FileLogger: 应用: BandQQ 2.18.1(vc59)  日志目录: /storage/emulated/0/Android/data/io.github.gsjsjzhznsz.bandqq/files/logs
+10-04 01:29:49.497 W/FileLogger: 小米运动健康: 未安装（互联通道必需，未安装则发现不了手环节点）
+10-04 01:29:49.498 I/FileLogger: 权限-蓝牙连接: 已授权
+10-04 01:29:49.498 I/FileLogger: 权限-通知: 已授权
+10-04 01:29:49.504 I/FileLogger: 电池优化白名单: 未加入
+10-04 01:29:49.514 I/FileLogger: 无障碍保活: 未开启
+10-04 01:29:49.514 I/FileLogger: 提示: 运动健康「设备授权管理」条目在 APP 发起 DEVICE_MANAGER 授权请求后才生成，开启同步服务并连接一次即会触发
+10-04 01:31:52.062 I/SyncService: BandQQ 同步器 v2.18.1 (vc59) 启动
+10-04 01:31:52.103 W/InterconnectBridge: reconnect: no node, retry connect (no launch)
+10-04 01:31:52.103 E/InterconnectBridge: connect: not initialized
+10-04 01:31:52.165 W/OneBotClient: WS failure: ConnectException: Failed to connect to ipv4.mysv.dpdns.org/112.74.85.74:12050
+10-04 01:31:52.166 E/InterconnectBridge: sendToBand skipped: no connected node. frame={"type":"connect_state","seq":0,"state":"disconnected","band":false,"protocol":f
+10-04 01:31:52.241 D/InterconnectBridge: connect: found device REDMI Watch 5 eSIM   
+10-04 01:31:52.277 I/InterconnectBridge: auth: DEVICE_MANAGER granted[0]=true
+10-04 01:31:52.467 D/InterconnectBridge: openApp: 已在手环上拉起应用
+10-04 01:31:52.480 D/InterconnectBridge: registerListener ok
+10-04 01:31:52.481 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:31:52.530 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:31:53.133 D/InterconnectBridge: onBandMessage: {"type":"band_state","state":"connected","seq":0}
+10-04 01:31:53.135 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":true,"protocol":fa
+10-04 01:31:53.136 D/InterconnectBridge: sendToBand frame bytes=169: {"type":"visible_contacts","seq":0,"contacts":[{"id":"1124665323","type":"group"
+10-04 01:31:53.137 D/MessageBroker: pushVisibleContacts -> 1 contacts
+10-04 01:31:53.137 D/InterconnectBridge: sendToBand frame bytes=279: {"type":"quick_replies","seq":0,"list":[{"label":"收到","content":"收到"},{"label":"
+10-04 01:31:53.138 D/MessageBroker: pushQuickReplies -> 6 items
+10-04 01:31:53.138 D/InterconnectBridge: sendToBand frame bytes=87: {"type":"settings_state","seq":0,"emoji_native":true,"msg_vibrate":true,"mute_li
+10-04 01:31:53.138 D/MessageBroker: pushSettingsState -> emoji=true vibrate=true
+10-04 01:31:53.138 D/MessageBroker: pushDirectConfig skipped: httpUrl not reachable from band (default/blank)
+10-04 01:31:53.139 D/InterconnectBridge: onBandMessage: {"type":"get_connect_state","seq":1}
+10-04 01:31:53.139 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":true,"protocol":fa
+10-04 01:31:53.141 D/InterconnectBridge: onBandMessage: {"type":"get_visible_contacts","seq":2}
+10-04 01:31:53.141 D/MessageBroker: get_visible_contacts -> 1 contacts
+10-04 01:31:53.141 D/InterconnectBridge: sendToBand frame bytes=169: {"type":"visible_contacts","seq":2,"contacts":[{"id":"1124665323","type":"group"
+10-04 01:31:53.171 D/InterconnectBridge: onBandMessage: {"type":"get_conversations","seq":3}
+10-04 01:31:53.172 D/InterconnectBridge: sendToBand frame bytes=2480: {"type":"conversation_list","seq":3,"list":[{"id":"1124665323","type":"group","n
+10-04 01:31:53.173 D/InterconnectBridge: onBandMessage: {"type":"get_settings","seq":4}
+10-04 01:31:53.173 D/InterconnectBridge: sendToBand frame bytes=87: {"type":"settings_state","seq":0,"emoji_native":true,"msg_vibrate":true,"mute_li
+10-04 01:31:53.204 D/InterconnectBridge: sendToBand ok (279B)
+10-04 01:31:53.209 D/InterconnectBridge: sendToBand ok (84B)
+10-04 01:31:53.209 D/InterconnectBridge: sendToBand ok (84B)
+10-04 01:31:53.210 D/InterconnectBridge: sendToBand ok (169B)
+10-04 01:31:53.213 D/InterconnectBridge: sendToBand ok (87B)
+10-04 01:31:53.216 D/InterconnectBridge: sendToBand ok (169B)
+10-04 01:31:53.250 D/InterconnectBridge: sendToBand ok (2480B)
+10-04 01:31:53.251 D/InterconnectBridge: sendToBand ok (87B)
+10-04 01:31:55.485 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:31:55.567 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:31:55.579 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 01:31:57.156 W/OneBotClient: WS failure: ConnectException: Failed to connect to ipv4.mysv.dpdns.org/112.74.85.74:12050
+10-04 01:31:57.156 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":true,"protocol":fa
+10-04 01:31:57.261 D/InterconnectBridge: sendToBand ok (84B)
+10-04 01:31:58.487 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:31:58.625 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:31:58.640 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 01:32:01.488 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:32:01.564 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:32:01.578 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 01:32:02.159 W/OneBotClient: WS failure: ConnectException: Failed to connect to ipv4.mysv.dpdns.org/112.74.85.74:12050
+10-04 01:32:02.160 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":true,"protocol":fa
+10-04 01:32:02.249 D/InterconnectBridge: sendToBand ok (84B)
+10-04 01:32:04.491 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:32:04.988 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:32:05.003 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 01:32:07.181 W/OneBotClient: WS failure: ConnectException: Failed to connect to ipv4.mysv.dpdns.org/112.74.85.74:12050
+10-04 01:32:07.183 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":true,"protocol":fa
+10-04 01:32:07.364 D/InterconnectBridge: sendToBand ok (84B)
+10-04 01:32:07.496 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:32:07.562 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:32:07.580 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 01:32:10.506 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:32:11.077 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:32:11.099 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 01:32:12.191 W/OneBotClient: WS failure: ConnectException: Failed to connect to ipv4.mysv.dpdns.org/112.74.85.74:12050
+10-04 01:32:12.193 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":true,"protocol":fa
+10-04 01:32:12.327 D/InterconnectBridge: sendToBand ok (84B)
+10-04 01:32:13.512 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:32:13.626 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:32:13.638 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 01:32:16.515 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:32:17.001 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:32:17.019 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 01:32:17.191 W/OneBotClient: WS failure: ConnectException: Failed to connect to ipv4.mysv.dpdns.org/112.74.85.74:12050
+10-04 01:32:17.193 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":true,"protocol":fa
+10-04 01:32:17.333 D/InterconnectBridge: sendToBand ok (84B)
+10-04 01:32:19.519 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:32:19.997 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:32:20.019 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 01:32:22.195 W/OneBotClient: WS failure: ConnectException: Failed to connect to ipv4.mysv.dpdns.org/112.74.85.74:12050
+10-04 01:32:22.197 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":true,"protocol":fa
+10-04 01:32:22.299 D/InterconnectBridge: sendToBand ok (84B)
+10-04 01:32:22.522 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:32:22.608 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:32:22.621 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 01:32:25.526 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:32:26.008 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:32:26.010 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 01:32:27.196 W/OneBotClient: WS failure: ConnectException: Failed to connect to ipv4.mysv.dpdns.org/112.74.85.74:12050
+10-04 01:32:27.197 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":true,"protocol":fa
+10-04 01:32:27.328 D/InterconnectBridge: sendToBand ok (84B)
+10-04 01:32:28.529 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:32:28.615 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:32:28.621 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 01:32:31.539 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:32:32.012 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:32:32.032 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 01:32:32.206 W/OneBotClient: WS failure: ConnectException: Failed to connect to ipv4.mysv.dpdns.org/112.74.85.74:12050
+10-04 01:32:32.209 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":true,"protocol":fa
+10-04 01:32:32.295 D/InterconnectBridge: sendToBand ok (84B)
+10-04 01:32:34.543 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:32:34.993 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:32:35.008 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 01:32:37.203 W/OneBotClient: WS failure: ConnectException: Failed to connect to ipv4.mysv.dpdns.org/112.74.85.74:12050
+10-04 01:32:37.205 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":true,"protocol":fa
+10-04 01:32:37.321 D/InterconnectBridge: sendToBand ok (84B)
+10-04 01:32:37.546 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:32:37.681 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:32:37.694 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 01:32:40.549 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:32:41.014 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:32:41.028 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 01:32:42.209 W/OneBotClient: WS failure: ConnectException: Failed to connect to ipv4.mysv.dpdns.org/112.74.85.74:12050
+10-04 01:32:42.211 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":true,"protocol":fa
+10-04 01:32:42.303 D/InterconnectBridge: sendToBand ok (84B)
+10-04 01:32:43.552 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:32:43.666 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:32:43.688 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 01:32:46.555 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:32:47.019 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:32:47.040 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 01:32:47.220 W/OneBotClient: WS failure: ConnectException: Failed to connect to ipv4.mysv.dpdns.org/112.74.85.74:12050
+10-04 01:32:47.222 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":true,"protocol":fa
+10-04 01:32:47.353 D/InterconnectBridge: sendToBand ok (84B)
+10-04 01:32:49.559 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:32:49.693 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:32:49.708 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 01:32:52.217 W/OneBotClient: WS failure: ConnectException: Failed to connect to ipv4.mysv.dpdns.org/112.74.85.74:12050
+10-04 01:32:52.217 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":true,"protocol":fa
+10-04 01:32:52.508 D/InterconnectBridge: sendToBand ok (84B)
+10-04 01:32:52.563 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 01:32:52.692 D/InterconnectBridge: sendToBand ok (23B)
+10-04 01:32:52.705 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+
+===== BandQQ 2.19.0(vc60) 会话开始 10-04 08:11:30.542 =====
+10-04 08:11:30.535 I/FileLogger: 设备: Xiaomi 22041216C (xaga)
+10-04 08:11:30.541 I/FileLogger: 系统: Android 15 (SDK 35) HyperOS OS2.0
+10-04 08:11:30.542 I/FileLogger: 应用: BandQQ 2.19.0(vc60)  日志目录: /storage/emulated/0/Android/data/io.github.gsjsjzhznsz.bandqq/files/logs
+10-04 08:11:30.545 W/FileLogger: 小米运动健康: 未安装（互联通道必需，未安装则发现不了手环节点）
+10-04 08:11:30.551 I/FileLogger: 权限-蓝牙连接: 已授权
+10-04 08:11:30.551 I/FileLogger: 权限-通知: 已授权
+10-04 08:11:30.552 I/FileLogger: 电池优化白名单: 未加入
+10-04 08:11:30.552 I/FileLogger: 无障碍保活: 未开启
+10-04 08:11:30.552 I/FileLogger: 提示: 运动健康「设备授权管理」条目在 APP 发起 DEVICE_MANAGER 授权请求后才生成，开启同步服务并连接一次即会触发
+
+===== BandQQ 2.19.0(vc60) 会话开始 10-04 08:33:27.993 =====
+10-04 08:33:27.985 I/FileLogger: 设备: Xiaomi 22041216C (xaga)
+10-04 08:33:27.986 I/FileLogger: 系统: Android 15 (SDK 35) HyperOS OS2.0
+10-04 08:33:27.986 I/FileLogger: 应用: BandQQ 2.19.0(vc60)  日志目录: /storage/emulated/0/Android/data/io.github.gsjsjzhznsz.bandqq/files/logs
+10-04 08:33:27.988 W/FileLogger: 小米运动健康: 未安装（互联通道必需，未安装则发现不了手环节点）
+10-04 08:33:27.989 I/FileLogger: 权限-蓝牙连接: 已授权
+10-04 08:33:27.991 I/FileLogger: 权限-通知: 已授权
+10-04 08:33:27.997 I/FileLogger: 电池优化白名单: 未加入
+10-04 08:33:27.998 I/FileLogger: 无障碍保活: 未开启
+10-04 08:33:27.998 I/FileLogger: 提示: 运动健康「设备授权管理」条目在 APP 发起 DEVICE_MANAGER 授权请求后才生成，开启同步服务并连接一次即会触发
+10-04 08:33:29.539 I/SyncService: BandQQ 同步器 v2.19.0 (vc60) 启动
+10-04 08:33:29.571 W/InterconnectBridge: reconnect: no node, retry connect (no launch)
+10-04 08:33:29.571 E/InterconnectBridge: connect: not initialized
+10-04 08:33:29.666 D/InterconnectBridge: connect: found device REDMI Watch 5 eSIM   
+10-04 08:33:29.693 I/InterconnectBridge: auth: DEVICE_MANAGER granted[0]=true
+10-04 08:33:29.767 D/InterconnectBridge: openApp: 已在手环上拉起应用
+10-04 08:33:29.770 D/InterconnectBridge: registerListener ok
+10-04 08:33:29.771 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 08:33:29.816 D/InterconnectBridge: sendToBand ok (23B)
+10-04 08:33:30.323 D/InterconnectBridge: onBandMessage: {"type":"band_state","state":"connected","seq":0}
+10-04 08:33:30.325 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":true,"protocol":fa
+10-04 08:33:30.325 D/InterconnectBridge: sendToBand frame bytes=169: {"type":"visible_contacts","seq":0,"contacts":[{"id":"1124665323","type":"group"
+10-04 08:33:30.326 D/MessageBroker: pushVisibleContacts -> 1 contacts
+10-04 08:33:30.326 D/InterconnectBridge: sendToBand frame bytes=279: {"type":"quick_replies","seq":0,"list":[{"label":"收到","content":"收到"},{"label":"
+10-04 08:33:30.326 D/MessageBroker: pushQuickReplies -> 6 items
+10-04 08:33:30.326 D/InterconnectBridge: sendToBand frame bytes=87: {"type":"settings_state","seq":0,"emoji_native":true,"msg_vibrate":true,"mute_li
+10-04 08:33:30.326 D/MessageBroker: pushSettingsState -> emoji=true vibrate=true
+10-04 08:33:30.326 D/MessageBroker: pushDirectConfig skipped: httpUrl not reachable from band (default/blank)
+10-04 08:33:30.327 D/InterconnectBridge: onBandMessage: {"type":"get_connect_state","seq":1}
+10-04 08:33:30.328 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":true,"protocol":fa
+10-04 08:33:30.335 D/InterconnectBridge: onBandMessage: {"type":"get_visible_contacts","seq":2}
+10-04 08:33:30.336 D/MessageBroker: get_visible_contacts -> 1 contacts
+10-04 08:33:30.336 D/InterconnectBridge: sendToBand frame bytes=169: {"type":"visible_contacts","seq":2,"contacts":[{"id":"1124665323","type":"group"
+10-04 08:33:30.343 D/InterconnectBridge: onBandMessage: {"type":"get_conversations","seq":3}
+10-04 08:33:30.345 D/InterconnectBridge: sendToBand frame bytes=2480: {"type":"conversation_list","seq":3,"list":[{"id":"1124665323","type":"group","n
+10-04 08:33:30.348 D/InterconnectBridge: onBandMessage: {"type":"get_settings","seq":4}
+10-04 08:33:30.349 D/InterconnectBridge: sendToBand frame bytes=87: {"type":"settings_state","seq":0,"emoji_native":true,"msg_vibrate":true,"mute_li
+10-04 08:33:30.360 D/InterconnectBridge: sendToBand ok (84B)
+10-04 08:33:30.360 D/InterconnectBridge: sendToBand ok (87B)
+10-04 08:33:30.360 D/InterconnectBridge: sendToBand ok (279B)
+10-04 08:33:30.370 D/InterconnectBridge: sendToBand ok (169B)
+10-04 08:33:30.370 D/InterconnectBridge: sendToBand ok (169B)
+10-04 08:33:30.370 D/InterconnectBridge: sendToBand ok (84B)
+10-04 08:33:30.409 D/InterconnectBridge: sendToBand ok (2480B)
+10-04 08:33:30.414 D/InterconnectBridge: onBandMessage: {"type":"get_conversations","seq":10215}
+10-04 08:33:30.414 D/InterconnectBridge: sendToBand ok (87B)
+10-04 08:33:30.416 D/InterconnectBridge: sendToBand frame bytes=2484: {"type":"conversation_list","seq":10215,"list":[{"id":"1124665323","type":"group
+10-04 08:33:30.470 D/InterconnectBridge: sendToBand ok (2484B)
+10-04 08:33:30.967 W/OneBotClient: WS failure: ConnectException: Failed to connect to ipv4.mysv.dpdns.org/112.74.85.74:12050
+10-04 08:33:30.968 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":true,"protocol":fa
+10-04 08:33:31.048 D/InterconnectBridge: sendToBand ok (84B)
+10-04 08:33:32.771 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 08:33:32.926 D/InterconnectBridge: sendToBand ok (23B)
+
+===== BandQQ 2.20.0(vc61) 会话开始 10-04 10:25:11.252 =====
+10-04 10:25:11.246 I/FileLogger: 设备: Xiaomi 22041216C (xaga)
+10-04 10:25:11.249 I/FileLogger: 系统: Android 15 (SDK 35) HyperOS OS2.0
+10-04 10:25:11.250 I/FileLogger: 应用: BandQQ 2.20.0(vc61)  日志目录: /storage/emulated/0/Android/data/io.github.gsjsjzhznsz.bandqq/files/logs
+10-04 10:25:11.251 W/FileLogger: 小米运动健康: 未安装（互联通道必需，未安装则发现不了手环节点）
+10-04 10:25:11.254 I/FileLogger: 权限-蓝牙连接: 已授权
+10-04 10:25:11.257 I/FileLogger: 权限-通知: 已授权
+10-04 10:25:11.260 I/FileLogger: 电池优化白名单: 未加入
+10-04 10:25:11.263 I/FileLogger: 无障碍保活: 未开启
+10-04 10:25:11.263 I/FileLogger: 提示: 运动健康「设备授权管理」条目在 APP 发起 DEVICE_MANAGER 授权请求后才生成，开启同步服务并连接一次即会触发
+
+===== BandQQ 2.20.0(vc61) 会话开始 10-04 10:33:14.883 =====
+10-04 10:33:14.880 I/FileLogger: 设备: Xiaomi 22041216C (xaga)
+10-04 10:33:14.882 I/FileLogger: 系统: Android 15 (SDK 35) HyperOS OS2.0
+10-04 10:33:14.882 I/FileLogger: 应用: BandQQ 2.20.0(vc61)  日志目录: /storage/emulated/0/Android/data/io.github.gsjsjzhznsz.bandqq/files/logs
+10-04 10:33:14.882 W/FileLogger: 小米运动健康: 未安装（互联通道必需，未安装则发现不了手环节点）
+10-04 10:33:14.883 I/FileLogger: 权限-蓝牙连接: 已授权
+10-04 10:33:14.883 I/FileLogger: 权限-通知: 已授权
+10-04 10:33:14.884 I/FileLogger: 电池优化白名单: 未加入
+10-04 10:33:14.885 I/FileLogger: 无障碍保活: 未开启
+10-04 10:33:14.885 I/FileLogger: 提示: 运动健康「设备授权管理」条目在 APP 发起 DEVICE_MANAGER 授权请求后才生成，开启同步服务并连接一次即会触发
+
+===== BandQQ 2.21.0(vc62) 会话开始 10-04 12:36:41.865 =====
+10-04 12:36:41.859 I/FileLogger: 设备: Xiaomi 22041216C (xaga)
+10-04 12:36:41.864 I/FileLogger: 系统: Android 15 (SDK 35) HyperOS OS2.0
+10-04 12:36:41.864 I/FileLogger: 应用: BandQQ 2.21.0(vc62)  日志目录: /storage/emulated/0/Android/data/io.github.gsjsjzhznsz.bandqq/files/logs
+10-04 12:36:41.873 W/FileLogger: 小米运动健康: 未安装（互联通道必需，未安装则发现不了手环节点）
+10-04 12:36:41.873 I/FileLogger: 权限-蓝牙连接: 已授权
+10-04 12:36:41.874 I/FileLogger: 权限-通知: 已授权
+10-04 12:36:41.874 I/FileLogger: 电池优化白名单: 未加入
+10-04 12:36:41.875 I/FileLogger: 无障碍保活: 未开启
+10-04 12:36:41.875 I/FileLogger: 提示: 运动健康「设备授权管理」条目在 APP 发起 DEVICE_MANAGER 授权请求后才生成，开启同步服务并连接一次即会触发
+
+===== BandQQ 2.22.0(vc63) 会话开始 10-04 15:21:48.618 =====
+10-04 15:21:48.617 I/FileLogger: 设备: Xiaomi 22041216C (xaga)
+10-04 15:21:48.617 I/FileLogger: 系统: Android 15 (SDK 35) HyperOS OS2.0
+10-04 15:21:48.618 I/FileLogger: 应用: BandQQ 2.22.0(vc63)  日志目录: /storage/emulated/0/Android/data/io.github.gsjsjzhznsz.bandqq/files/logs
+10-04 15:21:48.618 W/FileLogger: 小米运动健康: 未安装（互联通道必需，未安装则发现不了手环节点）
+10-04 15:21:48.618 I/FileLogger: 权限-蓝牙连接: 已授权
+10-04 15:21:48.618 I/FileLogger: 权限-通知: 已授权
+10-04 15:21:48.619 I/FileLogger: 电池优化白名单: 未加入
+10-04 15:21:48.623 I/FileLogger: 无障碍保活: 未开启
+10-04 15:21:48.623 I/FileLogger: 提示: 运动健康「设备授权管理」条目在 APP 发起 DEVICE_MANAGER 授权请求后才生成，开启同步服务并连接一次即会触发
+
+===== BandQQ 2.22.0(vc63) 会话开始 10-04 15:23:40.427 =====
+10-04 15:23:40.424 I/FileLogger: 设备: Xiaomi 22041216C (xaga)
+10-04 15:23:40.425 I/FileLogger: 系统: Android 15 (SDK 35) HyperOS OS2.0
+10-04 15:23:40.425 I/FileLogger: 应用: BandQQ 2.22.0(vc63)  日志目录: /storage/emulated/0/Android/data/io.github.gsjsjzhznsz.bandqq/files/logs
+10-04 15:23:40.426 W/FileLogger: 小米运动健康: 未安装（互联通道必需，未安装则发现不了手环节点）
+10-04 15:23:40.427 I/FileLogger: 权限-蓝牙连接: 已授权
+10-04 15:23:40.429 I/FileLogger: 权限-通知: 已授权
+10-04 15:23:40.429 I/FileLogger: 电池优化白名单: 未加入
+10-04 15:23:40.430 I/FileLogger: 无障碍保活: 未开启
+10-04 15:23:40.430 I/FileLogger: 提示: 运动健康「设备授权管理」条目在 APP 发起 DEVICE_MANAGER 授权请求后才生成，开启同步服务并连接一次即会触发
+
+===== BandQQ 2.23.0(vc64) 会话开始 10-04 18:35:28.875 =====
+10-04 18:35:28.864 I/FileLogger: 设备: Xiaomi 22041216C (xaga)
+10-04 18:35:28.869 I/FileLogger: 系统: Android 15 (SDK 35) HyperOS OS2.0
+10-04 18:35:28.869 I/FileLogger: 应用: BandQQ 2.23.0(vc64)  日志目录: /storage/emulated/0/Android/data/io.github.gsjsjzhznsz.bandqq/files/logs
+10-04 18:35:28.870 W/FileLogger: 小米运动健康: 未安装（互联通道必需，未安装则发现不了手环节点）
+10-04 18:35:28.871 I/FileLogger: 权限-蓝牙连接: 已授权
+10-04 18:35:28.871 I/FileLogger: 权限-通知: 已授权
+10-04 18:35:28.872 I/FileLogger: 电池优化白名单: 未加入
+10-04 18:35:28.873 I/FileLogger: 无障碍保活: 未开启
+10-04 18:35:28.873 I/FileLogger: 提示: 运动健康「设备授权管理」条目在 APP 发起 DEVICE_MANAGER 授权请求后才生成，开启同步服务并连接一次即会触发
+10-04 18:40:20.507 I/SyncService: BandQQ 同步器 v2.23.0 (vc64) 启动
+10-04 18:40:20.558 W/InterconnectBridge: reconnect: no node, retry connect (no launch)
+10-04 18:40:20.559 E/InterconnectBridge: connect: not initialized
+10-04 18:40:20.643 D/InterconnectBridge: connect: found device REDMI Watch 5 eSIM   
+10-04 18:40:20.664 D/OneBotClient: WS onOpen, connected=true
+10-04 18:40:20.666 D/OneBotClient: WS identify sent (echo=bandqq-2.23.0)
+10-04 18:40:20.669 I/InterconnectBridge: auth: DEVICE_MANAGER granted[0]=true
+10-04 18:40:20.673 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":false,"protocol":t
+10-04 18:40:20.703 D/OneBotClient: WS recv: {"time":1791110420,"self_id":2308534727,"post_type":"meta_event","meta_event_type":"lifecycle","sub_type":"connect"}
+10-04 18:40:20.705 D/OneBotClient: WS non-message frame (meta/action response)
+10-04 18:40:20.732 D/OneBotClient: WS recv: {"status":"ok","retcode":0,"data":{"app_name":"NapCat.Onebot","protocol_version":"v11","app_version":"4.18.28"},"message":"","wording":"","echo":"bandqq-2.23.0","stream":"normal-action"}
+10-04 18:40:20.734 D/OneBotClient: WS non-message frame (meta/action response)
+10-04 18:40:20.749 D/InterconnectBridge: openApp: 已在手环上拉起应用
+10-04 18:40:20.766 D/InterconnectBridge: registerListener ok
+10-04 18:40:20.767 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 18:40:20.786 D/InterconnectBridge: sendToBand ok (84B)
+10-04 18:40:20.810 D/OneBotClient: api get_group_list http ok
+10-04 18:40:20.821 D/InterconnectBridge: sendToBand ok (23B)
+10-04 18:40:21.355 D/InterconnectBridge: onBandMessage: {"type":"band_state","state":"connected","seq":0}
+10-04 18:40:21.358 D/InterconnectBridge: sendToBand frame bytes=80: {"type":"connect_state","seq":0,"state":"connected","band":true,"protocol":true}
+10-04 18:40:21.376 D/InterconnectBridge: sendToBand frame bytes=169: {"type":"visible_contacts","seq":0,"contacts":[{"id":"1124665323","type":"group"
+10-04 18:40:21.376 D/MessageBroker: pushVisibleContacts -> 1 contacts
+10-04 18:40:21.412 D/InterconnectBridge: sendToBand frame bytes=279: {"type":"quick_replies","seq":0,"list":[{"label":"收到","content":"收到"},{"label":"
+10-04 18:40:21.416 D/MessageBroker: pushQuickReplies -> 6 items
+10-04 18:40:21.417 D/InterconnectBridge: sendToBand frame bytes=87: {"type":"settings_state","seq":0,"emoji_native":true,"msg_vibrate":true,"mute_li
+10-04 18:40:21.421 D/MessageBroker: pushSettingsState -> emoji=true vibrate=true
+10-04 18:40:21.423 D/MessageBroker: pushDirectConfig skipped: httpUrl not reachable from band (default/blank)
+10-04 18:40:21.426 D/InterconnectBridge: onBandMessage: {"type":"get_connect_state","seq":1}
+10-04 18:40:21.426 D/InterconnectBridge: sendToBand frame bytes=80: {"type":"connect_state","seq":0,"state":"connected","band":true,"protocol":true}
+10-04 18:40:21.426 D/InterconnectBridge: onBandMessage: {"type":"get_visible_contacts","seq":2}
+10-04 18:40:21.427 D/MessageBroker: get_visible_contacts -> 1 contacts
+10-04 18:40:21.427 D/InterconnectBridge: sendToBand frame bytes=169: {"type":"visible_contacts","seq":2,"contacts":[{"id":"1124665323","type":"group"
+10-04 18:40:21.427 D/InterconnectBridge: onBandMessage: {"type":"get_conversations","seq":3}
+10-04 18:40:21.429 D/InterconnectBridge: sendToBand frame bytes=2458: {"type":"conversation_list","seq":3,"list":[{"id":"1124665323","type":"group","n
+10-04 18:40:21.430 D/InterconnectBridge: onBandMessage: {"type":"get_settings","seq":4}
+10-04 18:40:21.431 D/InterconnectBridge: sendToBand frame bytes=87: {"type":"settings_state","seq":0,"emoji_native":true,"msg_vibrate":true,"mute_li
+10-04 18:40:21.440 D/InterconnectBridge: onBandMessage: {"type":"get_conversations","seq":21351}
+10-04 18:40:21.470 D/InterconnectBridge: sendToBand frame bytes=2462: {"type":"conversation_list","seq":21351,"list":[{"id":"1124665323","type":"group
+10-04 18:40:21.473 D/InterconnectBridge: sendToBand ok (80B)
+10-04 18:40:21.479 D/InterconnectBridge: sendToBand ok (279B)
+10-04 18:40:21.495 D/InterconnectBridge: sendToBand ok (87B)
+10-04 18:40:21.496 D/InterconnectBridge: sendToBand ok (169B)
+10-04 18:40:21.519 D/InterconnectBridge: sendToBand ok (80B)
+10-04 18:40:21.535 D/InterconnectBridge: sendToBand ok (2458B)
+10-04 18:40:21.535 D/InterconnectBridge: sendToBand ok (87B)
+10-04 18:40:21.536 D/InterconnectBridge: sendToBand ok (169B)
+10-04 18:40:21.552 D/InterconnectBridge: sendToBand ok (2462B)
+10-04 18:40:22.390 D/OneBotClient: api get_friend_list http ok
+10-04 18:40:23.768 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 18:40:23.804 D/InterconnectBridge: sendToBand ok (23B)
+10-04 18:40:24.041 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 18:40:24.536 D/InterconnectBridge: onBandMessage: {"type":"get_connect_state","seq":3}
+10-04 18:40:24.536 D/InterconnectBridge: sendToBand frame bytes=80: {"type":"connect_state","seq":0,"state":"connected","band":true,"protocol":true}
+10-04 18:40:24.550 D/InterconnectBridge: onBandMessage: {"type":"get_visible_contacts","seq":4}
+10-04 18:40:24.550 D/MessageBroker: get_visible_contacts -> 1 contacts
+10-04 18:40:24.550 D/InterconnectBridge: sendToBand frame bytes=169: {"type":"visible_contacts","seq":4,"contacts":[{"id":"1124665323","type":"group"
+10-04 18:40:24.561 D/InterconnectBridge: onBandMessage: {"type":"get_conversations","seq":24403}
+10-04 18:40:24.565 D/InterconnectBridge: sendToBand frame bytes=2462: {"type":"conversation_list","seq":24403,"list":[{"id":"1124665323","type":"group
+10-04 18:40:24.615 D/InterconnectBridge: sendToBand ok (80B)
+10-04 18:40:24.616 D/InterconnectBridge: sendToBand ok (169B)
+10-04 18:40:24.662 D/InterconnectBridge: sendToBand ok (2462B)
+10-04 18:40:25.860 D/InterconnectBridge: onBandMessage: {"type":"get_history","seq":1,"target_id":"1124665323","limit":30}
+10-04 18:40:25.862 D/InterconnectBridge: sendToBand frame bytes=4670: {"type":"history_list","seq":1,"target_id":"1124665323","before":0,"has_more":tr
+10-04 18:40:25.868 D/InterconnectBridge: onBandMessage: {"type":"read_chat","seq":2,"target_id":"1124665323"}
+10-04 18:40:25.870 D/InterconnectBridge: sendToBand frame bytes=2458: {"type":"conversation_list","seq":2,"list":[{"id":"1124665323","type":"group","n
+10-04 18:40:25.945 D/InterconnectBridge: sendToBand ok (4670B)
+10-04 18:40:25.980 D/InterconnectBridge: sendToBand ok (2458B)
+10-04 18:40:26.770 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 18:40:26.834 D/InterconnectBridge: sendToBand ok (23B)
+10-04 18:40:26.995 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 18:40:29.774 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 18:40:30.162 D/InterconnectBridge: sendToBand ok (23B)
+10-04 18:40:30.191 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 18:40:32.775 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 18:40:33.173 D/InterconnectBridge: sendToBand ok (23B)
+10-04 18:40:33.184 D/InterconnectBridge: onBandMessage: {"type":"send_message","seq":1,"message_type":"group","target_id":"1124665323","content":"666","time":1791110432916}
+10-04 18:40:33.221 D/OneBotClient: send ok(200) http://127.0.0.1:3000/send_group_msg -> {"status":"failed","retcode":200,"data":null,"message":"TypeError: Cannot read properties of undefined (reading 'type')\n    at file:///root/napcat/napcat.mjs:74013:28\n    at Array.filter (<anonymous>)\n    at aye (file:///root/napcat/napcat.mjs:74013:12)\n    at Oye.check (file:///root/napcat/napcat.mjs:74023:34)\n    at Oye.check (file:///root/napcat/napcat.mjs:74927:62)\n    at Oye.handle (file:///root/napcat/napcat.mjs:40476:26)\n    at G_.httpApiRequest (file:///root/napcat/napcat.mjs:64414:27)\n    at G_.handleRequest (file:///root/napcat/napcat.mjs:64439:10)\n    at file:///root/napcat/napcat.mjs:64326:18\n    at Layer.handleRequest (/root/napcat/node_modules/router/lib/layer.js:152:17)","wording":"TypeError: Cannot read properties of undefined (reading 'type')\n    at file:///root/napcat/napcat.mjs:74013:28\n    at Array.filter (<anonymous>)\n    at aye (file:///root/napcat/napcat.mjs:74013:12)\n    at Oye.check (file:///root/napcat/napcat.mjs:74023:34)\n    at Oye.check (file:///root/napcat/napcat.mjs:74927:62)\n    at Oye.handle (file:///root/napcat/napcat.mjs:40476:26)\n    at G_.httpApiRequest (file:///root/napcat/napcat.mjs:64414:27)\n    at G_.handleRequest (file:///root/napcat/napcat.mjs:64439:10)\n    at file:///root/napcat/napcat.mjs:64326:18\n    at Layer.handleRequest (/root/napcat/node_modules/router/lib/layer.js:152:17)","echo":"vwiq6qqfuwk","stream":"normal-action"}
+10-04 18:40:33.242 D/InterconnectBridge: sendToBand frame bytes=249: {"type":"push_message","seq":0,"message_type":"group","target_id":"1124665323","
+10-04 18:40:33.315 D/InterconnectBridge: sendToBand ok (249B)
+10-04 18:40:33.918 D/InterconnectBridge: onBandMessage: {"type":"read_chat","seq":3,"target_id":"1124665323"}
+10-04 18:40:33.932 D/InterconnectBridge: sendToBand frame bytes=2453: {"type":"conversation_list","seq":3,"list":[{"id":"1124665323","type":"group","n
+10-04 18:40:33.935 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 18:40:34.009 D/InterconnectBridge: sendToBand ok (2453B)
+10-04 18:40:35.779 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 18:40:35.863 D/InterconnectBridge: sendToBand ok (23B)
+10-04 18:40:35.873 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 18:40:36.706 D/InterconnectBridge: onBandMessage: {"type":"read_chat","seq":4,"target_id":"1124665323"}
+10-04 18:40:36.717 D/InterconnectBridge: sendToBand frame bytes=2453: {"type":"conversation_list","seq":4,"list":[{"id":"1124665323","type":"group","n
+10-04 18:40:36.771 D/InterconnectBridge: sendToBand ok (2453B)
+10-04 18:40:38.783 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 18:40:38.858 D/InterconnectBridge: sendToBand ok (23B)
+10-04 18:40:38.884 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 18:40:40.680 W/OneBotClient: WS failure: EOFException: null
+10-04 18:40:40.682 D/InterconnectBridge: sendToBand frame bytes=84: {"type":"connect_state","seq":0,"state":"disconnected","band":true,"protocol":fa
+10-04 18:40:40.768 D/InterconnectBridge: sendToBand ok (84B)
+10-04 18:40:41.649 D/OneBotClient: WS onOpen, connected=true
+10-04 18:40:41.650 D/OneBotClient: WS identify sent (echo=bandqq-2.23.0)
+10-04 18:40:41.650 D/InterconnectBridge: sendToBand frame bytes=80: {"type":"connect_state","seq":0,"state":"connected","band":true,"protocol":true}
+10-04 18:40:41.652 D/OneBotClient: WS recv: {"time":1791110441,"self_id":2308534727,"post_type":"meta_event","meta_event_type":"lifecycle","sub_type":"connect"}
+10-04 18:40:41.652 D/OneBotClient: WS non-message frame (meta/action response)
+10-04 18:40:41.652 D/OneBotClient: WS recv: {"status":"ok","retcode":0,"data":{"app_name":"NapCat.Onebot","protocol_version":"v11","app_version":"4.18.28"},"message":"","wording":"","echo":"bandqq-2.23.0","stream":"normal-action"}
+10-04 18:40:41.653 D/OneBotClient: WS non-message frame (meta/action response)
+10-04 18:40:41.702 D/InterconnectBridge: sendToBand ok (80B)
+10-04 18:40:41.785 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 18:40:41.830 D/InterconnectBridge: sendToBand ok (23B)
+10-04 18:40:41.860 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 18:40:44.788 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 18:40:45.182 D/InterconnectBridge: sendToBand ok (23B)
+10-04 18:40:45.210 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 18:40:45.752 D/InterconnectBridge: onBandMessage: {"type":"send_message","seq":5,"message_type":"group","target_id":"1124665323","content":"收到","time":1791110445407}
+10-04 18:40:45.783 D/OneBotClient: send ok(200) http://127.0.0.1:3000/send_group_msg -> {"status":"failed","retcode":200,"data":null,"message":"TypeError: Cannot read properties of undefined (reading 'type')\n    at file:///root/napcat/napcat.mjs:74013:28\n    at Array.filter (<anonymous>)\n    at aye (file:///root/napcat/napcat.mjs:74013:12)\n    at Oye.check (file:///root/napcat/napcat.mjs:74023:34)\n    at Oye.check (file:///root/napcat/napcat.mjs:74927:62)\n    at Oye.handle (file:///root/napcat/napcat.mjs:40476:26)\n    at G_.httpApiRequest (file:///root/napcat/napcat.mjs:64414:27)\n    at G_.handleRequest (file:///root/napcat/napcat.mjs:64439:10)\n    at file:///root/napcat/napcat.mjs:64326:18\n    at Layer.handleRequest (/root/napcat/node_modules/router/lib/layer.js:152:17)","wording":"TypeError: Cannot read properties of undefined (reading 'type')\n    at file:///root/napcat/napcat.mjs:74013:28\n    at Array.filter (<anonymous>)\n    at aye (file:///root/napcat/napcat.mjs:74013:12)\n    at Oye.check (file:///root/napcat/napcat.mjs:74023:34)\n    at Oye.check (file:///root/napcat/napcat.mjs:74927:62)\n    at Oye.handle (file:///root/napcat/napcat.mjs:40476:26)\n    at G_.httpApiRequest (file:///root/napcat/napcat.mjs:64414:27)\n    at G_.handleRequest (file:///root/napcat/napcat.mjs:64439:10)\n    at file:///root/napcat/napcat.mjs:64326:18\n    at Layer.handleRequest (/root/napcat/node_modules/router/lib/layer.js:152:17)","echo":"9tqlzsadbi","stream":"normal-action"}
+10-04 18:40:45.797 D/InterconnectBridge: sendToBand frame bytes=252: {"type":"push_message","seq":0,"message_type":"group","target_id":"1124665323","
+10-04 18:40:45.863 D/InterconnectBridge: sendToBand ok (252B)
+10-04 18:40:47.790 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 18:40:47.860 D/InterconnectBridge: sendToBand ok (23B)
+10-04 18:40:47.868 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 18:40:50.793 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 18:40:51.179 D/InterconnectBridge: sendToBand ok (23B)
+10-04 18:40:51.198 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 18:40:51.751 D/InterconnectBridge: onBandMessage: {"type":"send_message","seq":6,"message_type":"group","target_id":"1124665323","content":"谢谢","time":1791110451381}
+10-04 18:40:51.791 D/OneBotClient: send ok(200) http://127.0.0.1:3000/send_group_msg -> {"status":"failed","retcode":200,"data":null,"message":"TypeError: Cannot read properties of undefined (reading 'type')\n    at file:///root/napcat/napcat.mjs:74013:28\n    at Array.filter (<anonymous>)\n    at aye (file:///root/napcat/napcat.mjs:74013:12)\n    at Oye.check (file:///root/napcat/napcat.mjs:74023:34)\n    at Oye.check (file:///root/napcat/napcat.mjs:74927:62)\n    at Oye.handle (file:///root/napcat/napcat.mjs:40476:26)\n    at G_.httpApiRequest (file:///root/napcat/napcat.mjs:64414:27)\n    at G_.handleRequest (file:///root/napcat/napcat.mjs:64439:10)\n    at file:///root/napcat/napcat.mjs:64326:18\n    at Layer.handleRequest (/root/napcat/node_modules/router/lib/layer.js:152:17)","wording":"TypeError: Cannot read properties of undefined (reading 'type')\n    at file:///root/napcat/napcat.mjs:74013:28\n    at Array.filter (<anonymous>)\n    at aye (file:///root/napcat/napcat.mjs:74013:12)\n    at Oye.check (file:///root/napcat/napcat.mjs:74023:34)\n    at Oye.check (file:///root/napcat/napcat.mjs:74927:62)\n    at Oye.handle (file:///root/napcat/napcat.mjs:40476:26)\n    at G_.httpApiRequest (file:///root/napcat/napcat.mjs:64414:27)\n    at G_.handleRequest (file:///root/napcat/napcat.mjs:64439:10)\n    at file:///root/napcat/napcat.mjs:64326:18\n    at Layer.handleRequest (/root/napcat/node_modules/router/lib/layer.js:152:17)","echo":"qurbv04p6b","stream":"normal-action"}
+10-04 18:40:51.817 D/InterconnectBridge: sendToBand frame bytes=252: {"type":"push_message","seq":0,"message_type":"group","target_id":"1124665323","
+10-04 18:40:51.886 D/InterconnectBridge: sendToBand ok (252B)
+10-04 18:40:53.795 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 18:40:53.863 D/InterconnectBridge: sendToBand ok (23B)
+10-04 18:40:53.878 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 18:40:56.796 D/InterconnectBridge: sendToBand frame bytes=23: {"type":"ping","seq":0}
+10-04 18:40:57.159 D/InterconnectBridge: sendToBand ok (23B)
+10-04 18:40:57.186 D/InterconnectBridge: onBandMessage: {"type":"pong","seq":0}
+10-04 18:40:57.749 D/InterconnectBridge: onBandMessage: {"type":"get_connect_state","seq":5}
+10-04 18:40:57.749 D/InterconnectBridge: sendToBand frame bytes=80: {"type":"connect_state","seq":0,"state":"connected","band":true,"protocol":true}
+10-04 18:40:57.754 D/InterconnectBridge: onBandMessage: {"type":"get_visible_contacts","seq":6}
+10-04 18:40:57.754 D/MessageBroker: get_visible_contacts -> 1 contacts
+10-04 18:40:57.755 D/InterconnectBridge: sendToBand frame bytes=169: {"type":"visible_contacts","seq":6,"contacts":[{"id":"1124665323","type":"group"
+10-04 18:40:57.819 D/InterconnectBridge: sendToBand ok (80B)
+10-04 18:40:57.821 D/InterconnectBridge: sendToBand ok (169B)
+10-04 18:40:58.584 D/InterconnectBridge: onBandMessage: {"type":"get_conversations","seq":57692}
+10-04 18:40:58.589 D/InterconnectBridge: sendToBand frame bytes=2463: {"type":"conversation_list","seq":57692,"list":[{"id":"1124665323","type":"group
+10-04 18:40:58.659 D/InterconnectBridge: sendToBand ok (2463B)
+10-04 18:40:59.049 E/InterconnectBridge: sendToBand skipped: no connected node. frame={"type":"connect_state","seq":0,"state":"disconnected","band":false,"protocol":f
