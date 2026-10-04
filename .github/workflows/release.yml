@@ -1,0 +1,106 @@
+# BandQQ Release —— 打 tag（v*）自动构建正式包并发 GitHub Release
+#
+# 触发：
+#   git tag v2.25.1 && git push origin v2.25.1   → 构建并发版
+#   手动 workflow_dispatch                        → 只出包存 artifact，不发 Release
+#
+# 版本校验：tag 必须与 android-sync/app/build.gradle.kts 的 versionName 一致，防止发错版本。
+# 产物（与历史 Release 资产一致）：
+#   bandqq-<版本>-bundled.apk      胖包（内嵌引擎）
+#   bandqq-<版本>-companion.apk    瘦包（伴侣版）
+#   bandqq-{band,bandpro,xiaomis,redmiwatch}-<版本>.rpk  四分支快应用包
+
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  build-release:
+    name: 构建正式包
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: tag 与 versionName 一致性校验
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          V=$(grep -oP 'versionName\s*=\s*"\K[0-9.]+' android-sync/app/build.gradle.kts | head -1)
+          echo "versionName=$V, tag=${GITHUB_REF}"
+          if [ "${GITHUB_REF}" != "refs/tags/v${V}" ]; then
+            echo "::error::tag ${GITHUB_REF} 与 versionName v${V} 不一致，请先对齐 app/build.gradle.kts"
+            exit 1
+          fi
+
+      # ---------- APK ----------
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      # 同 ci.yml：平台 37 目录陷阱修复
+      - name: 安装 SDK 组件并修复 android-37 目录名
+        run: |
+          yes | sdkmanager --licenses >/dev/null 2>&1 || true
+          sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" >/dev/null
+          P="$ANDROID_HOME/platforms"
+          if [ -d "$P/android-37.0" ] && [ ! -d "$P/android-37" ]; then
+            mv "$P/android-37.0" "$P/android-37"
+            sed -i 's|path="platforms;android-37.0"|path="platforms;android-37"|' "$P/android-37/package.xml"
+            sed -i 's|AndroidVersion.ApiLevel=37.0|AndroidVersion.ApiLevel=37|' "$P/android-37/source.properties"
+          fi
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.13"
+
+      - name: 单元测试 + 双 flavor Release 出包
+        working-directory: android-sync
+        run: gradle --no-daemon --max-workers=2 test assembleBundledRelease assembleCompanionRelease
+
+      # ---------- rpk ----------
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: band-qq/package-lock.json
+
+      - name: 四分支 rpk 打包
+        working-directory: band-qq
+        run: |
+          npm ci
+          node tools/branch-release.js
+
+      # ---------- 发布 ----------
+      - name: 收集产物
+        run: |
+          mkdir -p release-assets
+          find android-sync/app/build/outputs/apk -name "*.apk" -exec cp {} release-assets/ \;
+          cp band-qq/dist-branch/*.rpk release-assets/
+          ls -la release-assets/
+
+      - name: 上传构建产物（artifact 存档）
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandqq-release-assets
+          path: release-assets/*
+          retention-days: 30
+          if-no-files-found: error
+
+      - name: 发布 GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: release-assets/*
+          generate_release_notes: true

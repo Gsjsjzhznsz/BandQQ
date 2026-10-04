@@ -305,3 +305,20 @@ Work Log:
 Stage Summary:
 - 产物：bandqq-{2.24.0-bundled,2.24.0-companion}.apk + bandqq-{band,bandpro,xiaomis,redmiwatch}-2.24.0.rpk
 - 待用户回归：①手环发消息（v2.24 应真成功；失败会 toast 协议端真实原因）②NapCat 启动后状态卡：进度到 100% 显示"启动完成/运行中"+「● 手环直连」行随 QQ 扫码登录变主色 ③主页实时日志应出现 [NAPCAT] 前缀行（QQ 登录/WS 监听动态）④AstrBot 标签页「一键填入本机 NapCat 地址并保存」点击后立即重连（无需重启 App）⑤长按消息撤回成功后手环聊天页原位灰显
+
+---
+Task ID: 34
+Agent: Super Z (main)
+Task: GitHub Actions CI 补齐 —— 用户指出「哪里有 ci，都没有写过工作流文件」，补建工作流使构建可云端复现
+
+Work Log:
+- 根因确认：仓库从未有 .github 目录，历史 APK/rpk 全部本地构建，无 CI；README 亦无 CI 徽章
+- 构建体系盘点：APK=android-sync（AGP 8.13.2/Kotlin 2.4.10/Gradle 8.13/JDK17/compileSdk 37，签名硬编码 root keystore.jks 已入库）；rpk=band-qq（node tools/branch-release.js 一次出四分支，签名 sign/release pem 已入库）——CI 全程无需 secrets
+- 新增 .github/workflows/ci.yml：push main/PR/手动三触发；rpk job（node22+npm ci+npm test+branch-release 四分支+artifact）；apk job（temurin17+setup-android+SDK 37.0 目录陷阱手术[platforms;android-37.0→android-37 改名+package.xml/source.properties 补丁，复刻 setup-buildenv.sh 第 5 步]+setup-gradle 8.13+gradle test assembleBundledDebug assembleCompanionDebug+失败传测试报告）；并发组防跳车
+- 新增 .github/workflows/release.yml：tag v* 触发（手动 dispatch 只出包不发版）；tag 与 versionName 一致性校验防发错版本；gradle test assembleBundledRelease assembleCompanionRelease+npm ci+四分支 rpk；softprops/action-gh-release@v2 发 6 资产（2 APK+4 rpk）+自动 release notes
+- 不提交 gradlew：环境已重置（/home/z/tools 丢失），CI 用 setup-gradle 指定 8.13 等效替代，避免为 wrapper 重下 120MB 发行包
+- README 加 CI workflow 徽章；gradle.properties workers.max=1 是本地低配保守值，CI 命令行 --max-workers=2 覆盖提速
+
+Stage Summary:
+- 产物：.github/workflows/{ci,release}.yml + README CI 徽章；推送后 push main 首跑自动验证（rpk 分钟级/APK 约 10 分钟）
+- 待回归：①观察 CI 首跑（尤其 android-37 手术与 aiot-toolkit on node22）②发版改用 git tag vX.Y.Z 一键触发

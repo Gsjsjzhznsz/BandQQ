@@ -10,6 +10,7 @@
 [![License](https://img.shields.io/badge/license-AGPL--3.0-red)](LICENSE)
 [![Release](https://img.shields.io/badge/download-GitHub%20Releases-9cf)](https://github.com/Gsjsjzhznsz/BandQQ/releases)
 [![OneBot](https://img.shields.io/badge/protocol-OneBot%20v11-0099ff)](https://github.com/botuniverse/onebot-11)
+[![CI](https://img.shields.io/github/actions/workflow/status/Gsjsjzhznsz/BandQQ/ci.yml?label=CI&logo=githubactions&logoColor=white)](https://github.com/Gsjsjzhznsz/BandQQ/actions/workflows/ci.yml)
 
 ![BandQQ 宣传图](docs/promo/banner-3x2.jpg)
 
