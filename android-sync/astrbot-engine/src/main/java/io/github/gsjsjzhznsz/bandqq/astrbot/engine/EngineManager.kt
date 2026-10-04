@@ -45,6 +45,23 @@ object EngineManager {
     private val mutex = Mutex()
     private val processRef = AtomicReference<Process?>(null)
 
+    /** v2.20.0：用户主动停止标记——停止时杀进程会打断输出读取线程，
+     *  此前会以“启动异常: read interrupted by close() on another thread”
+     *  报进日志误导用户（10-04 日志实证）；置位后按正常停止处理 */
+    @Volatile
+    private var stopping = false
+
+    /** v2.20.0：解析脚本 [STAGE:百分比:描述] 标记（ astrbot-startup.sh stage() 输出），
+     *  驱动 UI 启动进度卡，让用户不看裸 log 也知道流程到哪了 */
+    private val stageRegex = Regex("^\\[STAGE:(\\d{1,3}):(.+)]\\s*$")
+
+    private fun tryParseStage(line: String): Pair<Int, String>? {
+        val m = stageRegex.find(line.trim()) ?: return null
+        val pct = (m.groupValues[1].toIntOrNull() ?: return null).coerceIn(0, 100)
+        val desc = m.groupValues[2].trim()
+        return pct to desc
+    }
+
     // ---------- 目录布局（与上游 RuntimeEnvir 对齐） ----------
 
     fun engineRoot(ctx: Context): File = File(ctx.filesDir, "engine")
@@ -450,6 +467,7 @@ object EngineManager {
             logLine("引擎已在运行")
             return
         }
+        stopping = false
         _state.value = State.Starting
         writeEngineSessionHeader(appCtx)
         EngineService.start(appCtx)
@@ -487,20 +505,45 @@ object EngineManager {
                 pb.redirectErrorStream(true)
                 val p = pb.start()
                 processRef.set(p)
-                p.inputStream.bufferedReader().forEachLine { logLinesOf(it).forEach(::logLine) }
+                // v2.20.0：逐行扫描 [STAGE:百分比:描述] 标记 → 更新 Installing 状态，
+                // 驱动 AstrBot 标签页的启动进度卡；标记行照常进日志（人可读）
+                p.inputStream.bufferedReader().forEachLine { line ->
+                    logLinesOf(line).forEach { l ->
+                        tryParseStage(l)?.let { (pct, desc) ->
+                            val cur = _state.value
+                            if (cur !is State.Running && cur !is State.Error) {
+                                _state.value = State.Installing(desc, pct)
+                            }
+                        }
+                        logLine(l)
+                    }
+                }
                 val code = p.waitFor()
                 if (code == 0) {
                     logLine("引擎进程退出（正常）")
                 } else {
                     logLine("引擎进程退出 exit=$code")
+                    // v2.20.0：安装链中断时给出可行动的通俗错误（此前只报 exit=1，
+                    // 用户不知道下一步该干嘛）
+                    val cur = _state.value
+                    if (!stopping && cur is State.Installing) {
+                        _state.value = State.Error(
+                            "自动安装/启动中断（exit=$code）。常见原因：网络不可达或存储不足；" +
+                                "可点「启动引擎」重试（已下载的组件会复用，不会从头装）；" +
+                                "若反复失败，请展开日志查看最近报错并反馈"
+                        )
+                    }
                 }
             } catch (t: Throwable) {
                 val raw = t.message ?: ""
                 logLine(
-                    if (raw.contains("error=13") || raw.contains("Permission denied")) {
-                        "启动异常: $raw —— W^X 拒绝执行（targetSdk≥29 安装包）；请安装 v2.15.0+（targetSdk 28）胖包"
-                    } else {
-                        "启动异常: $raw"
+                    when {
+                        // v2.20.0：主动停止时杀进程会打断读取线程，属预期路径，不再以
+                        // “启动异常”误导（read interrupted by close() on another thread）
+                        stopping -> "引擎输出读取结束（主动停止）"
+                        raw.contains("error=13") || raw.contains("Permission denied") ->
+                            "启动异常: $raw —— W^X 拒绝执行（targetSdk≥29 安装包）；请安装 v2.15.0+（targetSdk 28）胖包"
+                        else -> "启动异常: $raw"
                     }
                 )
             } finally {
@@ -526,6 +569,7 @@ object EngineManager {
     /** 停止引擎：杀根进程 + 容器内残留（proot 不隔离 PID，host pkill 可命中） */
     fun stop(ctx: Context) {
         val appCtx = ctx.applicationContext
+        stopping = true
         EngineService.stop(appCtx)
         processRef.getAndSet(null)?.let { p -> runCatching { p.destroy() } }
         Thread {

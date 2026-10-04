@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
 # Android 同步器 APK 构建（debug + release + 单元测试）
 set -uo pipefail
-ROOT=/home/z/my-project/study-band-qq-assistant
+ROOT=/home/z/my-project/research/BandQQ-ref
 PROJ=$ROOT/android-sync
-ENV=/home/z/my-project/env
+# v2.20.0：工具链落位改为 setup-buildenv.sh 的 /home/z/tools + /home/z/android-sdk
+ENV=/home/z/tools
+SDK=/home/z/android-sdk
 
-export ANDROID_HOME=$ENV/android-sdk
+export ANDROID_HOME=$SDK
 export ANDROID_SDK_ROOT=$ANDROID_HOME
 export JAVA_HOME=$ENV/jdk-17.0.20.1+1
 export PATH=$JAVA_HOME/bin:$ENV/gradle-8.13/bin:$PATH

@@ -391,7 +391,7 @@ describe('store v2（未读/快捷回复/翻页合并/显示字段）', () => {
     const pm = await store.getMessages('10001')
     const combo = pm.find((m) => m.content.indexOf('[回复]') >= 0)
     assert.ok(combo, 'reply+text+share 组合段存在')
-    assert.equal(combo.content, '[回复]看看这个新版本[链接] BandQQ 发布页 · v2.19.0', '组合段渲染精确匹配')
+    assert.equal(combo.content, '[回复]看看这个新版本[链接] BandQQ 发布页 · v2.20.0', '组合段渲染精确匹配')
     const pm2 = await store.getMessages('10002')
     assert.equal(pm2.some((m) => m.content === '[语音]'), true, '语音段型（record）')
     const convs = await store.getConversations()

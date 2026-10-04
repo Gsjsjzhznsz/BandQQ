@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** v2.19.0 四分支 rpk 解包断言（键盘 bottom:0 锚定 + 幻影预算滚动区 + 预览 bottom 锚定 + 版本单轨 2.19.0·vc60）
+/** v2.20.0 四分支 rpk 解包断言（继承 v2.19.0 键盘/幻影预算回归 + 版本单轨 2.20.0·vc61）
  *  核心回归保护：①kb-dock 改 bottom:0（固件底部手势保留区对 device.getInfo 不可见，
  *  一切写死的 top=屏高-键盘高 常量都会把键盘推进保留区——VM redmiw5 432×514 实测
  *  Z 行被视口拦腰截断）②rect 字母滚动区显式高 261 = 幻影 ~85 + 行内容 180 + 余量
@@ -12,8 +12,8 @@ const fs = require('fs')
 const path = require('path')
 
 const DIR = path.join(__dirname, '..', 'dist-branch')
-const VER = '2.19.0'
-const VC = '60'
+const VER = '2.20.0'
+const VC = '61'
 const PKGS = {
   band: { dw: 192, screentype: 'pill-shaped', kbH: '333', kbBottom: '333', pvBottom: '333' },
   bandpro: { dw: 336, screentype: 'rect', kbH: '349', kbBottom: '349', pvBottom: '349' },
@@ -116,10 +116,16 @@ if (fs.existsSync(scriptPath)) {
   check('GitHub 代理并行竞速', sh.includes('gh-proxy-race'))
   check('napcat.sh 走竞速代理', sh.includes('network_test || true'))
   check('uv Python 镜像兜底', sh.includes('UV_PYTHON_INSTALL_MIRROR='))
+  // v2.20.0 新增：sudo 垫片 + gh_fetch 多源重试 + 断流自杀 + 阶段标记
+  check('sudo 透传垫片（NapCat 上游脚本硬检查）', sh.includes('ensure_sudo_shim') && sh.includes('/usr/local/bin/sudo'))
+  check('gh_fetch 多源重试统一入口', sh.includes('gh_fetch') && sh.includes('gh_build_candidates'))
+  check('curl 断流自杀参数', sh.includes('--speed-time 20 --speed-limit 512'))
+  check('结构化阶段标记（启动进度卡）', sh.includes('[STAGE:$') && sh.includes('stage 92'))
+  check('L_* 本地化变量已定义', sh.includes('L_NOT_INSTALLED="未安装"'))
 } else {
   console.log('== astrbot-startup.sh 资产缺失 ==')
   check('astrbot-startup.sh 存在', false)
 }
 
-console.log('\n===== verify_2190 结果: ' + pass + ' PASS / ' + fail + ' FAIL =====')
+console.log('\n===== verify_2200 结果: ' + pass + ' PASS / ' + fail + ' FAIL =====')
 process.exit(fail > 0 ? 1 : 0)

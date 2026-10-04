@@ -33,6 +33,35 @@ progress_echo(){
   echo "$@" > "$TMPDIR/progress_des"
 }
 
+# v2.20.0：结构化阶段标记。EngineManager 解析 [STAGE:百分比:描述] 驱动 APK 的
+# 启动进度卡（用户反馈：普通用户看不懂裸 log，不知道流程到哪了）；
+# 同时以普通行进日志，人可直接读。描述用大白话+预估耗时。
+stage(){
+  local pct="$1"; shift
+  echo "[STAGE:$pct:$*]"
+  progress_echo "$*"
+}
+
+# v2.20.0：上游脚本的本地化变量（L_NOT_INSTALLED 等）在本分支从未定义，
+# UI 曾出现 "Napcat ，..." 之类的残缺文案（用户 10-04 日志实证）。显式定义。
+L_NOT_INSTALLED="未安装"
+L_INSTALLING="安装中"
+L_INSTALLED="已安装"
+
+# v2.20.0：sudo 透传垫片。proot 容器内恒为 root，而上游 NapCat 安装脚本硬性检查
+# sudo 命令存在（用户 10-04 日志实证："sudo不存在, 请手动安装" → NapCat 安装
+# 失败 → 引擎 exit=1）。不装真 sudo（省一次 apt 联网与数十 MB 依赖），垫片
+# sudo xxx == 直接执行 xxx，覆盖上游脚本的全部 sudo 用法（proot 内无需提权）。
+ensure_sudo_shim(){
+  if ! command -v sudo >/dev/null 2>&1; then
+    if printf '#!/bin/sh\nexec "$@"\n' > /usr/local/bin/sudo 2>/dev/null && chmod 755 /usr/local/bin/sudo 2>/dev/null; then
+      echo "[AstrBot Android] 已创建 sudo 透传垫片（proot 恒 root，sudo xxx 直接执行 xxx）"
+    else
+      echo "[AstrBot Android] 警告: sudo 垫片创建失败（上游安装脚本可能拒绝执行）"
+    fi
+  fi
+}
+
 prepare_reinstall_step(){
   case "$1" in
     uv)
@@ -206,7 +235,10 @@ switch_apt_mirror_tuna(){
 
 install_sudo_curl_git(){
   # v2.18.1：必装清单去掉 sudo —— proot 容器内恒为 root，装 sudo 纯属浪费且是
-  # 自动补装链第一环就失败的高频点（包名清单越长，源不可达时死得越早）
+  # 自动补装链第一环就失败的高频点（包名清单越长，源不可达时死得越早）。
+  # v2.20.0：sudo 以垫片形式补回（见 ensure_sudo_shim），上游脚本不再被卡。
+  stage 10 "检查基础命令（git/curl）"
+  ensure_sudo_shim
   missing=()
   for cmd in git curl; do
     if ! command -v "$cmd" >/dev/null 2>&1; then
@@ -218,6 +250,8 @@ install_sudo_curl_git(){
     progress_echo "基础命令已安装"
     return 0
   fi
+
+  stage 12 "安装基础命令（清华镜像，约 20MB，约 1 分钟）"
 
   progress_echo "基础命令缺失: ${missing[*]}, 开始安装..."
 
@@ -263,7 +297,73 @@ install_sudo_curl_git(){
   progress_echo "基础命令安装完成"
 }
 
+# ---------- v2.20.0 GitHub 下载多源竞速 + 断流自杀 ----------
+# 用户 10-04 日志实证：代理竞速胜出者 ghfast.top 在正式下载 napcat.sh 时 0 字节
+# 挂死 35 秒以上（TCP 已连但无数据，--connect-timeout 管不到响应阶段），curl 无
+# 低速自杀参数，用户只能手动停止引擎（还引发 read interrupted 噪音）。
+
+GH_PROXY_ARR=()
+GH_RACE_DIR=""
+GH_RACE_DONE=""
+
+# 按竞速结果生成下载候选序列（全局数组 GHCANDS）：
+# 胜出代理优先 → 其余竞速存活代理（按列表优先序）→ 直连兑底
+gh_build_candidates(){
+  GHCANDS=()
+  [ -n "${target_proxy:-}" ] && GHCANDS+=("$target_proxy")
+  if [ -n "$GH_RACE_DIR" ] && [ -d "$GH_RACE_DIR" ]; then
+    local i p
+    for i in $(seq 1 ${#GH_PROXY_ARR[@]}); do
+      [ -f "$GH_RACE_DIR/$i.ok" ] || continue
+      p="${GH_PROXY_ARR[$((i-1))]}"
+      [ "$p" = "${target_proxy:-}" ] || GHCANDS+=("$p")
+    done
+    [ -f "$GH_RACE_DIR/direct.ok" ] && GHCANDS+=("__DIRECT__")
+  fi
+  # 最后统一加直连兜底（去重：直连已在存活清单时不再重复尝试）
+  local has_direct=0 c
+  for c in "${GHCANDS[@]}"; do [ "$c" = "__DIRECT__" ] && has_direct=1; done
+  [ "$has_direct" = "0" ] && GHCANDS+=("__DIRECT__")
+}
+
+# GitHub 下载统一入口。用法: gh_fetch <输出文件> <完整URL> [透传给 curl 的附加参数...]
+# 1) 每次尝试带 --speed-time 20 --speed-limit 512（20 秒均速不足 512B/s 即断，
+#    杜绝 0 字节挂死）与 --max-time 900 总超时（调用方可用附加参数覆盖）
+# 2) 失败自动遍历其余候选源
+# 3) 全部失败重跑一次竞速再试一轮（共两轮）
+gh_fetch(){
+  local out="$1" url="$2"; shift 2
+  network_test || true
+  local round p full
+  for round in 1 2; do
+    gh_build_candidates
+    for p in "${GHCANDS[@]}"; do
+      full="$url"; [ "$p" != "__DIRECT__" ] && full="${p}/${url}"
+      echo "下载源: ${p#__DIRECT__} → ${url##*/}"
+      if curl -fL --connect-timeout 10 --speed-time 20 --speed-limit 512 --max-time 900 "$@" "$full" -o "$out"; then
+        return 0
+      fi
+      rm -f "$out" 2>/dev/null
+      echo "该源下载失败，自动切换下一个源重试..."
+    done
+    if [ "$round" = "1" ]; then
+      echo "[AstrBot Android] 所有下载源均失败，重新竞速后再试一轮..."
+      GH_RACE_DONE=""
+      target_proxy=""
+      network_test || true
+    fi
+  done
+  echo "[AstrBot Android] 下载失败（全部候选源 × 2 轮）: $url"
+  return 1
+}
+
 network_test() {
+    # v2.20.0：同会话缓存——首个安装步骤竞速一次，后续步骤复用胜出者与存活清单；
+    # gh_fetch 全部候选源失败时会清 GH_RACE_DONE 强制重竞速一轮
+    if [ -n "$GH_RACE_DONE" ]; then
+        echo "复用已选 Github 代理: ${target_proxy:-直连}"
+        return 0
+    fi
     local timeout=10
     local found=0
     target_proxy=""
@@ -282,12 +382,14 @@ network_test() {
     fi
 
     proxy_arr=("https://ghfast.top" "https://gh-proxy.com" "https://ghproxy.net" "https://ghproxy.cc" "https://gh.dpik.top" "https://gh.monlor.com" "https://gh.chjina.com" "https://github.boki.moe" "https://gh.jasonzeng.dev" "https://gh.geekertao.top" "https://gh.nxnow.top" "https://down.npee.cn")
+    GH_PROXY_ARR=("${proxy_arr[@]}")
     check_url="https://raw.githubusercontent.com/astral-sh/uv/main/README.md"
 
     # v2.19.0：多任务并行竞速（原串行逐个测 12 个代理最坏 240s；现全部并发发出，
     # 每个 --max-time 12s，首个 200 按列表优先序胜出，总耗时 ≤15s）
     local race_dir="$TMPDIR/gh-proxy-race"
     rm -rf "$race_dir"; mkdir -p "$race_dir"
+    GH_RACE_DIR="$race_dir"
     local i=0 proxy code
     for proxy in "${proxy_arr[@]}"; do
         i=$((i+1))
@@ -321,17 +423,17 @@ network_test() {
             echo "警告: 无法找到可用的Github代理且直连不可达。将继续尝试安装，但可能会失败。"
         fi
     fi
+    GH_RACE_DONE=1
 }
 
 install_uv(){
   INSTALL_DIR="$HOME/.local/bin"
   if [ ! -x "$INSTALL_DIR/uv" ]; then
-    progress_echo "uv $L_NOT_INSTALLED，$L_INSTALLING..."
+    stage 20 "安装 uv（Python 包管理器，约 20MB，多源竞速下载）"
     network_test
     APP_NAME="uv"
     APP_VERSION="0.9.9"
     ARCHIVE_FILE="uv-aarch64-unknown-linux-gnu.tar.gz"
-    DOWNLOAD_URL="${target_proxy:+${target_proxy}/}https://github.com/astral-sh/uv/releases/download/${APP_VERSION}/${ARCHIVE_FILE}"
 
     # 检查必要命令
     for cmd in tar mkdir cp chmod mktemp rm curl; do
@@ -352,8 +454,10 @@ install_uv(){
     TMP_ARCHIVE="$TMP_DIR/$ARCHIVE_FILE"
 
     # 下载并解压（失败直接退出，不使用return）
+    # v2.20.0：改走 gh_fetch（多源竞速 + 断流自杀 + 全候选源重试），
+    # 原 curl 无超时无重试，代理抖动时 0 字节挂死
     echo "正在下载 $APP_NAME $APP_VERSION..."
-    if ! curl -fL $DOWNLOAD_URL -o $TMP_ARCHIVE; then
+    if ! gh_fetch "$TMP_ARCHIVE" "https://github.com/astral-sh/uv/releases/download/${APP_VERSION}/${ARCHIVE_FILE}"; then
       echo "下载失败"
       rm -rf $TMP_DIR
       exit 1
@@ -477,6 +581,7 @@ install_linuxqq(){
   local package_arch package_name sound_package download_url
 
 echo "[AstrBot Android] LinuxQQ 修复流程 v9"
+  stage 35 "下载 LinuxQQ（约 200MB，约 1~3 分钟，中断自动重试）"
   progress_echo "LinuxQQ 安装中"
   rm -f "$config_file" "$normalized_config" "$qq_deb_part"
 
@@ -505,13 +610,13 @@ echo "[AstrBot Android] LinuxQQ 修复流程 v9"
     rm -f "$qq_deb" "$qq_deb_part"
 echo "正在下载 LinuxQQ ARM64 安装包..."
 download_url="$qq_url"
-if ! curl -fL --connect-timeout 20 --max-time 600 \
+if ! curl -fL --connect-timeout 20 --speed-time 20 --speed-limit 512 --max-time 600 \
         -A 'Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 Chrome/124 Safari/537.36' \
         -e 'https://im.qq.com/' "$download_url" -o "$qq_deb_part"; then
       rm -f "$qq_deb_part"
   echo "LinuxQQ 官网直链下载失败，尝试申请兼容签名..."
   if get_linuxqq_signed_url "$qq_url" && [ "$LINUXQQ_SIGNED_URL" != "$qq_url" ] &&
-      curl -fL --connect-timeout 20 --max-time 600 \
+      curl -fL --connect-timeout 20 --speed-time 20 --speed-limit 512 --max-time 600 \
         -A 'Mozilla/5.0 (X11; Linux aarch64) AppleWebKit/537.36 Chrome/124 Safari/537.36' \
         -e 'https://im.qq.com/' "$LINUXQQ_SIGNED_URL" -o "$qq_deb_part"; then
     :
@@ -594,6 +699,7 @@ patch_napcat_installer(){
 install_napcat(){
   # 检查是否完整安装。旧版本可能留下 launcher.sh，但 LinuxQQ 或依赖包安装失败。
   if ! check_napcat_ready >/dev/null 2>&1; then
+    stage 45 "安装 NapCat（QQ↔OneBot 协议桥，含依赖，约 2~5 分钟）"
     progress_echo "Napcat $L_NOT_INSTALLED，$L_INSTALLING..."
 
     if ! prepare_apt_downloads; then
@@ -621,9 +727,10 @@ install_napcat(){
     cd $HOME
     echo "Napcat $L_NOT_INSTALLED，$L_INSTALLING..."
     # v2.19.0：napcat.sh 走 network_test 竞速代理（原直连 raw.githubusercontent.com
-    # 在被墙网络必死；此时代码链已保证 curl 可用）
-    network_test || true
-    if ! curl -fL --connect-timeout 15 --max-time 120 -o napcat.sh ${target_proxy:+${target_proxy}/}https://raw.githubusercontent.com/NapNeko/napcat-linux-installer/refs/heads/main/install.sh; then
+    # 在被墙网络必死；此时代码链已保证 curl 可用）。
+    # v2.20.0：改走 gh_fetch（断流自杀 + 全候选源重试）——用户 10-04 日志实证：
+    # 胜出代理 0 字节挂死 35s+，原 curl 参数只能等到 max-time，用户被迫手停引擎。
+    if ! gh_fetch "$HOME/napcat.sh" "https://raw.githubusercontent.com/NapNeko/napcat-linux-installer/refs/heads/main/install.sh" --max-time 120; then
       echo "下载 napcat.sh 失败"
       exit 1
     fi
@@ -632,6 +739,9 @@ install_napcat(){
       exit 1
     fi
     if ! patch_napcat_installer napcat.sh; then echo "修补 napcat.sh 失败"; exit 1; fi
+    # v2.20.0：上游脚本硬性检查 sudo（10-04 日志实证 "sudo不存在" → exit 1），
+    # proot 恒 root，垫片透传即可（幂等，前面装过这里秒过）
+    ensure_sudo_shim
     if ! bash napcat.sh; then
       echo "NapCat 上游安装脚本执行失败"
       exit 1
@@ -689,6 +799,7 @@ fi
     echo "NapCat 安装不完整，请查看上方 apt/dpkg/curl 错误后重试"
     exit 1
   fi
+  stage 55 "NapCat 安装完成"
   progress_echo "Napcat $L_INSTALLED"
 }
 
@@ -815,6 +926,7 @@ install_astrbot(){
   # 检查是否已安装
   if [ ! -d "$INSTALL_DIR" ]; then
     cd $HOME
+    stage 60 "下载 AstrBot 本体（拉取最新正式版，约 30MB）"
     progress_echo "AstrBot $L_NOT_INSTALLED，$L_INSTALLING..."
 
     # 克隆仓库（失败直接退出）
@@ -837,24 +949,36 @@ install_astrbot(){
         exit 1
       fi
     else
-      network_test
-      
-      # 使用默认逻辑：获取最新的正式版 tag，跳过 beta/alpha/rc/dev/pre 等预发布版本
-      LATEST_TAG=$(git ls-remote --tags --sort='-v:refname' ${target_proxy:+${target_proxy}/}https://github.com/AstrBotDevs/AstrBot.git | awk -F'/' '{print $3}' | sed 's/\^{}//g' | grep -E '^v?[0-9]+(\.[0-9]+){1,2}$' | head -n 1)
+      network_test || true
+      gh_build_candidates
+      # v2.20.0：竞速胜出代理优先，失败自动遍历其余存活代理与直连（原只试单一胜出者，
+      # 代理抖动时 ls-remote/clone 直接失败退出）
+      local cand base cloned=0
+      for cand in "${GHCANDS[@]}"; do
+        base=""; [ "$cand" != "__DIRECT__" ] && base="$cand"
+        # 使用默认逻辑：获取最新的正式版 tag，跳过 beta/alpha/rc/dev/pre 等预发布版本
+        LATEST_TAG=$(git ls-remote --tags --sort='-v:refname' ${base:+${base}/}https://github.com/AstrBotDevs/AstrBot.git 2>/dev/null | awk -F'/' '{print $3}' | sed 's/\^{}//g' | grep -E '^v?[0-9]+(\.[0-9]+){1,2}$' | head -n 1)
 
-      if [ -z "$LATEST_TAG" ]; then
-        echo "警告: 无法获取最新 tag，使用 master 分支"
-        CLONE_BRANCH="master"
-      else
-        echo "最新正式版: $LATEST_TAG"
-        CLONE_BRANCH="$LATEST_TAG"
-      fi
+        if [ -z "$LATEST_TAG" ]; then
+          echo "警告: 无法获取最新 tag（源: ${base:-直连}），使用 master 分支"
+          CLONE_BRANCH="master"
+        else
+          echo "最新正式版: $LATEST_TAG（源: ${base:-直连}）"
+          CLONE_BRANCH="$LATEST_TAG"
+        fi
 
-      # 克隆到临时目录
-      echo "正在克隆 AstrBot 仓库，分支/标签: $CLONE_BRANCH..."
-      if ! git clone --depth=1 --branch "$CLONE_BRANCH" ${target_proxy:+${target_proxy}/}https://github.com/AstrBotDevs/AstrBot.git "$CLONE_TEMP_DIR"; then
-        echo "克隆 AstrBot 仓库失败"
+        # 克隆到临时目录
+        echo "正在克隆 AstrBot 仓库，分支/标签: $CLONE_BRANCH..."
+        if git clone --depth=1 --branch "$CLONE_BRANCH" ${base:+${base}/}https://github.com/AstrBotDevs/AstrBot.git "$CLONE_TEMP_DIR"; then
+          cloned=1
+          break
+        fi
         rm -rf "$CLONE_TEMP_DIR"  # 清理失败的临时目录
+        echo "该源克隆失败，自动切换下一个源重试..."
+      done
+      if [ "$cloned" != "1" ]; then
+        echo "克隆 AstrBot 仓库失败（全部候选源）"
+        rm -rf "$CLONE_TEMP_DIR"
         exit 1
       fi
     fi
@@ -922,6 +1046,7 @@ install_astrbot(){
   if [ ! -d "$INSTALL_DIR/.venv" ] || ! $HOME/.local/bin/uv run --no-sync python -c "import aiohttp" >/dev/null 2>&1; then
 
     # 使用 uv sync 同步依赖
+    stage 75 "安装 AstrBot Python 依赖（首次约 3~8 分钟，走清华 PyPI 镜像）"
     echo "同步 AstrBot 依赖..."
     if ! $HOME/.local/bin/uv sync; then
       # v2.19.0：Python 构建镜像单点兜底——默认 ghfast.top 挂掉时换代理重试一次
@@ -970,7 +1095,7 @@ launch_astrbot(){
     # 直接在启动流程内按依赖顺序补装（幂等，已装步骤秒过）：
     # 基础命令(curl/git) → uv → NapCat(LinuxQQ) → AstrBot(clone+uv sync)。
     # 首次需联网下载数百 MB（约 5~20 分钟，取决于网络）；progress 实时进引擎日志。
-    progress_echo "运行环境不完整，自动补装缺失组件（首次需联网，约数分钟）"
+    stage 5 "检测到首次运行，自动安装环境（全程约 10~25 分钟，取决于网络）"
     install_sudo_curl_git || { echo "自动补装失败：基础命令安装异常（检查网络/存储）"; return 1; }
     install_uv || { echo "自动补装失败：uv 安装异常"; return 1; }
     install_napcat || { echo "自动补装失败：NapCat 安装异常"; return 1; }
@@ -990,6 +1115,7 @@ launch_astrbot(){
   fi
 
   # 使用 uv run --no-sync main.py 启动（跳过依赖同步）
+  stage 92 "启动 AstrBot 服务（就绪后手机通知栏与手环会同步状态）"
   progress_echo "AstrBot 启动中"
 
   if ! $HOME/.local/bin/uv run --no-sync main.py; then
