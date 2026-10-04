@@ -569,7 +569,7 @@ fun AstrBotScreen(
                         text = "反检测：6 项已自动全开（hook/窗口/模块/进程/容器/JS，配置层持久生效）。" +
                             "若引擎日志提示开启失败，请打开 NapCat WebUI → 反检测开关配置 → 手动全开",
                         fontSize = 11.sp,
-                        color = colorScheme.nSecondary,
+                        color = colorScheme.onSurfaceSecondary,
                         modifier = Modifier.padding(top = 8.dp),
                     )
                 }

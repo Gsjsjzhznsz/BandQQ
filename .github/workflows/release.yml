@@ -47,40 +47,42 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # 同 ci.yml：runner 自带 SDK + 锁定 11076708 cmdline-tools（setup-buildenv.sh 同源）
-      - name: 安装 SDK 组件并修复 android-37 目录名
+      # 配方（本地 e2e 验证，与 scripts/setup-buildenv.sh 同源思路）：
+      # Google 官方 platform-37.0 zip 元数据自带笔误（<api-level>37.0 / Platform.Version=17），
+      # AGP 8.13.2 按 hash 串 android-37 查平台必报 Failed to find target——四处补丁：
+      #   package.xml: path=platforms;android-37.0→37 + <api-level>37.0→37（后者是根因）
+      #   source.properties: ApiLevel 37.0→37 + Platform.Version 17→37
+      # 四跑实测：镜像预装的 android-37 未修元数据，sdkmanager 认 AGP 不认。
+      - name: 安装 SDK 并修复 android-37 元数据笔误
         run: |
-          CT="${RUNNER_TEMP}/cmdtools"
-          curl -sSL -o "${RUNNER_TEMP}/ct.zip" "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
-          rm -rf "$CT"; unzip -q "${RUNNER_TEMP}/ct.zip" -d "$CT"
-          SDKM="$CT/cmdline-tools/bin/sdkmanager"
+          SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SDKM" ] || SDKM="$(command -v sdkmanager)"
           LOG="${RUNNER_TEMP}/sdk-install.log"
-          yes | "$SDKM" --sdk_root="$ANDROID_HOME" --licenses >/dev/null 2>&1 || true
-          yes | "$SDKM" --sdk_root="$ANDROID_HOME" --install "build-tools;37.0.0" "platform-tools" >> "$LOG" 2>&1 || true
+          yes | "$SDKM" --licenses >> "$LOG" 2>&1 || true
+          yes | "$SDKM" --install "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" >> "$LOG" 2>&1 || true
           P="$ANDROID_HOME/platforms"
-          # 同 ci.yml：卸掉镜像预装 android-37，用锁版工具全新重装重建注册表
-          if [ -d "$P/android-37" ]; then
-            yes | "$SDKM" --sdk_root="$ANDROID_HOME" --uninstall "platforms;android-37" >> "$LOG" 2>&1 || true
-            rm -rf "$P/android-37"
+          if [ -d "$P/android-37.0" ]; then
+            rm -rf "$P/android-37"   # 镜像预装的同名目录元数据未修，弃用
+            mv "$P/android-37.0" "$P/android-37"
+            sed -i 's|platforms;android-37\.0|platforms;android-37|g; s|<api-level>37\.0</api-level>|<api-level>37</api-level>|' "$P/android-37/package.xml"
+            sed -i 's|AndroidVersion.ApiLevel=37\.0|AndroidVersion.ApiLevel=37|; s|Platform\.Version=17|Platform.Version=37|' "$P/android-37/source.properties"
           fi
-          yes | "$SDKM" --sdk_root="$ANDROID_HOME" --install "platforms;android-37" >> "$LOG" 2>&1 || true
           if [ ! -d "$P/android-37" ]; then
-            yes | "$SDKM" --sdk_root="$ANDROID_HOME" --install "platforms;android-37.0" >> "$LOG" 2>&1 || true
-            [ -d "$P/android-37.0" ] && [ ! -d "$P/android-37" ] && mv "$P/android-37.0" "$P/android-37"
-            for F in "$P/android-37/package.xml" "$P/android-37/source.properties"; do
-              [ -f "$F" ] && sed -i 's|platforms;android-37\.0|platforms;android-37|g; s|AndroidVersion.ApiLevel=37\.0|AndroidVersion.ApiLevel=37|' "$F"
-            done
+            echo "sdkmanager 装包失败，走官方 zip 直装兜底"
+            curl -sSL -o "${RUNNER_TEMP}/p37.zip" "https://dl.google.com/android/repository/platform-37.0_r02.zip"
+            unzip -q "${RUNNER_TEMP}/p37.zip" -d "${RUNNER_TEMP}/p37"
+            rm -rf "$P/android-37" "$P/android-37.0"
+            mv "${RUNNER_TEMP}/p37/android-37.0" "$P/android-37"
+            sed -i 's|AndroidVersion.ApiLevel=37\.0|AndroidVersion.ApiLevel=37|; s|Platform\.Version=17|Platform.Version=37|' "$P/android-37/source.properties"
+            cat > "$P/android-37/package.xml" << 'XMLEOF'
+          <?xml version="1.0" encoding="UTF-8" standalone="yes"?><ns2:repository xmlns:ns2="http://schemas.android.com/repository/android/common/02" xmlns:ns11="http://schemas.android.com/sdk/android/repo/repository2/03"><localPackage path="platforms;android-37" obsolete="false"><type-details xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="ns11:platformDetailsType"><api-level>37</api-level><codename></codename><extension-level>22</extension-level><base-extension>true</base-extension><layoutlib api="15"/></type-details><revision><major>2</major></revision><display-name>Android SDK Platform 37</display-name><uses-license ref="android-sdk-license"/></localPackage></ns2:repository>
+          XMLEOF
           fi
-          echo "--- 平台目录 ---"; ls "$P" || true
-          echo "--- package.xml 头部 ---"; head -25 "$P/android-37/package.xml" || true
-          echo "--- source.properties ---"; cat "$P/android-37/source.properties" || true
-          echo "--- 注册表核对 ---"; "$SDKM" --sdk_root="$ANDROID_HOME" --list_installed 2>/dev/null | grep -i "android-37" || true
-          PX="$P/android-37/package.xml"
-          if [ ! -f "$PX" ] || ! grep -q 'platforms;android-37"' "$PX"; then
-            tail -40 "$LOG"
-            echo "::error::android-37 平台注册表校验失败"
-            exit 1
-          fi
+          echo "--- 校验 ---"
+          ls "$P" | grep 37 || true
+          [ -f "$P/android-37/android.jar" ] || { tail -40 "$LOG"; echo "::error::android-37 缺 android.jar"; exit 1; }
+          grep -q '<api-level>37</api-level>' "$P/android-37/package.xml" || { echo "::error::package.xml api-level 未修正"; exit 1; }
+          grep -q 'AndroidVersion.ApiLevel=37$' "$P/android-37/source.properties" || { echo "::error::source.properties 未修正"; exit 1; }
           echo "platform android-37 ready"
 
       - uses: gradle/actions/setup-gradle@v4
