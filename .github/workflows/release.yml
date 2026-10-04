@@ -78,7 +78,10 @@ jobs:
           XMLEOF
           fi
           if [ -d "$P/android-37" ]; then
-            [ -f "$P/android-37/package.xml" ] && sed -i 's|platforms;android-37\.0|platforms;android-37|g; s|<api-level>37\.0</api-level>|<api-level>37</api-level>|' "$P/android-37/package.xml"
+            # 覆盖为仓库内置的验证版注册表（本地 e2e 同 AGP 代码路径构建通过）：
+            # 镜像/sdkmanager 不同版本写的 package.xml schema 元素可能被 AGP 8.13.2
+            # 内置 sdklib XSD 校验静默拒收，导致 hash 查找失败
+            cp "$GITHUB_WORKSPACE/.github/sdk/platforms-android-37.package.xml" "$P/android-37/package.xml"
             [ -f "$P/android-37/source.properties" ] && sed -i 's|AndroidVersion.ApiLevel=37\.0|AndroidVersion.ApiLevel=37|; s|Platform\.Version=17|Platform.Version=37|' "$P/android-37/source.properties"
             echo "--- package.xml 关键行 ---"
             grep -o 'path="[^"]*"' "$P/android-37/package.xml" | head -2 || true
