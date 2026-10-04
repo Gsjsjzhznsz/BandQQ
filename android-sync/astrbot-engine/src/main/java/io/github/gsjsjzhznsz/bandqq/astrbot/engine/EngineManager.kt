@@ -591,7 +591,17 @@ object EngineManager {
         }.apply { name = "astrbot-engine-watch" }.start()
     }
 
-    /** 停止引擎：杀根进程 + 容器内残留（proot 不隔离 PID，host pkill 可命中） */
+    /**
+     * 停止引擎：杀根进程 + 容器内残留（proot 不隔离 PID，host pkill 可命中）。
+     * v2.25.0：停止链优雅化——SIGKILL 强杀 QQ 是「NapCat 启动一次后，二次启动必崩
+     * （Worker SIGSEGV 退出码 11 ×3 → 主进程退出 → :3001/:3000 永不监听）」的根因
+     * （用户 10-04 第六份日志定案）：强杀让 Chromium/NT 数据目录来不及落盘变脏，
+     * 下次快速登录路径读到脏数据即段错误。修法：
+     * ①第一轮 SIGTERM 只发容器内业务进程（QQ/Xvfb/napcat 辅助进程），QQ 收到
+     *   SIGTERM 会优雅退出并落盘，等待 4 秒；
+     * ②第二轮 SIGKILL 收尾（含 proot/启动脚本壳），残留兜底清零。
+     * 脚本侧配套：start_napcat 启动前清理 Singleton/GPU 缓存等脏状态 + 看门狗崩溃自愈。
+     */
     fun stop(ctx: Context) {
         val appCtx = ctx.applicationContext
         stopping = true
@@ -601,13 +611,22 @@ object EngineManager {
             try {
                 val busybox = File(binDir(appCtx), "busybox")
                 if (busybox.canExecute()) {
-                    // proot/启动脚本/容器内 python(node 进程 cmdline 保持容器路径) 三类兜底
-                    // v2.22.0：补 Xvfb 与 qq 进程（NapCat 启动链新增的伴生进程）
-                    for (pat in listOf("proot", "astrbot-startup", "napcat", "AstrBot/main.py", "qq --no-sandbox", "Xvfb")) {
+                    fun pkill(args: List<String>) {
                         val p = ProcessBuilder(
-                            busybox.absolutePath, "pkill", "-9", "-f", pat
+                            listOf(busybox.absolutePath, "pkill") + args
                         ).redirectErrorStream(true).start()
                         p.waitFor()
+                    }
+                    // 第一轮：优雅终止业务进程（先业务后壳；proot 是 ptrace 跟踪者，
+                    // 先杀壳会破坏容器内进程的优雅退出路径，故仅第二轮才动壳）
+                    for (pat in listOf("qq --no-sandbox", "Xvfb", "napcat", "AstrBot/main.py")) {
+                        pkill(listOf("-TERM", "-f", pat))
+                    }
+                    // 给 Chromium 优雅退出落盘的窗口（脏数据 = 二次启动 Worker SIGSEGV 的根因）
+                    Thread.sleep(4000)
+                    // 第二轮：KILL 收尾兜底（含容器壳 proot/启动脚本）
+                    for (pat in listOf("qq --no-sandbox", "Xvfb", "napcat", "AstrBot/main.py", "proot", "astrbot-startup")) {
+                        pkill(listOf("-9", "-f", pat))
                     }
                 }
             } catch (_: Throwable) {
