@@ -1,0 +1,436 @@
+
+===== AstrBot 引擎会话开始 10-05 07:21:54 =====
+10-05 07:21:55 启动脚本已与 APK 资产对齐（v2.18 每次启动强制刷新）
+10-05 07:21:55 AstrBot 机器人开关已关闭：本次仅启动 NapCat（手环 QQ 直连），不安装/启动 AstrBot
+10-05 07:21:55 拉起容器（proot → astrbot-startup.sh）…
+10-05 07:21:55 [AstrBot Android] resolv.conf 已重写（原: nameserver 8.8.8.8 → 公共解析器x4）
+10-05 07:21:55 [AstrBot Android] DNS 自检通过（getent 解析正常）
+10-05 07:21:55 [STAGE:5:仅 NapCat 模式（AstrBot 机器人开关已关闭）]
+10-05 07:21:55 [31m- 仅 NapCat 模式（AstrBot 机器人开关已关闭）[0m
+10-05 07:21:55 已按「仅 NapCat 模式」更新 onebot11.json（停用 AstrBot 桥 :6199 反向连接）
+10-05 07:21:55 已按「仅 NapCat 模式」更新 onebot11_3836305211.json（停用 AstrBot 桥 :6199 反向连接）
+10-05 07:21:55 [AstrBot Android] 反检测自动开启失败（node 不可用），请手动开启：打开 NapCat WebUI :5099 → 反检测开关配置 → 全部开关打开并保存
+10-05 07:21:55 [AstrBot Android] 反检测自动开启失败（node 不可用），请手动开启：打开 NapCat WebUI :5099 → 反检测开关配置 → 全部开关打开并保存
+10-05 07:21:55 [AstrBot Android] 检测到上次 NapCat 异常退出，清理缓存与残锁后重启（登录态不受影响）
+10-05 07:21:55 [STAGE:90:启动 NapCat（首次需扫码登录 QQ，Token 在 App「密码与登录」卡复制）]
+10-05 07:21:55 [31m- 启动 NapCat（首次需扫码登录 QQ，Token 在 App「密码与登录」卡复制）[0m
+10-05 07:21:55 [31m- NapCat 启动中[0m
+10-05 07:21:56 [AstrBot Android] NapCat 已后台拉起（控制台: /root/napcat/napcat-console.log）
+10-05 07:21:56 [AstrBot Android] QQ 登录完成后 OneBot :3001/:3000 自动可用；未登录时打开 WebUI :5099 扫码
+10-05 07:21:56 [AstrBot Android] NapCat 看门狗已启动（5 分钟巡检：进程保活 + 崩溃自愈清理 + 登录后配置自动升级重启）
+10-05 07:21:56 [STAGE:92:NapCat 启动中（QQ 引导完成后 :3001/:3000 生效；AstrBot 已按开关关闭）]
+10-05 07:21:56 [31m- NapCat 启动中（QQ 引导完成后 :3001/:3000 生效；AstrBot 已按开关关闭）[0m
+10-05 07:21:56 [NAPCAT] [launcher] loadNapCat.js generated in current directory
+10-05 07:21:56 [NAPCAT] not mini app. 
+10-05 07:21:56 [NAPCAT] [launcher] loadNapCat.js generated in current directory
+10-05 07:21:56 [NAPCAT] [preload] succeeded. /opt/QQ/resources/app/major.node
+10-05 07:21:56 [NAPCAT] [launcher] loadNapCat.js generated in current directory
+10-05 07:21:56 [NAPCAT] [preload] succeeded. /opt/QQ/resources/app/major.node
+10-05 07:21:56 [NAPCAT] [18567:1005/072156.682184:ERROR:base/files/file_path_watcher_inotify.cc:923] Failed to read /proc/sys/fs/inotify/max_user_watches
+10-05 07:21:56 [NAPCAT] [18566:1005/072156.687048:ERROR:base/files/file_path_watcher_inotify.cc:923] Failed to read /proc/sys/fs/inotify/max_user_watches
+10-05 07:21:56 [NAPCAT] [18544:1005/072156.714510:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: No such file or director
+10-05 07:21:56 [NAPCAT] resourcesPath: /opt/QQ/resources
+10-05 07:21:56 [NAPCAT] [launcher] intercepted package.json: /opt/QQ/resources/app/package.json, replacing content
+10-05 07:21:56 [NAPCAT] [launcher] Generated relative path: ../../../../root
+10-05 07:21:56 [NAPCAT] [launcher] New main field: "main": "../../../../root/loadNapCat.js"
+10-05 07:21:56 [NAPCAT] [launcher] package.json content: {
+10-05 07:21:56 [NAPCAT]   "name": "QQ",
+10-05 07:21:56 [NAPCAT]   "version": "3.2.33-52892",
+10-05 07:21:56 [NAPCAT]   "private": true,
+10-05 07:21:56 [NAPCAT]   "description": "QQ",
+10-05 07:21:57 [NAPCAT]   "productName": "QQ",
+10-05 07:21:57 [NAPCAT]   "author": {
+10-05 07:21:57 [NAPCAT]     "name": "Tencent",
+10-05 07:21:57 [NAPCAT]     "email": "QQ-Team@tencent.com"
+10-05 07:21:57 [NAPCAT]   },
+10-05 07:21:57 [NAPCAT]   "homepage": "https://im.qq.com",
+10-05 07:21:57 [NAPCAT]   "sideEffects": true,
+10-05 07:21:57 [NAPCAT]   "bin": {
+10-05 07:21:57 [NAPCAT]     "qd": "externals/devtools/cli/index.js"
+10-05 07:21:57 [NAPCAT]   },
+10-05 07:21:57 [NAPCAT]   "appid": {
+10-05 07:21:57 [NAPCAT]     "win32": "537382716",
+10-05 07:21:57 [NAPCAT]     "darwin": "537382742",
+10-05 07:21:57 [NAPCAT]     "linux": "537382753",
+10-05 07:21:57 [NAPCAT]     "ohos": "5373141859"
+10-05 07:21:57 [NAPCAT]   },
+10-05 07:21:57 [NAPCAT]   "main": "../../../../root/loadNapCat.js",
+10-05 07:21:57 [NAPCAT]   "peerDependenciesMeta": {
+10-05 07:21:57 [NAPCAT]     "*": {
+10-05 07:21:57 [NAPCAT]       "optional": true
+10-05 07:21:57 [NAPCAT]     }
+10-05 07:21:57 [NAPCAT]   },
+10-05 07:21:57 [NAPCAT]   "pnpm": {
+10-05 07:21:57 [NAPCAT]     "patchedDependencies": {
+10-05 07:21:57 [NAPCAT]       "@vue/runtime-dom@3.5.12": "patches/@vue__runtime-dom@3.5.12.patch",
+10-05 07:21:57 [NAPCAT]       "@swc/helpers@0.5.3": "patches/@swc__helpers@0.5.3.patch",
+10-05 07:21:57 [NAPCAT]       "vuex@4.1.0": "patches/vuex@4.1.0.patch",
+10-05 07:21:57 [NAPCAT]       "typescript-parser@2.6.1": "patches/typescript-parser@2.6.1.patch",
+10-05 07:21:57 [NAPCAT]       "@tencent/qqplay-downloadsdk": "patches/@tencent__qqplay-downloadsdk.patch",
+10-05 07:21:57 [NAPCAT]       "@tencent/universal-report@4.5.4": "patches/@tencent__universal-report@4.5.4.patch",
+10-05 07:21:57 [NAPCAT]       "typescript@7.0.2": "patches/typescript@7.0.2.patch"
+10-05 07:21:57 [NAPCAT]     },
+10-05 07:21:57 [NAPCAT]     "packageExtensions": {
+10-05 07:21:57 [NAPCAT]       "qute": {
+10-05 07:21:57 [NAPCAT]         "dependencies": {},
+10-05 07:21:57 [NAPCAT]         "devDependencies": {}
+10-05 07:21:57 [NAPCAT]       }
+10-05 07:21:57 [NAPCAT]     },
+10-05 07:21:57 [NAPCAT]     "overrides": {
+10-05 07:21:57 [NAPCAT]       "@types/react": "-",
+10-05 07:21:57 [NAPCAT]       "@types/react-dom": "-",
+10-05 07:21:57 [NAPCAT]       "@tencent/yuanbao-react-markdown>@types/hast": "-",
+10-05 07:21:57 [NAPCAT]       "@tencent/yuanbao-react-markdown>devlop": "-",
+10-05 07:21:57 [NAPCAT]       "@tencent/yuanbao-react-markdown>hast-util-to-jsx-runtime": "-",
+10-05 07:21:57 [NAPCAT]       "@tencent/yuanbao-react-markdown>html-url-attributes": "-",
+10-05 07:21:57 [NAPCAT]       "@tencent/yuanbao-react-markdown>mdast-util-to-hast": "-",
+10-05 07:21:57 [NAPCAT]       "@tencent/yuanbao-react-markdown>rehype-parse": "-",
+10-05 07:21:57 [NAPCAT]       "@tencent/yuanbao-react-markdown>rehype-stringify": "-",
+10-05 07:21:57 [NAPCAT]       "@tencent/yuanbao-react-markdown>remark-parse": "-",
+10-05 07:21:57 [NAPCAT]       "@tencent/yuanbao-react-markdown>remark-rehype": "-",
+10-05 07:21:57 [NAPCAT]       "@tencent/yuanbao-react-markdown>unified": "-",
+10-05 07:21:57 [NAPCAT]       "@tencent/yuanbao-react-markdown>unist-util-visit": "-",
+10-05 07:21:57 [NAPCAT]       "@tencent/yuanbao-react-markdown>vfile": "-",
+10-05 07:21:57 [NAPCAT]       "@types/d3-dispatch": "3.0.6"
+10-05 07:21:58 [NAPCAT]     }
+10-05 07:21:58 [NAPCAT]   },
+10-05 07:21:58 [NAPCAT]   "buildVersion": "52892",
+10-05 07:21:58 [NAPCAT]   "platform": "linux",
+10-05 07:21:58 [NAPCAT]   "eleArch": "arm64",
+10-05 07:21:58 [NAPCAT]   "linuxFormat": "deb"
+10-05 07:21:58 [NAPCAT] }
+10-05 07:21:58 [NAPCAT] [18544:1005/072158.210322:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are
+10-05 07:21:58 [NAPCAT] [18544:1005/072158.210391:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are
+10-05 07:21:58 [NAPCAT] [18544:1005/072158.211782:ERROR:base/files/file_path_watcher_inotify.cc:923] Failed to read /proc/sys/fs/inotify/max_user_watches
+10-05 07:21:58 [NAPCAT] [18544:1005/072158.212163:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: No such file or director
+10-05 07:21:58 [NAPCAT] [18544:1005/072158.212500:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Failed to connect to socket /run/dbus/system_bus_socket: No such file or director
+10-05 07:21:58 [NAPCAT] [18544:1005/072158.212445:ERROR:net/base/address_tracker_linux.cc:242] Could not bind NETLINK socket: Permission denied (13)
+10-05 07:21:58 [NAPCAT] [18544:1005/072158.242590:ERROR:device/udev_linux/udev_watcher.cc:51] Failed to initialize a udev monitor.
+10-05 07:21:58 [NAPCAT] [18544:1005/072158.269888:ERROR:dbus/object_proxy.cc:573] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown 
+10-05 07:21:58 [NAPCAT] [18544:1005/072158.269996:ERROR:dbus/object_proxy.cc:573] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown 
+10-05 07:21:58 [NAPCAT] [18544:1005/072158.270067:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are
+10-05 07:21:58 [NAPCAT] [18544:1005/072158.270265:ERROR:dbus/bus.cc:406] Failed to connect to the bus: Could not parse server address: Unknown address type (examples of valid types are
+10-05 07:21:58 [NAPCAT] [18544:1005/072158.270290:ERROR:dbus/object_proxy.cc:573] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown 
+10-05 07:21:58 [NAPCAT] [18544:1005/072158.286286:ERROR:dbus/object_proxy.cc:573] Failed to call method: org.freedesktop.DBus.NameHasOwner: object_path= /org/freedesktop/DBus: unknown 
+10-05 07:21:58 [NAPCAT] [19049:1005/072158.404442:ERROR:base/files/file_path_watcher_inotify.cc:923] Failed to read /proc/sys/fs/inotify/max_user_watches
+10-05 07:21:58 [NAPCAT] [launcher] loadNapCat.js generated in current directory
+10-05 07:21:58 [NAPCAT] [19045:1005/072158.481057:ERROR:base/files/file_path_watcher_inotify.cc:923] Failed to read /proc/sys/fs/inotify/max_user_watches
+10-05 07:21:58 [NAPCAT] [19045:1005/072158.488408:ERROR:net/base/address_tracker_linux.cc:242] Could not bind NETLINK socket: Permission denied (13)
+10-05 07:21:58 [NAPCAT] [19020:1005/072158.731725:ERROR:ui/gl/angle_platform_impl.cc:42] Display.cpp:1097 (initialize): ANGLE Display::initialize error 12289: GLX is not present.
+10-05 07:21:58 [NAPCAT] ERR: Display.cpp:1097 (initialize): ANGLE Display::initialize error 12289: GLX is not present.
+10-05 07:21:58 [NAPCAT] [19020:1005/072158.732006:ERROR:ui/gl/egl_util.cc:92] EGL Driver message (Critical) eglInitialize: GLX is not present.
+10-05 07:21:58 手动探测：本机 NapCat 未就绪（3001/3000 均未监听；容器可能仍在安装/启动）
+10-05 07:21:58 [NAPCAT] [19020:1005/072158.732484:ERROR:ui/gl/gl_display.cc:639] eglInitialize OpenGL failed with error EGL_NOT_INITIALIZED, trying next display type
+10-05 07:21:58 [NAPCAT] [19020:1005/072158.733080:ERROR:ui/gl/angle_platform_impl.cc:42] Display.cpp:1097 (initialize): ANGLE Display::initialize error 12289: GLX is not present.
+10-05 07:21:58 [NAPCAT] ERR: Display.cpp:1097 (initialize): ANGLE Display::initialize error 12289: GLX is not present.
+10-05 07:21:58 [NAPCAT] [19020:1005/072158.733585:ERROR:ui/gl/egl_util.cc:92] EGL Driver message (Critical) eglInitialize: GLX is not present.
+10-05 07:21:58 [NAPCAT] [19020:1005/072158.733834:ERROR:ui/gl/gl_display.cc:639] eglInitialize OpenGLES failed with error EGL_NOT_INITIALIZED
+10-05 07:21:59 [NAPCAT] [19020:1005/072158.734152:ERROR:ui/gl/gl_display.cc:674] Initialization of all EGL display types failed.
+10-05 07:21:59 [NAPCAT] [19020:1005/072158.735893:ERROR:ui/ozone/common/gl_ozone_egl.cc:26] GLDisplayEGL::Initialize failed.
+10-05 07:21:59 [NAPCAT] [19020:1005/072159.015598:ERROR:ui/gl/angle_platform_impl.cc:42] Display.cpp:1097 (initialize): ANGLE Display::initialize error 12289: GLX is not present.
+10-05 07:21:59 [NAPCAT] ERR: Display.cpp:1097 (initialize): ANGLE Display::initialize error 12289: GLX is not present.
+10-05 07:21:59 [NAPCAT] [19020:1005/072159.016349:ERROR:ui/gl/egl_util.cc:92] EGL Driver message (Critical) eglInitialize: GLX is not present.
+10-05 07:21:59 [NAPCAT] [19020:1005/072159.017069:ERROR:ui/gl/gl_display.cc:639] eglInitialize OpenGL failed with error EGL_NOT_INITIALIZED, trying next display type
+10-05 07:21:59 [NAPCAT] [19020:1005/072159.018268:ERROR:ui/gl/angle_platform_impl.cc:42] Display.cpp:1097 (initialize): ANGLE Display::initialize error 12289: GLX is not present.
+10-05 07:21:59 [NAPCAT] ERR: Display.cpp:1097 (initialize): ANGLE Display::initialize error 12289: GLX is not present.
+10-05 07:21:59 [NAPCAT] [19020:1005/072159.019256:ERROR:ui/gl/egl_util.cc:92] EGL Driver message (Critical) eglInitialize: GLX is not present.
+10-05 07:21:59 [NAPCAT] [19020:1005/072159.020381:ERROR:ui/gl/gl_display.cc:639] eglInitialize OpenGLES failed with error EGL_NOT_INITIALIZED
+10-05 07:21:59 [NAPCAT] [19020:1005/072159.020665:ERROR:ui/gl/gl_display.cc:674] Initialization of all EGL display types failed.
+10-05 07:21:59 [NAPCAT] [19020:1005/072159.021779:ERROR:ui/ozone/common/gl_ozone_egl.cc:26] GLDisplayEGL::Initialize failed.
+10-05 07:21:59 [NAPCAT] [19020:1005/072159.026032:ERROR:components/viz/service/main/viz_main_impl.cc:189] Exiting GPU process due to errors during initialization
+10-05 07:21:59 [NAPCAT] NapCat Shell App Loading...
+10-05 07:21:59 [NAPCAT] [launcher] intercepted package.json: /opt/QQ/resources/app/package.json, replacing content
+10-05 07:21:59 [NAPCAT] [launcher] Generated relative path: ../../../../root
+10-05 07:21:59 [NAPCAT] [launcher] New main field: "main": "../../../../root/loadNapCat.js"
+10-05 07:21:59 [NAPCAT] [launcher] package.json content: {
+10-05 07:21:59 [NAPCAT]   "name": "QQ",
+10-05 07:21:59 [NAPCAT]   "version": "3.2.33-52892",
+10-05 07:21:59 [NAPCAT]   "private": true,
+10-05 07:21:59 [NAPCAT]   "description": "QQ",
+10-05 07:21:59 [NAPCAT]   "productName": "QQ",
+10-05 07:21:59 [NAPCAT]   "author": {
+10-05 07:21:59 [NAPCAT]     "name": "Tencent",
+10-05 07:21:59 [NAPCAT]     "email": "QQ-Team@tencent.com"
+10-05 07:21:59 [NAPCAT]   },
+10-05 07:22:00 [NAPCAT]   "homepage": "https://im.qq.com",
+10-05 07:22:00 [NAPCAT]   "sideEffects": true,
+10-05 07:22:00 [NAPCAT]   "bin": {
+10-05 07:22:00 [NAPCAT]     "qd": "externals/devtools/cli/index.js"
+10-05 07:22:00 [NAPCAT]   },
+10-05 07:22:00 [NAPCAT]   "appid": {
+10-05 07:22:00 [NAPCAT]     "win32": "537382716",
+10-05 07:22:00 [NAPCAT]     "darwin": "537382742",
+10-05 07:22:00 [NAPCAT]     "linux": "537382753",
+10-05 07:22:00 [NAPCAT]     "ohos": "5373141859"
+10-05 07:22:00 [NAPCAT]   },
+10-05 07:22:00 [NAPCAT]   "main": "../../../../root/loadNapCat.js",
+10-05 07:22:00 [NAPCAT]   "peerDependenciesMeta": {
+10-05 07:22:00 [NAPCAT]     "*": {
+10-05 07:22:00 [NAPCAT]       "optional": true
+10-05 07:22:00 [NAPCAT]     }
+10-05 07:22:00 [NAPCAT]   },
+10-05 07:22:00 [NAPCAT]   "pnpm": {
+10-05 07:22:00 [NAPCAT]     "patchedDependencies": {
+10-05 07:22:00 [NAPCAT]       "@vue/runtime-dom@3.5.12": "patches/@vue__runtime-dom@3.5.12.patch",
+10-05 07:22:00 [NAPCAT]       "@swc/helpers@0.5.3": "patches/@swc__helpers@0.5.3.patch",
+10-05 07:22:00 [NAPCAT]       "vuex@4.1.0": "patches/vuex@4.1.0.patch",
+10-05 07:22:00 [NAPCAT]       "typescript-parser@2.6.1": "patches/typescript-parser@2.6.1.patch",
+10-05 07:22:00 [NAPCAT]       "@tencent/qqplay-downloadsdk": "patches/@tencent__qqplay-downloadsdk.patch",
+10-05 07:22:00 [NAPCAT]       "@tencent/universal-report@4.5.4": "patches/@tencent__universal-report@4.5.4.patch",
+10-05 07:22:00 [NAPCAT]       "typescript@7.0.2": "patches/typescript@7.0.2.patch"
+10-05 07:22:00 [NAPCAT]     },
+10-05 07:22:00 [NAPCAT]     "packageExtensions": {
+10-05 07:22:00 [NAPCAT]       "qute": {
+10-05 07:22:00 [NAPCAT]         "dependencies": {},
+10-05 07:22:00 [NAPCAT]         "devDependencies": {}
+10-05 07:22:00 [NAPCAT]       }
+10-05 07:22:00 [NAPCAT]     },
+10-05 07:22:00 [NAPCAT]     "overrides": {
+10-05 07:22:00 [NAPCAT]       "@types/react": "-",
+10-05 07:22:00 [NAPCAT]       "@types/react-dom": "-",
+10-05 07:22:00 [NAPCAT]       "@tencent/yuanbao-react-markdown>@types/hast": "-",
+10-05 07:22:00 [NAPCAT]       "@tencent/yuanbao-react-markdown>devlop": "-",
+10-05 07:22:00 [NAPCAT]       "@tencent/yuanbao-react-markdown>hast-util-to-jsx-runtime": "-",
+10-05 07:22:00 [NAPCAT]       "@tencent/yuanbao-react-markdown>html-url-attributes": "-",
+10-05 07:22:00 [NAPCAT]       "@tencent/yuanbao-react-markdown>mdast-util-to-hast": "-",
+10-05 07:22:00 [NAPCAT]       "@tencent/yuanbao-react-markdown>rehype-parse": "-",
+10-05 07:22:00 [NAPCAT]       "@tencent/yuanbao-react-markdown>rehype-stringify": "-",
+10-05 07:22:00 [NAPCAT]       "@tencent/yuanbao-react-markdown>remark-parse": "-",
+10-05 07:22:00 [NAPCAT]       "@tencent/yuanbao-react-markdown>remark-rehype": "-",
+10-05 07:22:00 [NAPCAT]       "@tencent/yuanbao-react-markdown>unified": "-",
+10-05 07:22:00 [NAPCAT]       "@tencent/yuanbao-react-markdown>unist-util-visit": "-",
+10-05 07:22:01 [NAPCAT]       "@tencent/yuanbao-react-markdown>vfile": "-",
+10-05 07:22:01 [NAPCAT]       "@types/d3-dispatch": "3.0.6"
+10-05 07:22:01 [NAPCAT]     }
+10-05 07:22:01 [NAPCAT]   },
+10-05 07:22:01 [NAPCAT]   "buildVersion": "52892",
+10-05 07:22:01 [NAPCAT]   "platform": "linux",
+10-05 07:22:01 [NAPCAT]   "eleArch": "arm64",
+10-05 07:22:01 [NAPCAT]   "linuxFormat": "deb"
+10-05 07:22:01 [NAPCAT] }
+10-05 07:22:01 [NAPCAT] prepare write and writev hooks
+10-05 07:22:01 [NAPCAT] 10-05 07:21:59 [info] [PacketHandler] 加载成功
+10-05 07:22:01 [NAPCAT] 10-05 07:21:59 [info] [Napi2NativeLoader] 加载成功
+10-05 07:22:01 [NAPCAT] 10-05 07:21:59 [info] [FFmpeg] 检查 Native Addon 可用性...
+10-05 07:22:01 [NAPCAT] 10-05 07:21:59 [info] [FFmpeg] ✓ 使用 Native Addon 适配器
+10-05 07:22:01 [NAPCAT] 10-05 07:21:59 [info] [PacketHandler] 初始化成功
+10-05 07:22:01 [NAPCAT] 10-05 07:21:59 [info] [NapCat] [Core] NapCat.Core Version: 4.18.29
+10-05 07:22:01 [NAPCAT] [I] <MemoryFile.cpp:98::open> open fd[0x24], /root/.config/QQ/nt_qq/global/nt_data/mmkv/nt_mmkv_global_misc
+10-05 07:22:01 [NAPCAT] [I] <MemoryFile.cpp:98::open> open fd[0x27], /root/.config/QQ/nt_qq/global/nt_data/mmkv/nt_mmkv_global_misc.crc
+10-05 07:22:01 [NAPCAT] [I] <MMKV_IO.cpp:213::loadMetaInfoAndCheck> meta file [nt_mmkv_global_misc] has flag [0]
+10-05 07:22:01 [NAPCAT] [I] <MMKV_IO.cpp:87::loadFromFile> loading [nt_mmkv_global_misc] with 77 actual size, file size 4096, InterProcess 1, meta info version:4
+10-05 07:22:01 [NAPCAT] [I] <MMKV_IO.cpp:92::loadFromFile> loading [nt_mmkv_global_misc] with crc 1813886533 sequence 1 version 4
+10-05 07:22:01 [NAPCAT] [I] <MMKV_IO.cpp:136::loadFromFile> loaded [nt_mmkv_global_misc] with 2 key-values
+10-05 07:22:01 [NAPCAT] [I] <MMKV.cpp:233::initializeMMKV> root dir: /root/.config/QQ/nt_qq/global/nt_data/mmkv
+10-05 07:22:01 [NAPCAT] [I] <MemoryFile.cpp:98::open> open fd[0x28], /root/.config/QQ/nt_qq/global/nt_data/mmkv/nt_mmkv_o3
+10-05 07:22:01 [NAPCAT] [I] <MemoryFile.cpp:98::open> open fd[0x29], /root/.config/QQ/nt_qq/global/nt_data/mmkv/nt_mmkv_o3.crc
+10-05 07:22:01 [NAPCAT] [I] <MMKV_IO.cpp:213::loadMetaInfoAndCheck> meta file [nt_mmkv_o3] has flag [0]
+10-05 07:22:01 [NAPCAT] [I] <MMKV_IO.cpp:87::loadFromFile> loading [nt_mmkv_o3] with 111 actual size, file size 4096, InterProcess 1, meta info version:4
+10-05 07:22:01 [NAPCAT] [I] <MMKV_IO.cpp:92::loadFromFile> loading [nt_mmkv_o3] with crc 3792612646 sequence 1 version 4
+10-05 07:22:01 [NAPCAT] [I] <MMKV_IO.cpp:136::loadFromFile> loaded [nt_mmkv_o3] with 2 key-values
+10-05 07:22:01 [NAPCAT] 10-05 07:21:59 [error] [NapCat] [UtilityProcess] Worker进程退出，退出码: 11
+10-05 07:22:01 [NAPCAT] 10-05 07:21:59 [warn] [NapCat] [UtilityProcess] Worker进程意外退出 (1/3)，正在尝试重新拉起...
+10-05 07:22:01 [NAPCAT] [launcher] loadNapCat.js generated in current directory
+10-05 07:22:01 [NAPCAT] [19649:1005/072200.164730:ERROR:base/files/file_path_watcher_inotify.cc:923] Failed to read /proc/sys/fs/inotify/max_user_watches
+10-05 07:22:01 [NAPCAT] [19649:1005/072200.165723:ERROR:net/base/address_tracker_linux.cc:242] Could not bind NETLINK socket: Permission denied (13)
+10-05 07:22:01 [NAPCAT] NapCat Shell App Loading...
+10-05 07:22:01 [NAPCAT] [launcher] intercepted package.json: /opt/QQ/resources/app/package.json, replacing content
+10-05 07:22:02 [NAPCAT] [launcher] Generated relative path: ../../../../root
+10-05 07:22:02 [NAPCAT] [launcher] New main field: "main": "../../../../root/loadNapCat.js"
+10-05 07:22:02 [NAPCAT] [launcher] package.json content: {
+10-05 07:22:02 [NAPCAT]   "name": "QQ",
+10-05 07:22:02 [NAPCAT]   "version": "3.2.33-52892",
+10-05 07:22:02 [NAPCAT]   "private": true,
+10-05 07:22:02 [NAPCAT]   "description": "QQ",
+10-05 07:22:02 [NAPCAT]   "productName": "QQ",
+10-05 07:22:02 [NAPCAT]   "author": {
+10-05 07:22:02 [NAPCAT]     "name": "Tencent",
+10-05 07:22:02 [NAPCAT]     "email": "QQ-Team@tencent.com"
+10-05 07:22:02 [NAPCAT]   },
+10-05 07:22:02 [NAPCAT]   "homepage": "https://im.qq.com",
+10-05 07:22:02 [NAPCAT]   "sideEffects": true,
+10-05 07:22:02 [NAPCAT]   "bin": {
+10-05 07:22:02 [NAPCAT]     "qd": "externals/devtools/cli/index.js"
+10-05 07:22:02 [NAPCAT]   },
+10-05 07:22:02 [NAPCAT]   "appid": {
+10-05 07:22:02 [NAPCAT]     "win32": "537382716",
+10-05 07:22:02 [NAPCAT]     "darwin": "537382742",
+10-05 07:22:02 [NAPCAT]     "linux": "537382753",
+10-05 07:22:02 [NAPCAT]     "ohos": "5373141859"
+10-05 07:22:02 [NAPCAT]   },
+10-05 07:22:02 [NAPCAT]   "main": "../../../../root/loadNapCat.js",
+10-05 07:22:02 [NAPCAT]   "peerDependenciesMeta": {
+10-05 07:22:02 [NAPCAT]     "*": {
+10-05 07:22:02 [NAPCAT]       "optional": true
+10-05 07:22:02 [NAPCAT]     }
+10-05 07:22:02 [NAPCAT]   },
+10-05 07:22:02 [NAPCAT]   "pnpm": {
+10-05 07:22:02 [NAPCAT]     "patchedDependencies": {
+10-05 07:22:02 [NAPCAT]       "@vue/runtime-dom@3.5.12": "patches/@vue__runtime-dom@3.5.12.patch",
+10-05 07:22:02 [NAPCAT]       "@swc/helpers@0.5.3": "patches/@swc__helpers@0.5.3.patch",
+10-05 07:22:02 [NAPCAT]       "vuex@4.1.0": "patches/vuex@4.1.0.patch",
+10-05 07:22:02 [NAPCAT]       "typescript-parser@2.6.1": "patches/typescript-parser@2.6.1.patch",
+10-05 07:22:02 [NAPCAT]       "@tencent/qqplay-downloadsdk": "patches/@tencent__qqplay-downloadsdk.patch",
+10-05 07:22:02 [NAPCAT]       "@tencent/universal-report@4.5.4": "patches/@tencent__universal-report@4.5.4.patch",
+10-05 07:22:02 [NAPCAT]       "typescript@7.0.2": "patches/typescript@7.0.2.patch"
+10-05 07:22:02 [NAPCAT]     },
+10-05 07:22:02 [NAPCAT]     "packageExtensions": {
+10-05 07:22:02 [NAPCAT]       "qute": {
+10-05 07:22:02 [NAPCAT]         "dependencies": {},
+10-05 07:22:02 [NAPCAT]         "devDependencies": {}
+10-05 07:22:02 [NAPCAT]       }
+10-05 07:22:02 [NAPCAT]     },
+10-05 07:22:02 [NAPCAT]     "overrides": {
+10-05 07:22:02 [NAPCAT]       "@types/react": "-",
+10-05 07:22:02 [NAPCAT]       "@types/react-dom": "-",
+10-05 07:22:02 [NAPCAT]       "@tencent/yuanbao-react-markdown>@types/hast": "-",
+10-05 07:22:02 [NAPCAT]       "@tencent/yuanbao-react-markdown>devlop": "-",
+10-05 07:22:02 [NAPCAT]       "@tencent/yuanbao-react-markdown>hast-util-to-jsx-runtime": "-",
+10-05 07:22:02 [NAPCAT]       "@tencent/yuanbao-react-markdown>html-url-attributes": "-",
+10-05 07:22:03 [NAPCAT]       "@tencent/yuanbao-react-markdown>mdast-util-to-hast": "-",
+10-05 07:22:03 [NAPCAT]       "@tencent/yuanbao-react-markdown>rehype-parse": "-",
+10-05 07:22:03 [NAPCAT]       "@tencent/yuanbao-react-markdown>rehype-stringify": "-",
+10-05 07:22:03 [NAPCAT]       "@tencent/yuanbao-react-markdown>remark-parse": "-",
+10-05 07:22:03 [NAPCAT]       "@tencent/yuanbao-react-markdown>remark-rehype": "-",
+10-05 07:22:03 [NAPCAT]       "@tencent/yuanbao-react-markdown>unified": "-",
+10-05 07:22:03 [NAPCAT]       "@tencent/yuanbao-react-markdown>unist-util-visit": "-",
+10-05 07:22:03 [NAPCAT]       "@tencent/yuanbao-react-markdown>vfile": "-",
+10-05 07:22:03 [NAPCAT]       "@types/d3-dispatch": "3.0.6"
+10-05 07:22:03 [NAPCAT]     }
+10-05 07:22:03 [NAPCAT]   },
+10-05 07:22:03 [NAPCAT]   "buildVersion": "52892",
+10-05 07:22:03 [NAPCAT]   "platform": "linux",
+10-05 07:22:03 [NAPCAT]   "eleArch": "arm64",
+10-05 07:22:03 [NAPCAT]   "linuxFormat": "deb"
+10-05 07:22:03 [NAPCAT] }
+10-05 07:22:03 [NAPCAT] prepare write and writev hooks
+10-05 07:22:03 [NAPCAT] 10-05 07:22:01 [info] [PacketHandler] 加载成功
+10-05 07:22:03 [NAPCAT] 10-05 07:22:01 [info] [Napi2NativeLoader] 加载成功
+10-05 07:22:03 [NAPCAT] 10-05 07:22:01 [info] [FFmpeg] 检查 Native Addon 可用性...
+10-05 07:22:03 [NAPCAT] 10-05 07:22:01 [info] [FFmpeg] ✓ 使用 Native Addon 适配器
+10-05 07:22:03 [NAPCAT] 10-05 07:22:01 [info] [PacketHandler] 初始化成功
+10-05 07:22:03 [NAPCAT] 10-05 07:22:01 [info] [NapCat] [Core] NapCat.Core Version: 4.18.29
+10-05 07:22:03 [NAPCAT] [I] <MMKV_IO.cpp:213::loadMetaInfoAndCheck> meta file [nt_mmkv_global_misc] has flag [0]
+10-05 07:22:03 [NAPCAT] [I] <MMKV_IO.cpp:87::loadFromFile> loading [nt_mmkv_global_misc] with 77 actual size, file size 4096, InterProcess 1, meta info version:4
+10-05 07:22:03 [NAPCAT] [I] <MMKV.cpp:233::initializeMMKV> root dir: /root/.config/QQ/nt_qq/global/nt_data/mmkv
+10-05 07:22:03 [NAPCAT] [I] <MMKV_IO.cpp:92::loadFromFile> loading [nt_mmkv_global_misc] with crc 1813886533 sequence 1 version 4
+10-05 07:22:03 [NAPCAT] [I] <MMKV_IO.cpp:136::loadFromFile> loaded [nt_mmkv_global_misc] with 2 key-values
+10-05 07:22:03 [NAPCAT] [I] <MemoryFile.cpp:98::open> open fd[0x25], /root/.config/QQ/nt_qq/global/nt_data/mmkv/nt_mmkv_o3
+10-05 07:22:03 [NAPCAT] [I] <MemoryFile.cpp:98::open> open fd[0x29], /root/.config/QQ/nt_qq/global/nt_data/mmkv/nt_mmkv_o3.crc
+10-05 07:22:03 [NAPCAT] [I] <MMKV_IO.cpp:213::loadMetaInfoAndCheck> meta file [nt_mmkv_o3] has flag [0]
+10-05 07:22:03 [NAPCAT] [I] <MMKV_IO.cpp:87::loadFromFile> loading [nt_mmkv_o3] with 111 actual size, file size 4096, InterProcess 1, meta info version:4
+10-05 07:22:03 [NAPCAT] [I] <MMKV_IO.cpp:92::loadFromFile> loading [nt_mmkv_o3] with crc 3792612646 sequence 1 version 4
+10-05 07:22:03 [NAPCAT] [I] <MMKV_IO.cpp:136::loadFromFile> loaded [nt_mmkv_o3] with 2 key-values
+10-05 07:22:03 [NAPCAT] 10-05 07:22:01 [error] [NapCat] [UtilityProcess] Worker进程退出，退出码: 11
+10-05 07:22:03 [NAPCAT] 10-05 07:22:01 [warn] [NapCat] [UtilityProcess] Worker进程意外退出 (2/3)，正在尝试重新拉起...
+10-05 07:22:03 [NAPCAT] [launcher] loadNapCat.js generated in current directory
+10-05 07:22:03 [NAPCAT] [20074:1005/072201.741619:ERROR:base/files/file_path_watcher_inotify.cc:923] Failed to read /proc/sys/fs/inotify/max_user_watches
+10-05 07:22:03 [NAPCAT] [20074:1005/072201.742368:ERROR:net/base/address_tracker_linux.cc:242] Could not bind NETLINK socket: Permission denied (13)
+10-05 07:22:03 [NAPCAT] NapCat Shell App Loading...
+10-05 07:22:03 [NAPCAT] [launcher] intercepted package.json: /opt/QQ/resources/app/package.json, replacing content
+10-05 07:22:03 [NAPCAT] [launcher] Generated relative path: ../../../../root
+10-05 07:22:03 [NAPCAT] [launcher] New main field: "main": "../../../../root/loadNapCat.js"
+10-05 07:22:03 [NAPCAT] [launcher] package.json content: {
+10-05 07:22:03 [NAPCAT]   "name": "QQ",
+10-05 07:22:03 [NAPCAT]   "version": "3.2.33-52892",
+10-05 07:22:03 [NAPCAT]   "private": true,
+10-05 07:22:03 [NAPCAT]   "description": "QQ",
+10-05 07:22:03 [NAPCAT]   "productName": "QQ",
+10-05 07:22:03 [NAPCAT]   "author": {
+10-05 07:22:03 [NAPCAT]     "name": "Tencent",
+10-05 07:22:03 [NAPCAT]     "email": "QQ-Team@tencent.com"
+10-05 07:22:03 [NAPCAT]   },
+10-05 07:22:03 [NAPCAT]   "homepage": "https://im.qq.com",
+10-05 07:22:03 [NAPCAT]   "sideEffects": true,
+10-05 07:22:03 [NAPCAT]   "bin": {
+10-05 07:22:03 [NAPCAT]     "qd": "externals/devtools/cli/index.js"
+10-05 07:22:03 [NAPCAT]   },
+10-05 07:22:04 [NAPCAT]   "appid": {
+10-05 07:22:04 [NAPCAT]     "win32": "537382716",
+10-05 07:22:04 [NAPCAT]     "darwin": "537382742",
+10-05 07:22:04 [NAPCAT]     "linux": "537382753",
+10-05 07:22:04 [NAPCAT]     "ohos": "5373141859"
+10-05 07:22:04 [NAPCAT]   },
+10-05 07:22:04 [NAPCAT]   "main": "../../../../root/loadNapCat.js",
+10-05 07:22:04 [NAPCAT]   "peerDependenciesMeta": {
+10-05 07:22:04 [NAPCAT]     "*": {
+10-05 07:22:04 [NAPCAT]       "optional": true
+10-05 07:22:04 [NAPCAT]     }
+10-05 07:22:04 [NAPCAT]   },
+10-05 07:22:04 [NAPCAT]   "pnpm": {
+10-05 07:22:04 [NAPCAT]     "patchedDependencies": {
+10-05 07:22:04 [NAPCAT]       "@vue/runtime-dom@3.5.12": "patches/@vue__runtime-dom@3.5.12.patch",
+10-05 07:22:04 [NAPCAT]       "@swc/helpers@0.5.3": "patches/@swc__helpers@0.5.3.patch",
+10-05 07:22:04 [NAPCAT]       "vuex@4.1.0": "patches/vuex@4.1.0.patch",
+10-05 07:22:04 [NAPCAT]       "typescript-parser@2.6.1": "patches/typescript-parser@2.6.1.patch",
+10-05 07:22:04 [NAPCAT]       "@tencent/qqplay-downloadsdk": "patches/@tencent__qqplay-downloadsdk.patch",
+10-05 07:22:04 [NAPCAT]       "@tencent/universal-report@4.5.4": "patches/@tencent__universal-report@4.5.4.patch",
+10-05 07:22:04 [NAPCAT]       "typescript@7.0.2": "patches/typescript@7.0.2.patch"
+10-05 07:22:04 [NAPCAT]     },
+10-05 07:22:04 [NAPCAT]     "packageExtensions": {
+10-05 07:22:04 [NAPCAT]       "qute": {
+10-05 07:22:04 [NAPCAT]         "dependencies": {},
+10-05 07:22:04 [NAPCAT]         "devDependencies": {}
+10-05 07:22:04 [NAPCAT]       }
+10-05 07:22:04 [NAPCAT]     },
+10-05 07:22:04 [NAPCAT]     "overrides": {
+10-05 07:22:04 [NAPCAT]       "@types/react": "-",
+10-05 07:22:04 [NAPCAT]       "@types/react-dom": "-",
+10-05 07:22:04 [NAPCAT]       "@tencent/yuanbao-react-markdown>@types/hast": "-",
+10-05 07:22:04 [NAPCAT]       "@tencent/yuanbao-react-markdown>devlop": "-",
+10-05 07:22:04 [NAPCAT]       "@tencent/yuanbao-react-markdown>hast-util-to-jsx-runtime": "-",
+10-05 07:22:04 [NAPCAT]       "@tencent/yuanbao-react-markdown>html-url-attributes": "-",
+10-05 07:22:04 [NAPCAT]       "@tencent/yuanbao-react-markdown>mdast-util-to-hast": "-",
+10-05 07:22:04 [NAPCAT]       "@tencent/yuanbao-react-markdown>rehype-parse": "-",
+10-05 07:22:04 [NAPCAT]       "@tencent/yuanbao-react-markdown>rehype-stringify": "-",
+10-05 07:22:04 [NAPCAT]       "@tencent/yuanbao-react-markdown>remark-parse": "-",
+10-05 07:22:04 [NAPCAT]       "@tencent/yuanbao-react-markdown>remark-rehype": "-",
+10-05 07:22:04 [NAPCAT]       "@tencent/yuanbao-react-markdown>unified": "-",
+10-05 07:22:04 [NAPCAT]       "@tencent/yuanbao-react-markdown>unist-util-visit": "-",
+10-05 07:22:04 [NAPCAT]       "@tencent/yuanbao-react-markdown>vfile": "-",
+10-05 07:22:04 [NAPCAT]       "@types/d3-dispatch": "3.0.6"
+10-05 07:22:04 [NAPCAT]     }
+10-05 07:22:04 [NAPCAT]   },
+10-05 07:22:04 [NAPCAT]   "buildVersion": "52892",
+10-05 07:22:04 [NAPCAT]   "platform": "linux",
+10-05 07:22:04 [NAPCAT]   "eleArch": "arm64",
+10-05 07:22:04 [NAPCAT]   "linuxFormat": "deb"
+10-05 07:22:04 [NAPCAT] }
+10-05 07:22:04 [NAPCAT] prepare write and writev hooks
+10-05 07:22:04 [NAPCAT] 10-05 07:22:03 [info] [PacketHandler] 加载成功
+10-05 07:22:04 [NAPCAT] 10-05 07:22:03 [info] [Napi2NativeLoader] 加载成功
+10-05 07:22:04 [NAPCAT] 10-05 07:22:03 [info] [FFmpeg] 检查 Native Addon 可用性...
+10-05 07:22:04 [NAPCAT] 10-05 07:22:03 [info] [FFmpeg] ✓ 使用 Native Addon 适配器
+10-05 07:22:04 [NAPCAT] 10-05 07:22:03 [info] [PacketHandler] 初始化成功
+10-05 07:22:04 [NAPCAT] 10-05 07:22:03 [info] [NapCat] [Core] NapCat.Core Version: 4.18.29
+10-05 07:22:04 [NAPCAT] [I] <MemoryFile.cpp:98::open> open fd[0x27], /root/.config/QQ/nt_qq/global/nt_data/mmkv/nt_mmkv_global_misc
+10-05 07:22:04 [NAPCAT] [I] <MemoryFile.cpp:98::open> open fd[0x28], /root/.config/QQ/nt_qq/global/nt_data/mmkv/nt_mmkv_global_misc.crc
+10-05 07:22:04 [NAPCAT] [I] <MMKV_IO.cpp:213::loadMetaInfoAndCheck> meta file [nt_mmkv_global_misc] has flag [0]
+10-05 07:22:04 [NAPCAT] [I] <MMKV_IO.cpp:87::loadFromFile> loading [nt_mmkv_global_misc] with 77 actual size, file size 4096, InterProcess 1, meta info version:4
+10-05 07:22:04 [NAPCAT] [I] <MMKV_IO.cpp:92::loadFromFile> loading [nt_mmkv_global_misc] with crc 1813886533 sequence 1 version 4
+10-05 07:22:04 [NAPCAT] [I] <MMKV_IO.cpp:136::loadFromFile> loaded [nt_mmkv_global_misc] with 2 key-values
+10-05 07:22:04 [NAPCAT] [I] <MMKV.cpp:233::initializeMMKV> root dir: /root/.config/QQ/nt_qq/global/nt_data/mmkv
+10-05 07:22:04 [NAPCAT] [I] <MemoryFile.cpp:98::open> open fd[0x26], /root/.config/QQ/nt_qq/global/nt_data/mmkv/nt_mmkv_o3
+10-05 07:22:04 [NAPCAT] [I] <MemoryFile.cpp:98::open> open fd[0x29], /root/.config/QQ/nt_qq/global/nt_data/mmkv/nt_mmkv_o3.crc
+10-05 07:22:04 [NAPCAT] [I] <MMKV_IO.cpp:213::loadMetaInfoAndCheck> meta file [nt_mmkv_o3] has flag [0]
+10-05 07:22:04 [NAPCAT] [I] <MMKV_IO.cpp:87::loadFromFile> loading [nt_mmkv_o3] with 111 actual size, file size 4096, InterProcess 1, meta info version:4
+10-05 07:22:04 [NAPCAT] [I] <MMKV_IO.cpp:92::loadFromFile> loading [nt_mmkv_o3] with crc 3792612646 sequence 1 version 4
+10-05 07:22:04 [NAPCAT] [I] <MMKV_IO.cpp:136::loadFromFile> loaded [nt_mmkv_o3] with 2 key-values
+10-05 07:22:04 [NAPCAT] 10-05 07:22:03 [error] [NapCat] [UtilityProcess] Worker进程退出，退出码: 11
+10-05 07:22:04 [NAPCAT] 10-05 07:22:03 [error] [NapCat] [UtilityProcess] Worker进程在 10 秒内异常退出 3 次，主进程退出
+10-05 07:22:05 [NAPCAT] 10-05 07:22:03 [warn] [NapCat] [UtilityProcess] Worker进程意外退出 (3/3)，正在尝试重新拉起...
+10-05 07:22:05 [NAPCAT] [launcher] loadNapCat.js generated in current directory
+10-05 07:22:06 [AstrBot Android] 检测到 QQ 内部组件异常退出——看门狗将在约 5 分钟内自动清理并重启（登录态不丢，无需重新扫码）
+10-05 07:22:21 [AstrBot Android] NapCat 启动中…（已等待 30 秒，QQ 首次引导较慢）
+10-05 07:22:51 [AstrBot Android] NapCat 启动中…（已等待 60 秒，QQ 首次引导较慢）
+10-05 07:23:21 [AstrBot Android] NapCat 启动中…（已等待 90 秒，QQ 首次引导较慢）
+10-05 07:23:52 [AstrBot Android] NapCat 启动中…（已等待 120 秒，QQ 首次引导较慢）
+10-05 07:24:22 [AstrBot Android] NapCat 启动中…（已等待 150 秒，QQ 首次引导较慢）
+10-05 07:24:52 [AstrBot Android] NapCat 启动中…（已等待 180 秒，QQ 首次引导较慢）
+10-05 07:25:22 [AstrBot Android] NapCat 启动中…（已等待 210 秒，QQ 首次引导较慢）
+10-05 07:25:53 [AstrBot Android] NapCat 启动中…（已等待 240 秒，QQ 首次引导较慢）
+10-05 07:26:23 [AstrBot Android] NapCat 启动中…（已等待 270 秒，QQ 首次引导较慢）
+10-05 07:26:53 [AstrBot Android] NapCat 启动中…（已等待 300 秒，QQ 首次引导较慢）
+10-05 07:26:58 [AstrBot Android] NapCat 仍在启动（QQ 未登录时端口不会开启；可开 WebUI :5099 扫码，App 会持续自动检测）
+10-05 07:26:58 [31m- NapCat 运行中（仅 NapCat 模式）[0m
+10-05 07:28:32 引擎输出读取结束（主动停止）
