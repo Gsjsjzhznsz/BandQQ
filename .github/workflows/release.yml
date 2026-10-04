@@ -110,6 +110,9 @@ jobs:
         with:
           gradle-version: "8.13"
 
+      - name: 钉住 Gradle daemon JVM
+        run: echo "org.gradle.java.home=$JAVA_HOME" >> "$GITHUB_WORKSPACE/android-sync/gradle.properties"
+
       - name: 单元测试 + 双 flavor Release 出包
         working-directory: android-sync
         run: gradle --no-daemon --max-workers=2 --stacktrace test assembleBundledRelease assembleCompanionRelease
