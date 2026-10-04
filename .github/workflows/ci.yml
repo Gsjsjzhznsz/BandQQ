@@ -122,6 +122,10 @@ jobs:
           grep -q '<api-level>37</api-level>' "$P/android-37/package.xml" || { echo "::error::package.xml api-level 未修正"; exit 1; }
           grep -q 'AndroidVersion.ApiLevel=37$' "$P/android-37/source.properties" || { echo "::error::source.properties 未修正"; exit 1; }
           echo "platform android-37 ready"
+          echo "--- 尺寸核查 ---"; ls -la "$P/android-37/" | head -8; ls -la "$ANDROID_HOME/build-tools/"
+          echo "--- 全树注册表枚举 ---"; find "$ANDROID_HOME" -maxdepth 3 -name package.xml | head -40
+          echo "--- sdkmanager 视角 ---"; "$SDKM" --sdk_root="$ANDROID_HOME" --list_installed 2>/dev/null | head -20
+          echo "sdk.dir=$ANDROID_HOME" > "$GITHUB_WORKSPACE/android-sync/local.properties"
 
       - uses: gradle/actions/setup-gradle@v4
         with:
@@ -129,7 +133,7 @@ jobs:
 
       - name: 单元测试 + 双 flavor Debug 出包
         working-directory: android-sync
-        run: gradle --no-daemon --max-workers=2 --stacktrace test assembleBundledDebug assembleCompanionDebug
+        run: gradle --no-daemon --max-workers=2 --info --stacktrace test assembleBundledDebug assembleCompanionDebug
 
       - name: 上传测试报告（失败时）
         if: failure()
