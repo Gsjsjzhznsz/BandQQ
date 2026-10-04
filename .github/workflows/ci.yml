@@ -91,7 +91,11 @@ jobs:
           mv "$RUNNER_TEMP/ctx/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
           SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKM" --sdk_root="$ANDROID_HOME" --licenses >> "$LOG" 2>&1 || true
-          yes | "$SDKM" --sdk_root="$ANDROID_HOME" --install "platform-tools" "build-tools;37.0.0" >> "$LOG" 2>&1 || true
+          # build-tools 35.0.0 = AGP 8.13.2 默认 BT：DirectLoading（AGP 首选策略，
+          # 只读 source.properties，不会自动安装）必须有它才能成功；
+          # 缺失时回落 FullLoading（package.xml 注册表路径），Google 官方 API-37
+          # 元数据在该路径必挂（本地九轮+CI 九轮联合定位）
+          yes | "$SDKM" --sdk_root="$ANDROID_HOME" --install "platform-tools" "build-tools;35.0.0" "build-tools;37.0.0" >> "$LOG" 2>&1 || true
           # 3) 平台 37：临时 sdk_root 装出（sdkmanager 写注册表）→ 落位
           rm -rf "$RUNNER_TEMP/sdktmp"
           yes | "$SDKM" --sdk_root="$RUNNER_TEMP/sdktmp" --licenses >> "$LOG" 2>&1 || true
@@ -121,6 +125,7 @@ jobs:
           [ -f "$P/android-37/android.jar" ] || { tail -40 "$LOG"; echo "::error::android-37 缺 android.jar"; exit 1; }
           grep -q '<api-level>37</api-level>' "$P/android-37/package.xml" || { echo "::error::package.xml api-level 未修正"; exit 1; }
           grep -q 'AndroidVersion.ApiLevel=37$' "$P/android-37/source.properties" || { echo "::error::source.properties 未修正"; exit 1; }
+          [ -d "$ANDROID_HOME/build-tools/35.0.0" ] || { tail -40 "$LOG"; echo "::error::缺 AGP 默认 build-tools 35.0.0（DirectLoading 前提）"; exit 1; }
           echo "platform android-37 ready"
           echo "--- 尺寸核查 ---"; ls -la "$P/android-37/" | head -8; ls -la "$ANDROID_HOME/build-tools/"
           echo "--- 全树注册表枚举 ---"; find "$ANDROID_HOME" -maxdepth 3 -name package.xml | head -40
