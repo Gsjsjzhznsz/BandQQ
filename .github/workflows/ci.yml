@@ -1,8 +1,10 @@
 # BandQQ CI —— 推送/PR 自动验证与出包
 #
-# 说明（为什么没有 gradlew）：
-#   仓库走 gradle/actions/setup-gradle 直接安装 Gradle 8.13（与 gradle-wrapper.properties
-#   同版本），无需提交 wrapper 二进制。
+# 构建链（v2.25.1 起）：AGP 9.0.1 + Gradle 9.1.0 + JDK 17
+#   AGP 9 内置 Kotlin 支持（无需 KGP android 插件）；compileSdk 37 走
+#   compileSdkMinor=0 语义，直接命中 sdkmanager 原生 platforms;android-37.0，
+#   无需任何元数据补丁（此前 AGP 8.13.2 的 sdklib 解析不了 minor 版本 API 打包，
+#   系列失败复盘见 git log 十轮定位记录）。
 #
 # 两个并行 job：
 #   rpk —— band-qq 四分支快应用包（band/bandpro/xiaomis/redmiwatch）+ node 单测
@@ -69,79 +71,23 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # 配方（本地 e2e 验证 · 清空重建版）：
-      # 七跑实证：平台元数据与本地逐字节一致仍 "Failed to find target android-37"，
-      # 唯一剩余差异 = 镜像预装 SDK 树中的其它包（34-ext*/35-ext*/36-ext*/XR 等），
-      # AGP 8.13.2 内置 sdklib 全树扫描 package.xml 时任何一个 schema 不兼容包
-      # 都可能中断注册表构建。故：清空镜像 SDK 树，按本地验证过的五件套重建
-      # （zip 直解 cmdline-tools + platform-tools + build-tools 37.0.0 + 平台 37）。
-      # 平台元数据四处补丁：Google 官方 zip 自带笔误 api-level 37.0 / Platform.Version=17。
-      - name: 清空重建 SDK（本地验证五件套）
+      # ubuntu-latest 自带 Android SDK（ANDROID_HOME=/usr/local/lib/android/sdk）
+      - name: 安装 SDK 组件
         run: |
-          set -x
-          LOG="${RUNNER_TEMP}/sdk-install.log"
-          # 1) 清空镜像预装（licenses 保留，accepted 标记仍有效）
-          rm -rf "$ANDROID_HOME"/platforms "$ANDROID_HOME"/build-tools "$ANDROID_HOME"/add-ons \
-                 "$ANDROID_HOME"/system-images "$ANDROID_HOME"/extras "$ANDROID_HOME"/sources \
-                 "$ANDROID_HOME"/cmdline-tools "$ANDROID_HOME"/tools "$ANDROID_HOME"/patches
-          # 2) cmdline-tools：zip 直解（无 package.xml，与本地一致）
-          curl -sSL -o "$RUNNER_TEMP/ct.zip" "https://dl.google.com/android/repository/commandlinetools-linux-13114758_latest.zip"
-          mkdir -p "$ANDROID_HOME/cmdline-tools" "$RUNNER_TEMP/ctx"
-          rm -rf "$RUNNER_TEMP/ctx"; unzip -q "$RUNNER_TEMP/ct.zip" -d "$RUNNER_TEMP/ctx"
-          mv "$RUNNER_TEMP/ctx/cmdline-tools" "$ANDROID_HOME/cmdline-tools/latest"
           SDKM="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
-          yes | "$SDKM" --sdk_root="$ANDROID_HOME" --licenses >> "$LOG" 2>&1 || true
-          # build-tools 35.0.0 = AGP 8.13.2 默认 BT：DirectLoading（AGP 首选策略，
-          # 只读 source.properties，不会自动安装）必须有它才能成功；
-          # 缺失时回落 FullLoading（package.xml 注册表路径），Google 官方 API-37
-          # 元数据在该路径必挂（本地九轮+CI 九轮联合定位）
-          yes | "$SDKM" --sdk_root="$ANDROID_HOME" --install "platform-tools" "build-tools;35.0.0" "build-tools;37.0.0" >> "$LOG" 2>&1 || true
-          # 3) 平台 37：临时 sdk_root 装出（sdkmanager 写注册表）→ 落位
-          rm -rf "$RUNNER_TEMP/sdktmp"
-          yes | "$SDKM" --sdk_root="$RUNNER_TEMP/sdktmp" --licenses >> "$LOG" 2>&1 || true
-          yes | "$SDKM" --sdk_root="$RUNNER_TEMP/sdktmp" --install "platforms;android-37.0" >> "$LOG" 2>&1 || true
-          P="$ANDROID_HOME/platforms"; mkdir -p "$P"
-          rm -rf "$P/android-37" "$P/android-37.0"
-          if [ -d "$RUNNER_TEMP/sdktmp/platforms/android-37.0" ]; then
-            mv "$RUNNER_TEMP/sdktmp/platforms/android-37.0" "$P/android-37"
-          else
-            echo "sdkmanager 装包失败，走官方 zip 直装兜底"
-            curl -sSL -o "$RUNNER_TEMP/p37.zip" "https://dl.google.com/android/repository/platform-37.0_r02.zip"
-            unzip -q "$RUNNER_TEMP/p37.zip" -d "$RUNNER_TEMP/p37"
-            mv "$RUNNER_TEMP/p37/android-37.0" "$P/android-37"
-          fi
-          # 4) 元数据四处补丁 + 验证版注册表覆盖（逐字节对齐本地成功状态）
-          sed -i 's|platforms;android-37\.0|platforms;android-37|g; s|<api-level>37\.0</api-level>|<api-level>37</api-level>|' "$P/android-37/package.xml" || true
-          sed -i 's|AndroidVersion.ApiLevel=37\.0|AndroidVersion.ApiLevel=37|; s|Platform\.Version=17|Platform.Version=37|' "$P/android-37/source.properties"
-          if [ -f "$P/android-37/package.xml" ]; then
-            cp "$GITHUB_WORKSPACE/.github/sdk/platforms-android-37.package.xml" "$P/android-37/package.xml"
-          fi
-          # 5) 硬校验
-          echo "--- SDK 树 ---"; ls "$ANDROID_HOME"; ls "$P"
-          echo "--- 注册表关键行 ---"
-          grep -o 'path="[^"]*"' "$P/android-37/package.xml" | head -2 || true
-          grep -o '<api-level>[^<]*</api-level>' "$P/android-37/package.xml" || true
-          echo "--- source.properties ---"; cat "$P/android-37/source.properties" || true
-          [ -f "$P/android-37/android.jar" ] || { tail -40 "$LOG"; echo "::error::android-37 缺 android.jar"; exit 1; }
-          grep -q '<api-level>37</api-level>' "$P/android-37/package.xml" || { echo "::error::package.xml api-level 未修正"; exit 1; }
-          grep -q 'AndroidVersion.ApiLevel=37$' "$P/android-37/source.properties" || { echo "::error::source.properties 未修正"; exit 1; }
-          [ -d "$ANDROID_HOME/build-tools/35.0.0" ] || { tail -40 "$LOG"; echo "::error::缺 AGP 默认 build-tools 35.0.0（DirectLoading 前提）"; exit 1; }
-          echo "platform android-37 ready"
-          echo "--- 尺寸核查 ---"; ls -la "$P/android-37/" | head -8; ls -la "$ANDROID_HOME/build-tools/"
-          echo "--- 全树注册表枚举 ---"; find "$ANDROID_HOME" -maxdepth 3 -name package.xml | head -40
-          echo "--- sdkmanager 视角 ---"; "$SDKM" --sdk_root="$ANDROID_HOME" --list_installed 2>/dev/null | head -20
-          echo "sdk.dir=$ANDROID_HOME" > "$GITHUB_WORKSPACE/android-sync/local.properties"
-          # 钉住 Gradle daemon JVM=setup-java 的 JDK（镜像自带 /usr/lib/jvm/temurin-17 会
-          # 通过 ~/.gradle/gradle.properties 抢占 daemon JVM，行为与本地 17.0.20.1+1 不一致）
-          echo "org.gradle.java.home=$JAVA_HOME" >> "$GITHUB_WORKSPACE/android-sync/gradle.properties"
+          [ -x "$SDKM" ] || SDKM="$(command -v sdkmanager)"
+          yes | "$SDKM" --licenses >/dev/null 2>&1 || true
+          yes | "$SDKM" --install "platforms;android-37.0" "build-tools;37.0.0" "build-tools;35.0.0" "platform-tools" >/dev/null
+          [ -d "$ANDROID_HOME/platforms/android-37.0" ] && echo "platforms;android-37.0 ok"
+          [ -d "$ANDROID_HOME/build-tools/37.0.0" ] && echo "build-tools;37.0.0 ok"
 
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: "8.13"
+          gradle-version: "9.1.0"
 
       - name: 单元测试 + 双 flavor Debug 出包
         working-directory: android-sync
-        run: gradle --no-daemon --max-workers=2 --debug --stacktrace test assembleBundledDebug assembleCompanionDebug
+        run: gradle --no-daemon --max-workers=2 test assembleBundledDebug assembleCompanionDebug
 
       - name: 上传测试报告（失败时）
         if: failure()
@@ -152,7 +98,7 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-      - name: 上传 APK 产物
+      - name: 上传 APK 产物（改名 bandqq-<版本>-<flavor>.apk）
         uses: actions/upload-artifact@v4
         with:
           name: bandqq-apk-debug

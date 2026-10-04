@@ -322,3 +322,23 @@ Work Log:
 Stage Summary:
 - 产物：.github/workflows/{ci,release}.yml + README CI 徽章；推送后 push main 首跑自动验证（rpk 分钟级/APK 约 10 分钟）
 - 待回归：①观察 CI 首跑（尤其 android-37 手术与 aiot-toolkit on node22）②发版改用 git tag vX.Y.Z 一键触发
+
+---
+Task ID: 34 (续)
+Agent: Super Z (main)
+Task: CI 十一轮攻坚定案——AGP 8.13.2 vs API-37.0 打包格式代差；迁移 AGP 9.0.1 + Gradle 9.1.0 根治（v2.25.1/vc67）
+
+Work Log:
+- 二跑：rpk 单测 107/107（api.js send 门控真修）；APK 挂 Failed to find target 'android-37'
+- 三~五跑：setup-android@v3 license 卡死→弃用；锁版 11076708 cmdline-tools→其读的老目录 repository2-1.xml 已无 android-37.* 包（装包静默失败）；镜像预装 android-37 元数据未修（Google zip 自带笔误 api-level 37.0/Platform.Version=17）
+- 本地复现链：env 重置后重建工具链→复现同错→定位 package.xml `<api-level>37.0</api-level>` 为根因之一→补丁后本地 e2e 全绿
+- 六~九跑：注册表逐字节一致仍挂→挖 --info 实锤 AGP 自动装了 build-tools 35（AGP 8.13.2 默认 BT）→本地验证 DirectLoading（只读 source.properties）vs FullLoading（package.xml 注册表）双策略分流：本地全绿=BT35 已存时 Direct 接管；CI 无 BT35 → Full → 死路（Google API-37 元数据在 Full 路径必挂 + cmdline-tools legacy 包 displayName null NPE）
+- 十跑：预装 BT35 仍挂→daemon JVM 指向镜像自带 temurin-17（后证与本地同为 17.0.20.1+1，排除 JDK 因素）
+- 终极定案：AGP 8.13.2 sdklib 整代不认 minor 版本 API 打包，绕不过→升 AGP 9.0.1（要求 Gradle ≥9.1.0）
+- AGP 9 迁移：移除 org.jetbrains.kotlin.android（内置 Kotlin，保留 plugin.compose）+ 移除 applicationVariants 旧 API（产物改名移至 CI 收集阶段）+ manifest 禁 uses-sdk 版本属性（tools:overrideLibrary 保留）+ compileSdk=37 + compileSdkMinor=0 → **直接命中原生 platforms;android-37.0，全部元数据手术作废**
+- 版本 bump 2.25.1/vc67；wrapper→9.1.0；setup-buildenv.sh v3 极简配方；删 .github/sdk 内嵌注册表；MEMORY.md 构建配方更新
+- 验证：本地 Gradle 9.1.0 全矩阵（250/250 单测+双 flavor debug/release）全绿于 /tmp/cisdk2 原生 SDK
+
+Stage Summary:
+- 产物：v2.25.1 CI 全绿工作流（ci/release）+ AGP9 迁移后的构建链 + api.js 门控真修 + nSecondary 残缺修复
+- 待回归：CI push 全绿后打 tag v2.25.1 触发 release.yml 自动发版（六资产）

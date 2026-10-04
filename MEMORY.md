@@ -8,7 +8,15 @@
 上游：https://github.com/Astroptis/band-qq-assistant ；本仓库为完整版镜像（含签名/产物/legacy）。
 
 ## 版本线
-- 当前正式线：v2.24.0（vc65）—— 发送链根修(params-only)+NapCat 状态/日志/配置三联动+一键填入热重连（2026-10-04）
+- 当前正式线：v2.25.1（vc67）—— CI 首建（GitHub Actions）+ AGP 9.0.1/Gradle 9.1.0 迁移 + api.js send 门控真修（2026-10-04）
+  - CI 首建（用户"哪里有ci，都没有写过工作流文件"）：.github/workflows/ci.yml（push/PR 触发：rpk 四分支+node 单测 / APK 双 flavor 单测+Debug 出包）+ release.yml（tag v* 触发：tag↔versionName 一致性校验+双 APK+四分支 rpk 六资产自动发 GitHub Release）；签名 keystore.jks 与 rpk pem 均已入库全程零 secrets；README 加 CI 徽章
+  - AGP 9.0.1 + Gradle 9.1.0 迁移（CI 十一轮定位的终极解）：AGP 8.13.2 的 sdklib 解析不了 Google 新 minor 版本打包（platforms;android-37.0 的 `<api-level>37.0</api-level>` + Platform.Version=17 笔误），hash 'android-37' 永远查不到（FullLoading 路径）且 DirectLoading 需 AGP 默认 build-tools 35.0.0 预存；AGP 9 内置 Kotlin（移除 org.jetbrains.kotlin.android，保留 plugin.compose）+ applicationVariants 移除（产物改名移至 CI 收集阶段）+ manifest 禁 uses-sdk 版本属性（tools:overrideLibrary 仍允许）+ compileSdk=37+compileSdkMinor=0 直接命中原生 platforms;android-37.0，**零元数据手术**；AGP 9.0.1 要求 Gradle ≥9.1.0
+  - api.js send 就绪门控真修（本地基线 106/107 挂项）：waitReady/markReady 门控此前只在 connectStatus 生效，send 漏接 → onopen 前业务帧直发丢失；修后 node 107/107 全绿
+  - AstrBotScreen.kt 残缺引用 nSecondary→onSurfaceSecondary（v2.25.0 提交时引入的 bundled 编译阻断）
+  - branch-release.js 版本行正则通配加固（manifest bump 漏同步 about.ux 不再炸构建）；about.ux 同步 2.25.0→2.25.1
+  - 验证：node 107/107；APP 单测 250/250；双 APK vc67/2.25.1（AGP9 无 badging 校验脚本，以 outputs 产物为准）
+- 前情：v2.25.0（vc66）—— NapCat 二次启动崩溃根治+反检测自动全开+仅NapCat模式停6199刷屏+LinuxQQ断点续传（2026-10-04）
+- 前情：v2.24.0（vc65）—— 发送链根修(params-only)+NapCat 状态/日志/配置三联动+一键填入热重连（2026-10-04）
   - 发送链根修（用户第五份 bandqq-2026-10-04.log 定案：WS 3001 已连+get_group_list ok 但 send_group_msg 一律 retcode=200 "TypeError: Cannot read properties of undefined (reading 'type')"@aye napcat.mjs:74013）：NapCat 4.18.28 HTTP httpApiRequest 把**整个请求体直接当 params**（action 从路径取），旧 WS 风格信封 {action,params} → body.message=undefined → $a(undefined)=[undefined] → aye() 段校验 n.type 崩；修=buildSendParams 拆出 params-only 体（与 direct.js 直连通道同形状——该通道从未失败），WS 通道仍走信封；OneBotClient.sendMessage 改 judge() 语义（HTTP 200 但 retcode!=0 一律业务失败，"不支持的Api"才换通道）
   - NapCat 状态联动（用户"napcat启动完成还在显示启动"）：①脚本 wait_napcat_ports（/dev/tcp 探测 3001/3000，仅 NapCat 模式前台调用出 stage 100 终态，AstrBot 模式后台只打日志）②EngineManager stage≥100 → State.Running（不再停"安装中 100%"）③EngineHooks.napcatConnected（main sourceSet 钩子，astrbot-engine 仅 bundledImplementation 不可直接 import）+ SyncService 包装 OneBotListener onState(true) → EngineManager.onNapcatConnected()（WS onOpen 即推进 Starting/Installing→Running，比端口探测轮询早）④AstrBotScreen 状态卡新增"● 手环直连：已连通/○ 未连通"行（OneBotStateBus 实时驱动，区分"容器在跑"与"QQ 登录后 3001/3000 可连"两层状态）
   - NapCat 日志接入（用户"log没有napcat的log"）：①脚本 napcat_console_tap（tail -F napcat-console.log 逐行剥 ANSI/截 160 加 [NAPCAT] 前缀写回引擎 stdout；引擎停止链 pkill/重入/管道断裂三重收尾）②EngineManager.logSink + logLine 全量转发 ③bundled AstrBotScreen 首帧 LaunchedEffect 挂 sink → LogBus("AstrBotEngine") → 主页实时日志面板
@@ -49,9 +57,10 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 - 许可证：非商业，公开分发修改版需书面授权（motricseven@foxmail.com）
 - 最终方案：App 只做 OneBot 客户端 + 内嵌 WebUI WebView + README 提供 Termux 部署指引
 
-## 构建配方（Linux 容器实测）
-- JDK: Temurin 17 (/home/z/tools/jdk-17.0.20.1+1)；Gradle 8.13 (/home/z/tools/gradle-8.13/bin)；SDK: /home/z/android-sdk（platform-tools adb 需进 PATH）
-- **android-37 目录陷阱（v2.9.0 轮终极解法）**：远端官方包名=platforms;android-37.0（zip: platform-37.0_r02.zip），但 AGP 8.13.2 + compileSdk=37 找 hash 'android-37'。正确做法：sdkmanager `--channel=3 "platforms;android-37.0"` 装出 android-37.0 目录（**自带 package.xml**，zip 直解压没有它），再 `cp -r android-37.0 android-37` 并把 android-37 副本元数据**全部去掉 .0**：package.xml 的 `path="platforms;android-37"` + `<api-level>37</api-level>`、source.properties 的 `AndroidVersion.ApiLevel=37`、build.prop 的两处 `sdk_full=37`。三处缺一 → "Observed package id inconsistent" → 目录被合并/忽略 → Failed to find target。两份目录都要保留（AGP 每次构建可能按清单校验）
+## 构建配方（Linux 容器实测 · v2.25.1 起 AGP 9.0.1 + Gradle 9.1.0）
+- JDK: Temurin 17 (/home/z/tools/jdk-17.0.20.1+1)；Gradle 9.1.0 (/home/z/tools/gradle-9.1.0/bin，AGP 9.0.1 最低要求 9.1.0)；SDK: /home/z/android-sdk（platform-tools adb 需进 PATH）
+- **SDK 装法（v2.25.1 终极简化）**：`sdkmanager "platforms;android-37.0" "build-tools;37.0.0" "build-tools;35.0.0" "platform-tools"` 即可，**零元数据手术**——AGP 9.0.1 + app/build.gradle.kts 的 `compileSdk=37 + compileSdkMinor=0` 直接命中原生 platforms;android-37.0。旧 v2.9.0 的 android-37 目录改名/api-level/Platform.Version 手术配方仅适用于 AGP 8.13.2（其 sdklib 解析不了 minor 打包，Google 官方 zip 自带笔误 Platform.Version=17 雪上加霜），已随 AGP 9 迁移全部作废
+- 一键重建：`scripts/setup-buildenv.sh`（v3 配方）
 - GRADLE_USER_HOME 用默认 ~/.gradle（654M 缓存全）；/home/z/tools/gradle-home 缓存不全，--offline 会因缺 appcompat 依赖挂
 - 基线固有测试失败（非回归）：api.test.js 门控用例（Node24）、GameProtocolDetectorTest localhost 探测（容器环境，102 例中 1 失败）
 - rpk: `cd band-qq && npm i && npx aiot release`（sign/release/{private,certificate}.pem 已在仓库；产物在 band-qq/dist/ 非 .temp_band-qq/dist）

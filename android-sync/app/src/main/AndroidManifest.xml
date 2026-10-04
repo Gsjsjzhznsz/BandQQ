@@ -13,15 +13,12 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <!-- v2.12.0 AstrBot Bubble 本地伴侣：包可见性（Android 11+ 检测/拉起需声明） -->
+    <uses-sdk tools:overrideLibrary="top.yukonga.miuix.kmp.blur" />
     <queries>
         <package android:name="com.astrbot.astrbot_bubble" />
         <package android:name="com.astrbot.astrbot_bubble.profile" />
         <package android:name="com.astrbot.astrbot_bubble.debug" />
     </queries>
-
-    <uses-sdk
-        android:minSdkVersion="26"
-        tools:overrideLibrary="top.yukonga.miuix.kmp.blur" />
 
     <application
         android:name=".BandQQApplication"

@@ -10,7 +10,7 @@ SDK=/home/z/android-sdk
 export ANDROID_HOME=$SDK
 export ANDROID_SDK_ROOT=$ANDROID_HOME
 export JAVA_HOME=$ENV/jdk-17.0.20.1+1
-export PATH=$JAVA_HOME/bin:$ENV/gradle-8.13/bin:$PATH
+export PATH=$JAVA_HOME/bin:$ENV/gradle-9.1.0/bin:$PATH
 export GRADLE_USER_HOME=$ENV/gradle-home
 
 # local.properties（Gradle 需要）

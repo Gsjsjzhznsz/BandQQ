@@ -1,12 +1,12 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
     namespace = "io.github.gsjsjzhznsz.bandqq"
     compileSdk = 37
+    compileSdkMinor = 0
 
     defaultConfig {
         applicationId = "io.github.gsjsjzhznsz.bandqq"
@@ -18,8 +18,8 @@ android {
         // 降回 28 走 legacy untrusted_app 域，恢复数据目录 exec 权限 —— 与 Termux/UserLAnd
         // 同款方案（GitHub 直发无商店 targetSdk 约束）；运行时权限代码均按 SDK_INT 守卫，不受影响。
         targetSdk = 28
-        versionCode = 66
-        versionName = "2.25.0"
+        versionCode = 67
+        versionName = "2.25.1"
     }
 
     // v2.13.0 双包分发（用户可二选一安装，同 applicationId 同 versionCode）：
@@ -36,14 +36,6 @@ android {
         }
     }
 
-    // 产物文件名带 flavor，双包分发不混淆
-    applicationVariants.all {
-        val variantLabel = name.removeSuffix("Release").removeSuffix("Debug")
-        outputs.all {
-            (this as? com.android.build.gradle.internal.api.BaseVariantOutputImpl)?.outputFileName =
-                "bandqq-$versionName-$variantLabel.apk"
-        }
-    }
 
     signingConfigs {
         create("release") {
@@ -67,11 +59,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlin {
-        compilerOptions {
-            jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
-        }
-    }
 
     buildFeatures {
         compose = true
