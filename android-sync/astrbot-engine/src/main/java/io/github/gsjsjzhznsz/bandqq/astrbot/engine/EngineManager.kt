@@ -387,7 +387,7 @@ object EngineManager {
      * 绑定：引擎全部数据自包含于容器，不需要手机存储，减少权限面）。
      * v2.19.0：新增 -b resolv.conf 绑定（Termux proot-distro 同款做法，见上）。
      */
-    private fun buildLaunchScript(ctx: Context, bin: File, tmp: File, ubuntu: File): String {
+    private fun buildLaunchScript(ctx: Context, bin: File, tmp: File, ubuntu: File, astrbotEnabled: Boolean): String {
         val tz = java.util.TimeZone.getDefault().id
         val resolv = File(containerEtcDir(ctx), "resolv.conf")
         return buildString {
@@ -405,6 +405,8 @@ object EngineManager {
             append("-w /root ")
             append("/usr/bin/env -i ")
             append("HOME=/root TERM=xterm-256color LANG=C.UTF-8 TZ=").append(tz).append(" ")
+            // v2.22.0：「启动 AstrBot 机器人」开关透传进容器（0 = 仅装/启 NapCat，不装不启 AstrBot）
+            append("ASTRBOT_ENABLE=").append(if (astrbotEnabled) "1" else "0").append(" ")
             append("TMPDIR=/tmp ")
             append("PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin ")
             append("/bin/bash -lc 'bash /root/astrbot-startup.sh 2>&1'")
@@ -490,7 +492,10 @@ object EngineManager {
                 }
                 refreshContainerScripts(appCtx)
                 writeContainerResolvConf(appCtx)
-                val script = buildLaunchScript(appCtx, bin, tmp, ubuntu)
+                // v2.22.0：「启动 AstrBot 机器人」开关（关闭 = 仅 NapCat 模式）
+                val astrbotEnabled = isAstrbotEnabled(appCtx)
+                if (!astrbotEnabled) logLine("AstrBot 机器人开关已关闭：本次仅启动 NapCat（手环 QQ 直连），不安装/启动 AstrBot")
+                val script = buildLaunchScript(appCtx, bin, tmp, ubuntu, astrbotEnabled)
                 logLine("拉起容器（proot → astrbot-startup.sh）…")
                 val pb = ProcessBuilder(File(bin, "bash").absolutePath, "-lc", script)
                 pb.environment().apply {
@@ -552,12 +557,23 @@ object EngineManager {
             }
         }.apply { name = "astrbot-engine-main" }.start()
         // 进程拉起即视为 Starting→Running 的过渡：真实"可连"由端口探测确认
+        // v2.22.0：探测细化——AstrBot WebUI :6185 / NapCat WebUI :5099 也算就绪信号
+        // （QQ 未扫码登录前 3001/3000 不监听，但引擎实际已就绪，需给用户扫码指引）
         Thread {
-            repeat(360) { // 最多 30 分钟（v2.17 首次自愈需下载 AstrBot 依赖+LinuxQQ，弱网放宽窗口）
-                if (isRunning() && AstrBotEngineProbe.portsReady()) {
-                    _state.value = State.Running
-                    logLine("本机 NapCat 就绪（127.0.0.1:3001/3000 可连）")
-                    return@Thread
+            repeat(360) { // 最多 30 分钟（首次自愈需下载 AstrBot 依赖+LinuxQQ，弱网放宽窗口）
+                if (isRunning()) {
+                    val napcatOk = AstrBotEngineProbe.portOpen(3001) || AstrBotEngineProbe.portOpen(3000)
+                    val botOk = AstrBotEngineProbe.portOpen(6185)
+                    val webui = AstrBotEngineProbe.portOpen(5099)
+                    if (napcatOk || botOk || webui) {
+                        _state.value = State.Running
+                        when {
+                            napcatOk -> logLine("本机 NapCat 就绪（127.0.0.1:3001/3000 可连）")
+                            botOk -> logLine("AstrBot 已就绪（WebUI :6185）；NapCat 等待 QQ 扫码登录（WebUI :5099，Token 在「密码与登录」卡复制）")
+                            else -> logLine("NapCat 已启动，等待 QQ 扫码登录（WebUI http://127.0.0.1:5099，Token 在「密码与登录」卡复制）")
+                        }
+                        return@Thread
+                    }
                 }
                 if (!isRunning()) return@Thread
                 Thread.sleep(5000)
@@ -577,7 +593,8 @@ object EngineManager {
                 val busybox = File(binDir(appCtx), "busybox")
                 if (busybox.canExecute()) {
                     // proot/启动脚本/容器内 python(node 进程 cmdline 保持容器路径) 三类兜底
-                    for (pat in listOf("proot", "astrbot-startup", "napcat", "AstrBot/main.py")) {
+                    // v2.22.0：补 Xvfb 与 qq 进程（NapCat 启动链新增的伴生进程）
+                    for (pat in listOf("proot", "astrbot-startup", "napcat", "AstrBot/main.py", "qq --no-sandbox", "Xvfb")) {
                         val p = ProcessBuilder(
                             busybox.absolutePath, "pkill", "-9", "-f", pat
                         ).redirectErrorStream(true).start()
@@ -593,6 +610,67 @@ object EngineManager {
 
     /** 追加一段外部探测结果进日志（UI 检测本机 NapCat 按钮复用） */
     fun note(msg: String) = logLine(msg)
+
+    // ---------- v2.22.0：「启动 AstrBot 机器人」开关（仅 NapCat 模式） ----------
+
+    private const val PREFS = "bandqq_astrbot"
+    private const val KEY_ASTRBOT_ENABLE = "engine_start_astrbot"
+
+    /** AstrBot 机器人是否随引擎启动/安装（默认开；关闭后引擎仅运行 NapCat） */
+    fun isAstrbotEnabled(ctx: Context): Boolean =
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY_ASTRBOT_ENABLE, true)
+
+    fun setAstrbotEnabled(ctx: Context, enabled: Boolean) {
+        ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .edit().putBoolean(KEY_ASTRBOT_ENABLE, enabled).apply()
+        logLine(if (enabled) "AstrBot 机器人开关已开启：下次启动引擎生效" else "AstrBot 机器人开关已关闭：下次启动引擎仅运行 NapCat")
+    }
+}
+
+/**
+ * v2.22.0：本机引擎账号信息自动读取（用户需求："搞个自动读取2个程序的密码给复制"）。
+ *  - AstrBot WebUI：解析引擎日志落盘（files/logs/engine-*.log）里 AstrBot 首次启动打印的
+ *    「Initial username/password」（最新一份优先；用户若在控制台改过密码，以改后为准）
+ *  - NapCat WebUI Token：读容器内 /root/napcat/config/webui.json（astrbot-startup.sh 固定写入，
+ *    未登录 QQ 时用该 Token 打开 WebUI :5099 扫码）
+ */
+object AstrBotSecrets {
+    data class Secrets(
+        val webuiUser: String?,
+        val webuiPassword: String?,
+        val napcatToken: String?,
+    )
+
+    private val userRe = Regex("Initial username:\\s*(\\S+)")
+    private val passRe = Regex("Initial password:\\s*(\\S+)")
+    private val tokenRe = Regex("\"token\"\\s*:\\s*\"([^\"]+)\"")
+
+    fun read(ctx: Context): Secrets {
+        var user: String? = null
+        var pass: String? = null
+        runCatching {
+            val base = ctx.getExternalFilesDir(null) ?: ctx.filesDir
+            val dir = File(base, "logs")
+            val files = dir.listFiles { f -> f.name.startsWith("engine-") }
+                ?.sortedByDescending { it.name } ?: emptyList()
+            for (f in files) {
+                if (user != null && pass != null) break
+                runCatching {
+                    val lines = f.useLines { it.toList() }
+                    for (i in lines.indices.reversed()) {
+                        if (user == null) userRe.find(lines[i])?.let { user = it.groupValues[1] }
+                        if (pass == null) passRe.find(lines[i])?.let { pass = it.groupValues[1] }
+                    }
+                }
+            }
+        }
+        var token: String? = null
+        runCatching {
+            val f = File(EngineManager.rootfsDir(ctx), "root/napcat/config/webui.json")
+            if (f.exists()) tokenRe.find(f.readText())?.let { token = it.groupValues[1] }
+        }
+        return Secrets(user, pass, token)
+    }
 }
 
 /** 端口探测（独立小对象，避免 engine 模块依赖 app 的 AstrBotBridge） */

@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import io.github.gsjsjzhznsz.bandqq.WebUiActivity
 import io.github.gsjsjzhznsz.bandqq.astrbot.AstrBotBridge
 import io.github.gsjsjzhznsz.bandqq.astrbot.engine.AstrBotEngineProbe
+import io.github.gsjsjzhznsz.bandqq.astrbot.engine.AstrBotSecrets
 import io.github.gsjsjzhznsz.bandqq.astrbot.engine.EngineManager
 import io.github.gsjsjzhznsz.bandqq.config.ConfigHolder
 import io.github.gsjsjzhznsz.bandqq.config.ConfigManager
@@ -39,6 +40,7 @@ import top.yukonga.miuix.kmp.basic.Button
 import top.yukonga.miuix.kmp.basic.ButtonDefaults
 import top.yukonga.miuix.kmp.basic.Card
 import top.yukonga.miuix.kmp.basic.Icon
+import top.yukonga.miuix.kmp.basic.Switch
 import top.yukonga.miuix.kmp.basic.Text
 import top.yukonga.miuix.kmp.icon.MiuixIcons
 import top.yukonga.miuix.kmp.icon.extended.CloudFill
@@ -75,6 +77,21 @@ private val STAGES = listOf(
 /** AstrBot 控制台地址（cmd_config.json 默认 dashboard 端口 6185） */
 private const val ASTRBOT_DASHBOARD_URL = "http://127.0.0.1:6185"
 
+/** NapCat WebUI 地址（astrbot-startup.sh 固定写入 webui.json；未登录 QQ 时扫码入口） */
+private const val NAPCAT_WEBUI_URL = "http://127.0.0.1:5099"
+
+/** v2.22.0：复制到剪贴板 + toast（「自动读取2个程序的密码给复制」） */
+private fun copySecret(context: android.content.Context, label: String, value: String) {
+    val cm = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE)
+        as? android.content.ClipboardManager
+    if (cm == null) {
+        toast(context, "剪贴板不可用")
+        return
+    }
+    cm.setPrimaryClip(android.content.ClipData.newPlainText(label, value))
+    toast(context, "${label}已复制")
+}
+
 @Composable
 fun AstrBotScreen(
     bottomInnerPadding: androidx.compose.ui.unit.Dp,
@@ -88,6 +105,10 @@ fun AstrBotScreen(
     val logs by EngineManager.log.collectAsState()
     var probeMsg by remember { mutableStateOf("") }
     var showLogs by remember { mutableStateOf(true) }
+    // v2.22.0：本机两个程序的账号信息（AstrBot WebUI 密码 / NapCat WebUI Token）+ 手动刷新计数
+    var secretsVersion by remember { mutableStateOf(0) }
+    val secrets = remember(secretsVersion) { AstrBotSecrets.read(context) }
+    var astrbotEnabled by remember { mutableStateOf(EngineManager.isAstrbotEnabled(context)) }
 
     val running = EngineManager.isRunning()
     val installing = state as? EngineManager.State.Installing
@@ -384,6 +405,133 @@ fun AstrBotScreen(
                         colors = ButtonDefaults.buttonColorsPrimary(),
                         modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
                     ) { Text("一键填入本机 NapCat 地址并保存") }
+                }
+            }
+
+            // ===== 密码与登录（v2.22.0：自动读取两个程序的密码，一键复制/打开 WebUI）=====
+            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("密码与登录", fontSize = 14.sp, modifier = Modifier.weight(1f))
+                        Button(
+                            onClick = { secretsVersion++ },
+                            colors = ButtonDefaults.buttonColors(),
+                        ) { Text("刷新", fontSize = 12.sp) }
+                    }
+                    Text(
+                        text = "AstrBot 控制台用户名默认 astrbot；若你在控制台改过密码，以改后的为准。" +
+                            "首次使用需先启动引擎完成安装。",
+                        modifier = Modifier.padding(top = 4.dp),
+                        fontSize = 11.sp,
+                        color = colorScheme.onSurfaceSecondary,
+                    )
+                    // AstrBot WebUI 初始密码（引擎日志自动读取）
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 8.dp),
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("AstrBot 控制台密码", fontSize = 13.sp)
+                            Text(
+                                text = secrets.webuiPassword ?: "尚未获取（引擎启动过一次后自动出现）",
+                                fontSize = 12.sp,
+                                color = colorScheme.primary,
+                            )
+                        }
+                        Button(
+                            onClick = {
+                                val v = secrets.webuiPassword
+                                if (v.isNullOrBlank()) toast(context, "暂无密码：先启动引擎完成一次安装")
+                                else copySecret(context, "AstrBot 密码", v)
+                            },
+                            colors = ButtonDefaults.buttonColorsPrimary(),
+                        ) { Text("复制", fontSize = 12.sp) }
+                    }
+                    // NapCat WebUI Token（扫码登录 QQ 用）
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 8.dp),
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(" NapCat WebUI Token", fontSize = 13.sp)
+                            Text(
+                                text = secrets.napcatToken ?: "尚未获取（引擎安装 NapCat 后自动出现）",
+                                fontSize = 12.sp,
+                                color = colorScheme.primary,
+                            )
+                        }
+                        Button(
+                            onClick = {
+                                val v = secrets.napcatToken
+                                if (v.isNullOrBlank()) toast(context, "暂无 Token：先启动引擎完成 NapCat 安装")
+                                else copySecret(context, " NapCat Token", v)
+                            },
+                            colors = ButtonDefaults.buttonColorsPrimary(),
+                        ) { Text("复制", fontSize = 12.sp) }
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
+                        horizontalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(10.dp),
+                    ) {
+                        Button(
+                            onClick = {
+                                runCatching {
+                                    context.startActivity(
+                                        android.content.Intent(context, WebUiActivity::class.java)
+                                            .putExtra("url", ASTRBOT_DASHBOARD_URL)
+                                    )
+                                }.onFailure { toast(context, "打开失败：${it.message}") }
+                            },
+                            colors = ButtonDefaults.buttonColors(),
+                            modifier = Modifier.weight(1f),
+                        ) { Text("开控制台", fontSize = 12.sp) }
+                        Button(
+                            onClick = {
+                                runCatching {
+                                    context.startActivity(
+                                        android.content.Intent(context, WebUiActivity::class.java)
+                                            .putExtra("url", NAPCAT_WEBUI_URL)
+                                    )
+                                    toast(context, "用 Token 登录后扫码登录 QQ")
+                                }.onFailure { toast(context, "打开失败：${it.message}") }
+                            },
+                            colors = ButtonDefaults.buttonColors(),
+                            modifier = Modifier.weight(1f),
+                        ) { Text(" NapCat 扫码", fontSize = 12.sp) }
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(10.dp))
+
+            // ===== AstrBot 机器人开关（v2.22.0：是否启动/安装 AstrBot；关闭 = 仅 NapCat 模式）=====
+            Card(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(12.dp),
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("启动 AstrBot 机器人", fontSize = 14.sp)
+                        Text(
+                            text = "关闭后引擎仅安装/运行 NapCat（手环 QQ 直连所需），" +
+                                "不下载不启动 AstrBot，更省电省存储；下次启动引擎生效。",
+                            modifier = Modifier.padding(top = 4.dp),
+                            fontSize = 11.sp,
+                            color = colorScheme.onSurfaceSecondary,
+                        )
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    Switch(
+                        checked = astrbotEnabled,
+                        onCheckedChange = {
+                            astrbotEnabled = it
+                            EngineManager.setAstrbotEnabled(context, it)
+                            toast(
+                                context,
+                                if (it) "已开启：下次启动引擎生效" else "已关闭：下次启动引擎仅运行 NapCat",
+                            )
+                        },
+                    )
                 }
             }
 

@@ -143,7 +143,14 @@ gradle :devtools:assembleRelease
 
 ## 📦 更新日志
 
-### v2.21.0（当前版本 · vc62）
+### v2.22.0（当前版本 · vc63）
+
+> 三线更新（第三份引擎日志 + VM 实测驱动）：**① 键盘第四轮：候选选择栏置顶**（用户实测反馈"键盘选择栏怎么在下面了"——v2.19 重构时把 rect 动作行（语言/候选选择栏/删除）放在了字母区下方，候选栏远离输入预览不符合方屏机型使用习惯；修=动作行与字母区换序，选择栏回到键盘顶部对齐 circle/pill 分支，高度链 60+261=321 不变、KB_H_RECT 349 不变、下展候选层 absolute 覆盖不变。VM 实测（bandpro 336×480 净启+清装）：选择栏在顶、输入出字、整词候选（z'x→这些/坐下/执行）进顶栏；验证脚本取样修正：编译产物中 keyboard67 首次出现于样式表段而非渲染树，须用 `__opts__:{id:"…"}` 取样判断 DOM 序，v2.21 曾因同因误判"动作行归位"）。**② NapCat 启动链（装而不启根治）**（用户反馈"napcat没有启动"+第三份日志定案：v2.21 全链生效后唯一断点 = NapCat 只装不启——脚本与 APK 均无启动代码，:3001/:3000 永不监听；且旧 onebot11.json 两个 server 数组为空，即使启动 App 也连不上。修=四件套：`ensure_napcat_configs`（onebot11.json 补 HTTP :3000 / WS :3001 服务端（127.0.0.1 兑定）+ 旧空 server 形状自动升级 + webui.json 固定端口 5099/Token）；`start_napcat`（Xvfb :20 + launcher.sh 后台拉起，控制台落盘 napcat-console.log）；看门狗（5 分钟巡检进程消失自动重启）；AstrBot 启动前并行拉起，引擎停止链补杀 qq/Xvfb 进程；探测细化：6185/5099 也算就绪信号，QQ 未扫码时给出扫码指引）。**③ "自动读取 2 个程序的密码给复制" + "是否启动安装 AstrBot" 开关**（AstrBot 标签页新增「密码与登录」卡：自动从引擎日志读 AstrBot WebUI 初始账密、从容器 webui.json 读 NapCat WebUI Token，一键复制；新增「开控制台」「 NapCat 扫码」双 WebUI 入口（:6185/:5099）；新增「启动 AstrBot 机器人」Switch：关闭后引擎仅装/启 NapCat 不下载 AstrBot（省电省存储），ASTRBOT_ENABLE 环境变量透传进容器，脚本仅 NapCat 模式看门狗循环常驻）。另：用户上传第三份 engine-2026-10-04.log 分析后删除（结论即 ②；日志同时确认 DNS 竞速/LinuxQQ 签名/NapCat 预下载/AstrBot WebUI 全链真机生效，AstrBot v4.28.2 成功启动）。
+
+- 验证：四分支 rpk 解包断言 verify_2220 82/82 PASS（继承回归 + 换序取样修正/NapCat 启动链/开关/密码卡断言）；手环端 node 单测 107 测 106 过（存量基线 1 不变）；APP 单测双 flavor 250/250 全绿；bundled/companion 双 APK badging vc63/2.22.0 签名 af8819e2 同源；VM bandpro 净启清装实测（选择栏置顶+输入出字+候选进顶栏）
+- 版本：APP/手环 2.22.0（vc63）单轨延续
+
+### v2.21.0（vc62）
 
 > 引擎日志（会话4）+ 模拟器实测双驱动的两根修：**① 方形分支键盘「只显示一半 / 输入不展开」VM 实测根治**（第三轮，本轮真复现——redmiw5 官方模拟器 432×514 首次完整复现用户所见故障：第三排字母 Z-X-C-V-B-N 被拦腰截断、动作行叠进字母区、下展候选层被裁。解包取证定案：v2.19 测得的「固件幻影 83~85px 上方偏移」实为 #keyboard67 样式表残留 `position:absolute; top:82px`（62 圆屏时代定位遗产）——幻影是自家 CSS 不是固件行为；且 rect 容器 height:274 装不下子元素 261(scroll 预算)+60(动作行)=321，固件把动作行上提 47px 叠进第三排。修=容器 274→321 高度链闭合（28 拼音行+321=KB_H_RECT 349=dock 同值）+ 铲除 keyboard67 absolute 定位；滚动区 261 预算保留（真固件若另有内容注入偏移，多出的空间兜底不裁行）。**VM 实测通过：redmiwatch 432×514 与 bandpro 336×480 两方形分支——三排字母完整、动作行归位无叠压、拼音输入出字、下展候选层完整含收起箭头**）；**② NapCat 离线包预下载**（日志实证 sudo 垫片/STAGE 可视化/DNS 重写/镜像竞速全部生效后，唯一剩余断点=napcat.sh 上游脚本内部自带的压缩包下载——它自测代理选中 ghfast.top，4.5 分钟爬至 1.3% 后 curl(18) Transferred a partial file → exit=1，不受 v2.20 gh_fetch 管控。修=新增 ensure_napcat_zip：gh_fetch 多源竞速+断流自杀预取 NapCat.Shell.zip 至脚本同目录，上游脚本检测到本地包即跳过其内部下载（官方支持路径）；unzip -t 自验，失败不阻断保留上游兜底；中断重试不从头装）。
 

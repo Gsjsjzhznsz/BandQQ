@@ -242,3 +242,24 @@ Stage Summary:
 - 产物：bandqq-{2.21.0-bundled,2.21.0-companion}.apk + bandqq-{band,bandpro,xiaomis,redmiwatch}-2.21.0.rpk
 - 待用户回归：①方形分支（Watch 5=redmiwatch 包）键盘三排完整+输入展开+下展候选 ②AstrBot 首装：日志应出现「预下载 NapCat 离线包（多源竞速，20 秒无数据自动换源）」→「上游脚本将跳过其内部下载」，百 MB 级下载不再被上游脚本断流卡死 ③若字母行与动作行间空隙观感过宽（261 预算代价）请反馈截图，可下版收紧
 - VM 会话基建沉淀：emu_redmiw5_start.sh / vm_repro_session.sh / vm_expand_session.sh / vm_bandpro_session.sh（单次长调用完成全部驱动，跨调用进程必被回收）
+
+---
+Task ID: 31
+Agent: Super Z (main)
+Task: band-qq v2.22.0 —— 用户第三份引擎日志分析删除 + 键盘第四轮（选择栏置顶）+ NapCat 启动链四件套 + 密码复制/AstrBot 开关
+
+Work Log:
+- 日志分析：git pull 取用户第三份 engine-2026-10-04.log（4 会话 3273 行）→ 会话1（01:29）DNS 失败=v2.19 前旧脚本残留属预期；会话2（08:11）实证 v2.19/2.20 全链生效（resolv.conf 重写+getent 自检+6 源竞速 TUNA 胜出 4s 拉 30.9MB+LinuxQQ v9 签名回退）；会话3（10:25）NapCat 上游脚本内部下载断流（v2.20 时代，v2.21 预下载已修）；会话4（12:36）v2.21 全链生效：NapCat 离线包预下载完成+上游跳过内部下载+libnapcat_launcher.so 编译成功+AstrBot v4.28.2 WebUI 成功启动（Initial password 在日志中实证）——唯一断点=「手动探测：本机 NapCat 未就绪（3001/3000 均未监听）」；分析后删除该文件（commit 19c9ffd）
+- 根因定案：astrbot-startup.sh v2.21 注释"环境管理的 NapCat 步骤只做安装，不做登录启动…后续从主页账号卡片手动启动"——但该手动启动代码从未实现（全仓库无 start_napcat/launcher 调用）；且脚本写入的 onebot11.json httpServers/websocketServers 均为空数组，即使 NapCat 启动 App 也连不上
+- 键盘第四轮（用户反馈"键盘选择栏怎么在下面了，你虚拟机没看到吗"）：rect 动作行（语言/候选选择栏/删除）与字母区换序——动作行回键盘顶部（对齐 circle/pill 分支），高度链 60+261=321 不变/KB_H_RECT 349 不变/下展层 absolute 覆盖不变
+- VM 验证历程（坑库大丰收）：①前两轮假象=velasim"纯净镜像" vela_data.bin 烤着旧应用与旧草稿+pm install 同 versionCode 静默失败+残留 bandpro qemu（03:15 起）一直应答 gRPC（redmiw5 冷启动实际全败）②真因链：磁盘 93%（674M）→ Vela 模拟器拒启（Not enough disk space，需 >1.5G）；清 /tmp 1.1G+velasim/dl 555M+android-sync 构建产物 1.3G 后冷启动成功③干净 bandpro 336×480 清装实测：选择栏在顶、输入出字（a's'd→阿啊呵腌嗄；z'x→这些/坐下/执行 整词候选）、字母键全可点④取样方法论：编译产物 keyboard67 首现于样式表段，判 DOM 序必须用 __opts__:{id:"…"}（v2.21 verify 的"动作行归位"断言因此误判；其 (331,393) 下展验证实为误触 B 键）⑤position:relative 不被 VM 固件支持（钉右方案箭头/del 锚到页面级被发送键盖住）→ 已回退钉右、保留换序；胶囊 flex:1 在 336 宽可溢出顶飞 del（v2.19 起真机隐患候选，待真机截图）⑥gRPC 注入对小型 text onclick 不响应（MEMORY 已知）⑦vc62→63 轮换安装规避 pm install 静默失败
+- NapCat 启动链四件套（astrbot-startup.sh +124 行）：ensure_napcat_configs（onebot11.json 补 HTTP :3000/WS :3001 服务端（host 127.0.0.1、token 空=与 App 默认 EndpointConfig 一致）+AstrBot 桥 :6199 保留+旧空 server 形状 grep 自动升级；webui.json 固定 port 5099/token bandqq-napcat）+ start_napcat（stage 90 标记；Xvfb :20 720x720；nohup bash launcher.sh→napcat/napcat-console.log；幂等 pgrep）+ start_napcat_watchdog（nohup 循环 5min 巡检 pgrep qq→--step napcat-start 重启，watchdog.log 落盘）+ run_step napcat-start（只启不装）；launch_astrbot 在 uv run main.py 前 start_napcat+watchdog；bash -n 过
+- AstrBot 开关（"是否启动安装astrbot选项"）：EngineManager prefs bandqq_astrbot/engine_start_astrbot（默认 true）+ isAstrbotEnabled/setAstrbotEnabled + buildLaunchScript 透传 ASTRBOT_ENABLE=0/1 + 脚本 launch_astrbot 顶部开关门（仅 NapCat 模式：stage 5→按需补装→start_napcat→watchdog→while 常驻）；stop() pkill 补 "qq --no-sandbox"/"Xvfb"；探测细化（6185/5099 也算就绪：botOk→提示等扫码；webuiOnly→提示 WebUI 扫码；区分日志文案）
+- 密码复制（"自动读取2个程序的密码给复制"）：engine 模块新增 AstrBotSecrets（AstrBot WebUI 账密=倒序扫 files/logs/engine-*.log 的 Initial username/password 最新值； NapCat Token=读 rootfs/root/napcat/config/webui.json）+ AstrBotScreen「密码与登录」卡（明文展示+复制 ClipboardManager+刷新按钮+"开控制台":6185+" NapCat 扫码":5099 双 WebUiActivity 入口）+「启动 AstrBot 机器人」Switch 卡（关=仅 NapCat 模式提示下次启动生效）
+- 版本 vc63/2.22.0 三处同步（manifest.json/build.gradle.kts/about.ux）；verify_2220 新建 82 项断言（修正 DOM 序取样+新增换序/NapCat 启动链/开关/密码卡断言）；node 单测 106/107 基线；APP 单测双 flavor 250/250 全绿；双 APK badging vc63/2.22.0 签名 af8819e2 同源；新坑=EngineManager 标签 return@outer 编译错（for 循环标签只能 break/continue）+gradle 构建前必须杀 qemu（daemon OOM）
+- 发布：commit+push → Release v2.22.0 六资产 → download/bandqq-2.22.0/
+
+Stage Summary:
+- 产物：bandqq-{2.22.0-bundled,2.22.0-companion}.apk + bandqq-{band,bandpro,xiaomis,redmiwatch}-2.22.0.rpk
+- 待用户回归：①方形分支（Watch 5=redmiwatch 包）键盘：候选选择栏应在键盘顶部、输入出字、候选进顶栏 ②AstrBot 标签页：密码与登录卡应显示 AstrBot 控制台密码+ NapCat Token（启动过引擎后）且可复制； NapCat 扫码按钮打开 :5099 ③「启动 AstrBot 机器人」开关关闭后重启引擎：日志应见「仅 NapCat 模式」且不下载 AstrBot ④引擎日志应见 [STAGE:90:启动 NapCat] 与「NapCat 已后台拉起」；QQ 扫码登录后 3001/3000 自动可连
+- 已知候选隐患（下版）：胶囊 flex:1 在窄屏溢出顶飞 del/箭头（v2.19 起，VM 实证；真机待截图）；VM position:relative 不支持

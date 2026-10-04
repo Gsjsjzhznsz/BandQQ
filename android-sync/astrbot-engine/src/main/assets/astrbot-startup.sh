@@ -724,6 +724,126 @@ ensure_napcat_zip(){
   return 0
 }
 
+# ---------- v2.22.0 NapCat 启动链 ----------
+# 用户 10-04 第三份引擎日志定案：v2.21 全链生效后唯一断点 = NapCat 只装不启——
+# 脚本与 APK 均无启动代码，3001/3000 永不监听（"手动探测：本机 NapCat 未就绪"实证）。
+
+NAPCAT_WEBUI_PORT="${NAPCAT_WEBUI_PORT:-5099}"
+NAPCAT_WEBUI_TOKEN="${NAPCAT_WEBUI_TOKEN:-bandqq-napcat}"
+NAPCAT_DISPLAY="${NAPCAT_DISPLAY:-20}"
+
+# onebot11.json：本机服务端（HTTP :3000 / WS :3001，BandQQ 直连）+ 反向 WS 客户端（AstrBot :6199）。
+# v2.20/2.21 旧默认只有反向客户端且两个 server 数组为空——即使 NapCat 启动，App 也连不上。
+ensure_napcat_configs(){
+  mkdir -p "$HOME/napcat/config"
+  local ob="$HOME/napcat/config/onebot11.json"
+  local need_write=0
+  if [ ! -f "$ob" ]; then
+    need_write=1
+  elif grep -q '"httpServers": \[\]' "$ob" && grep -q '"websocketServers": \[\]' "$ob"; then
+    need_write=1   # v2.20/2.21 旧默认形状（server 为空）→ 升级补齐
+  fi
+  if [ "$need_write" = "1" ]; then
+    echo "写入 onebot11.json（OneBot HTTP :3000 / WS :3001 + AstrBot 桥 :6199）"
+    cat > "$ob" <<EOF
+{
+  "network": {
+    "httpServers": [
+      {
+        "name": "bandqq-http",
+        "enable": true,
+        "host": "127.0.0.1",
+        "port": 3000,
+        "enableCors": false,
+        "enableWebsocket": false,
+        "messagePostFormat": "array",
+        "reportSelfMessage": false,
+        "token": "",
+        "debug": false
+      }
+    ],
+    "httpClients": [],
+    "websocketServers": [
+      {
+        "name": "bandqq-ws",
+        "enable": true,
+        "host": "127.0.0.1",
+        "port": 3001,
+        "messagePostFormat": "array",
+        "reportSelfMessage": false,
+        "token": "",
+        "enableForcePushEvent": true,
+        "debug": false,
+        "heartInterval": 30000
+      }
+    ],
+    "websocketClients": [
+      {
+        "name": "AstrBot",
+        "enable": true,
+        "url": "ws://localhost:${ASTRBOT_ONEBOT_WS_PORT:-6199}/ws",
+        "messagePostFormat": "array",
+        "reportSelfMessage": false,
+        "reconnectInterval": 5000,
+        "token": "kasdkfljsadhlskdjhasdlkfshdlafksjdhf",
+        "debug": false,
+        "heartInterval": 30000
+      }
+    ]
+  },
+  "musicSignUrl": "",
+  "enableLocalFile2Url": false,
+  "parseMultMsg": false
+}
+EOF
+  fi
+  # webui.json：固定端口与 Token（App「复制密码」读取展示；未登录 QQ 时扫码登录入口）
+  printf '{\n  "port": %s,\n  "token": "%s",\n  "loginRate": 3\n}\n' "$NAPCAT_WEBUI_PORT" "$NAPCAT_WEBUI_TOKEN" > "$HOME/napcat/config/webui.json"
+  echo "webui.json 已写入（WebUI :$NAPCAT_WEBUI_PORT，Token 可在 App 复制）"
+}
+
+# 后台启动 NapCat（Xvfb 虚拟显示 + launcher.sh），幂等；QQ 登录后 :3001/:3000 自动可用
+start_napcat(){
+  if ! check_napcat_ready >/dev/null 2>&1; then
+    echo "[AstrBot Android] NapCat 未安装完整，跳过启动"
+    return 1
+  fi
+  if pgrep -f 'qq --no-sandbox' >/dev/null 2>&1; then
+    echo "[AstrBot Android] NapCat 已在运行，跳过重复启动"
+    return 0
+  fi
+  stage 90 "启动 NapCat（首次需扫码登录 QQ，Token 在 App「密码与登录」卡复制）"
+  progress_echo "NapCat 启动中"
+  ensure_napcat_configs
+  pkill -f "Xvfb :$NAPCAT_DISPLAY" 2>/dev/null || true
+  rm -f "/tmp/.X$NAPCAT_DISPLAY-lock" "/tmp/.X11-unix/X$NAPCAT_DISPLAY" 2>/dev/null || true
+  mkdir -p /tmp/.X11-unix
+  chmod 1777 /tmp/.X11-unix 2>/dev/null || true
+  Xvfb ":$NAPCAT_DISPLAY" -screen 0 720x720x16 +extension GLX +render > "$HOME/napcat/xvfb.log" 2>&1 &
+  local xpid=$! i
+  for i in $(seq 1 50); do
+    [ -S "/tmp/.X11-unix/X$NAPCAT_DISPLAY" ] && break
+    kill -0 "$xpid" 2>/dev/null || break
+    sleep 0.1
+  done
+  if [ ! -S "/tmp/.X11-unix/X$NAPCAT_DISPLAY" ]; then
+    echo "[AstrBot Android] Xvfb 启动失败（NapCat 无法启动；详见 /root/napcat/xvfb.log）"
+    return 1
+  fi
+  export DISPLAY=":$NAPCAT_DISPLAY"
+  cd "$HOME" || return 1
+  nohup bash launcher.sh > "$HOME/napcat/napcat-console.log" 2>&1 &
+  echo "[AstrBot Android] NapCat 已后台拉起（控制台: /root/napcat/napcat-console.log）"
+  echo "[AstrBot Android] QQ 登录完成后 OneBot :3001/:3000 自动可用；未登录时打开 WebUI :$NAPCAT_WEBUI_PORT 扫码"
+  return 0
+}
+
+# NapCat 看门狗：进程消失自动重启（容器存活期间常驻；日志在 /root/napcat/watchdog.log）
+start_napcat_watchdog(){
+  nohup bash -c 'while true; do sleep 300; pgrep -f "qq --no-sandbox" >/dev/null 2>&1 || { echo "$(date "+%m-%d %H:%M:%S") NapCat 进程消失，自动重启"; bash /root/astrbot-startup.sh --step napcat-start >/dev/null 2>&1; }; done' > "$HOME/napcat/watchdog.log" 2>&1 &
+  echo "[AstrBot Android] NapCat 看门狗已启动（5 分钟巡检）"
+}
+
 install_napcat(){
   # 检查是否完整安装。旧版本可能留下 launcher.sh，但 LinuxQQ 或依赖包安装失败。
   if ! check_napcat_ready >/dev/null 2>&1; then
@@ -794,37 +914,10 @@ install_napcat(){
       rm -rf "$HOME/napcat_config_backup"
     fi
     
-  # 只在配置文件不存在时写入默认配置
-  if [ ! -f "$HOME/napcat/config/onebot11.json" ]; then
-    echo "写入 onebot11.json 默认配置文件"
-    cat > "$HOME/napcat/config/onebot11.json" <<EOF
-{
-  "network": {
-    "httpServers": [],
-    "httpClients": [],
-    "websocketServers": [],
-    "websocketClients": [
-      {
-        "name": "WsClient",
-        "enable": true,
-        "url": "ws://localhost:${ASTRBOT_ONEBOT_WS_PORT:-6199}/ws",
-        "messagePostFormat": "array",
-        "reportSelfMessage": false,
-        "reconnectInterval": 5000,
-        "token": "kasdkfljsadhlskdjhasdlkfshdlafksjdhf",
-        "debug": false,
-        "heartInterval": 30000
-      }
-    ]
-  },
-  "musicSignUrl": "",
-  "enableLocalFile2Url": false,
-  "parseMultMsg": false
-}
-EOF
-  fi
+  # v2.22.0：配置写入/修补统一走 ensure_napcat_configs（幂等，装与未装路径都执行）
 fi
   configure_napcat_token_ttl
+  ensure_napcat_configs
   if ! check_napcat_ready; then
     echo "NapCat 安装不完整，请查看上方 apt/dpkg/curl 错误后重试"
     exit 1
@@ -1120,6 +1213,22 @@ install_astrbot(){
 launch_astrbot(){
   local INSTALL_DIR="$HOME/AstrBot"
 
+  # v2.22.0：「启动 AstrBot 机器人」开关（App 内 Switch → EngineManager 环境变量 ASTRBOT_ENABLE）。
+  # 关闭时仅装/启 NapCat（手环 QQ 直连所需），不下载/不启动 AstrBot；容器以看门狗循环常驻。
+  if [ "${ASTRBOT_ENABLE:-1}" != "1" ]; then
+    stage 5 "仅 NapCat 模式（AstrBot 机器人开关已关闭）"
+    if ! check_napcat_ready >/dev/null 2>&1; then
+      install_sudo_curl_git || { echo "自动补装失败：基础命令安装异常（检查网络/存储）"; return 1; }
+      install_napcat || { echo "自动补装失败：NapCat 安装异常"; return 1; }
+    fi
+    ensure_napcat_configs
+    start_napcat || echo "[AstrBot Android] NapCat 启动失败（可重启引擎重试）"
+    start_napcat_watchdog
+    stage 92 "NapCat 已启动（QQ 扫码登录后 :3001/:3000 生效；AstrBot 已按开关关闭）"
+    progress_echo "NapCat 运行中（仅 NapCat 模式）"
+    while true; do sleep 3600; done
+  fi
+
   if ! check_astrbot_ready; then
     # v2.17.0 启动自愈：BandQQ 无上游「Environment Manager」UI，环境不完整时
     # 直接在启动流程内按依赖顺序补装（幂等，已装步骤秒过）：
@@ -1143,6 +1252,11 @@ launch_astrbot(){
     echo "uv 未找到"
     exit 1
   fi
+
+  # v2.22.0：AstrBot 启动前先后台拉起 NapCat（此前只装不启——用户 10-04 日志定案断点），
+  # 与 AstrBot 启动并行；登录态在 QQ 侧保持，重启引擎后 NapCat 自动恢复会话
+  start_napcat || echo "[AstrBot Android] NapCat 启动失败（不影响 AstrBot 本体；可重启引擎重试）"
+  start_napcat_watchdog
 
   # 使用 uv run --no-sync main.py 启动（跳过依赖同步）
   stage 92 "启动 AstrBot 服务（就绪后手机通知栏与手环会同步状态）"
@@ -1175,6 +1289,11 @@ run_step(){
       maybe_prepare_reinstall napcat
       install_sudo_curl_git
       install_napcat
+      ;;
+    napcat-start)
+      # v2.22.0：看门狗/手动路径——只启不装
+      ensure_napcat_configs
+      start_napcat
       ;;
     astrbot)
       maybe_prepare_reinstall astrbot
