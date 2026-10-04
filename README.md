@@ -143,7 +143,15 @@ gradle :devtools:assembleRelease
 
 ## 📦 更新日志
 
-### v2.20.0（当前版本 · vc61）
+### v2.21.0（当前版本 · vc62）
+
+> 引擎日志（会话4）+ 模拟器实测双驱动的两根修：**① 方形分支键盘「只显示一半 / 输入不展开」VM 实测根治**（第三轮，本轮真复现——redmiw5 官方模拟器 432×514 首次完整复现用户所见故障：第三排字母 Z-X-C-V-B-N 被拦腰截断、动作行叠进字母区、下展候选层被裁。解包取证定案：v2.19 测得的「固件幻影 83~85px 上方偏移」实为 #keyboard67 样式表残留 `position:absolute; top:82px`（62 圆屏时代定位遗产）——幻影是自家 CSS 不是固件行为；且 rect 容器 height:274 装不下子元素 261(scroll 预算)+60(动作行)=321，固件把动作行上提 47px 叠进第三排。修=容器 274→321 高度链闭合（28 拼音行+321=KB_H_RECT 349=dock 同值）+ 铲除 keyboard67 absolute 定位；滚动区 261 预算保留（真固件若另有内容注入偏移，多出的空间兜底不裁行）。**VM 实测通过：redmiwatch 432×514 与 bandpro 336×480 两方形分支——三排字母完整、动作行归位无叠压、拼音输入出字、下展候选层完整含收起箭头**）；**② NapCat 离线包预下载**（日志实证 sudo 垫片/STAGE 可视化/DNS 重写/镜像竞速全部生效后，唯一剩余断点=napcat.sh 上游脚本内部自带的压缩包下载——它自测代理选中 ghfast.top，4.5 分钟爬至 1.3% 后 curl(18) Transferred a partial file → exit=1，不受 v2.20 gh_fetch 管控。修=新增 ensure_napcat_zip：gh_fetch 多源竞速+断流自杀预取 NapCat.Shell.zip 至脚本同目录，上游脚本检测到本地包即跳过其内部下载（官方支持路径）；unzip -t 自验，失败不阻断保留上游兜底；中断重试不从头装）。
+
+- 验证：四分支 rpk 解包断言 verify_2210 86/86 PASS（继承 73 项回归 + 新增键盘高度链/absolute 铲除/预下载断言 13 项）；手环端 node 单测 107 测 106 过（存量基线 1 不变）；VM 实测截图归档（redmiwatch/bandpro 两档案修复前后对比）
+- 版本：APP/手环 2.21.0（vc62）单轨延续
+- 其他：仓库根用户上传的第二份 engine-2026-10-04.log（v2.20 实战日志）分析完毕后删除（结论即 ②；日志同时确认 v2.20.0 的 sudo 垫片/STAGE 可视化/竞速缓存在真机全部生效）
+
+### v2.20.0（vc61）
 
 > 引擎日志驱动的三线更新（分析用户上传的 engine-2026-10-04.log 定案）：**① NapCat 安装链「sudo 不存在」根修**（日志会话 2 实证：DNS 竞速/清华镜像/uv/LinuxQQ 签名回退全部走通后，NapCat 上游安装脚本因容器内无 sudo 拒绝执行——"sudo不存在, 请手动安装" → exit=1。这是 v2.18.1 为压缩必装清单去掉 sudo 的副作用（proot 恒 root 本不需要提权，但上游脚本硬性 `command -v sudo` 检查）；修=新增 ensure_sudo_shim 透传垫片 `/usr/local/bin/sudo: exec "$@"`，零联网零体积覆盖上游全部 sudo 用法）；**② GitHub 下载 0 字节挂死根治**（日志会话 3 实证：代理竞速胜出者 ghfast.top 在 napcat.sh 正式下载时 TCP 已连但 0 字节挂死 35 秒以上——--connect-timeout 只管连接阶段管不到响应阶段，curl 无低速自杀参数，用户只能手动停止引擎且触发 "read interrupted by close() on another thread" 噪音；修=新增 gh_fetch 统一下载入口：每次尝试带 `--speed-time 20 --speed-limit 512`（20 秒均速不足 512B/s 即断）+ `--max-time 900` 总超时，失败自动遍历「竞速胜出者 → 其余竞速存活代理 → 直连」候选序列，全灭自动重竞速再试一轮；uv 下载、napcat.sh、AstrBot 的 git ls-remote+clone 全部接入候选重试；LinuxQQ 官方 CDN 下载加断流自杀（签名回退链保持）；network_test 竞速结果同会话缓存不再重复探测）；**③ 启动可视化 + 控制台入口**（用户反馈：普通用户看不懂 log，不知道流程到哪了。AstrBot 标签页新增「启动进度」卡：8 阶段大白话清单（准备容器/基础命令/uv 工具/下载 LinuxQQ/安装 NapCat/下载 AstrBot/Python 依赖/启动服务）+ 进度条 + 每阶段预估耗时，由启动脚本新增 stage() 输出的 `[STAGE:百分比:描述]` 结构化标记经 EngineManager 解析实时驱动（标记行同时人可读进日志）；安装中断不再只报 exit=1，改为提示「点启动引擎重试（已下载组件复用，不会从头装）」；主动停止按预期路径处理，read interrupted 不再误报"启动异常"；顺带修复 L_* 本地化变量从未定义导致的 "Napcat ，..." 残缺文案。**新增「打开控制台」按钮**（泡泡版 AstrBot Bubble 同款）：系统 WebView 打开 AstrBot 控制台 `http://127.0.0.1:6185`（复用 WebUiActivity，引擎运行中可用））。
 

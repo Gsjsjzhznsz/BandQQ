@@ -222,3 +222,23 @@ Stage Summary:
 - 产物：bandqq-{2.18.0-bundled,2.18.0-companion}.apk + bandqq-{band,bandpro,xiaomis,redmiwatch}-2.18.0.rpk
 - 待用户回归：①胖包 AstrBot 启动：应出现"启动脚本已与 APK 资产对齐"→"运行环境不完整，自动补装"进度→首次联网装 curl/git/uv/NapCat/AstrBot（数百 MB，数分钟）②撤回：失败自动重试，NapCat 瞬态超时多数自愈；若 toast 报 retcode 请反馈数值 ③键盘：手环/手表端 compose 输入页键盘应完整；若再遇半键盘请说明机型与分支包
 - 建议用户：手机 APK 与手环 rpk 需同时更新（手环端 rpk 装对应分支包：RW5=redmiwatch）
+
+---
+Task ID: 29
+Agent: Super Z (main)
+Task: band-qq v2.21.0 —— 用户上传引擎日志（v2.20 实战）分析删除 + 方形键盘第三轮 VM 真复现根治 + NapCat 离线包预下载
+
+Work Log:
+- 日志分析：git pull 取用户上传 engine-2026-10-04.log（4 会话 2041 行）→ 会话1-3 为 v2.20 前历史（旧脚本 DNS/sudo/挂死均已修）；会话4（10:25）实证 v2.20 全链生效（sudo 垫片/STAGE 可视化/DNS 重写/镜像竞速），唯一剩余断点=napcat.sh 上游脚本内部自带的 NapCat.Shell.zip 下载（自测代理 ghfast.top，4.5 分钟爬至 1.3% 后 curl(18) Transferred a partial file → exit=1），不受 v2.20 gh_fetch 管控；分析后删除该文件（commit e254add）
+- 键盘第三轮（用户反馈"还是没有修好，虚拟机都能看到的"）：重建 Vela VM 环境（vela SDK+miwear 镜像 CDN 重下 581MB；修 libandroid-emu-agents.so 加载=lib64/lib/qemu/resources/bin64 深拷贝进 emulator/ + LD_LIBRARY_PATH；发现平台级规律=模拟器进程随派生工具调用结束被回收→所有 VM 会话必须单次长调用内完成）；compose 入口调试包（manifest router.entry 构建期改 /pages/compose）实现零导航直达键盘页
+- VM 真复现（redmiw5 432×514）：v2.20 代码完整复现用户故障——第三排 Z-X-C-V-B-N 拦腰截断+动作行叠进字母区+键盘仅占 190px 下方 95px 全黑；解包 rpk 取证编译产物：#keyboard67 样式表带 position:absolute;top:82px（=v2.19 误判的"固件幻影 82~85px"，实为 62 圆屏时代定位遗产）+ rect 容器 height:274 装不下 261(scroll 预算)+60(动作行)=321（差 47px → 固件把动作行上提叠进第三排）
+- 修复（最小两处）：InputMethod.ux #keyboard67 铲除 absolute 定位（height 170→261 对齐内联）+ rect 容器 274→321（高度链闭合：28 拼音行+321=KB_H_RECT 349=dock 同值）；scroll 261 预算保留（真固件内容注入偏移兜底，实测代价=字母行与动作行间 ~90px 空隙，优先保完整不裁行）
+- VM 修复验证：redmiwatch 432×514（三排 145..314 完整/动作行 406..465 无叠压/输入 ra→然后 让我想想 让我看看 绕行/下展候选层完整含▲收起）+ bandpro 336×480（三排完整/输入 ea→额阿额阿俄恶）两方形分支全过
+- NapCat 预下载：astrbot-startup.sh 新增 ensure_napcat_zip（gh_fetch 多源竞速+20s 断流自杀预取 https://github.com/NapNeko/NapCatQQ/releases/latest/download/NapCat.Shell.zip → $HOME/NapCat.Shell.zip；上游 download_napcat 检测同目录包即跳过内部下载——拉取上游 install.sh 取证该官方支持路径；unzip -t 自验，失败不阻断留上游兜底）；接线 install_napcat（ensure_sudo_shim 之后 bash napcat.sh 之前）
+- 版本 vc62/2.21.0 三处同步（manifest/build.gradle.kts/about.ux）；verify_2210 新建 86 项断言（继承 73+新增键盘高度链/absolute 铲除/预下载接线 13 项）；APK 构建环境重建（setup-buildenv.sh 幂等重装 JDK17/Gradle8.13/SDK；新坑=gradle 每次自动补装 platforms;android-37.0 且按 package.xml api-level "37.0" 解析、与 compileSdk=37 的 hash 'android-37' 不匹配报 Failed to find target——元数据手术 api-level 37.0→37 过解析）；双 APK badging vc62/2.21.0 targetSdk28 签名 af8819e2 同源；bundled 含 libbusybox+64MB rootfs+ensure_napcat_zip 脚本
+- 发布：commit+push → Release v2.21.0 六资产（scripts/gh_release_2210.py）→ download/bandqq-2.21.0/
+
+Stage Summary:
+- 产物：bandqq-{2.21.0-bundled,2.21.0-companion}.apk + bandqq-{band,bandpro,xiaomis,redmiwatch}-2.21.0.rpk
+- 待用户回归：①方形分支（Watch 5=redmiwatch 包）键盘三排完整+输入展开+下展候选 ②AstrBot 首装：日志应出现「预下载 NapCat 离线包（多源竞速，20 秒无数据自动换源）」→「上游脚本将跳过其内部下载」，百 MB 级下载不再被上游脚本断流卡死 ③若字母行与动作行间空隙观感过宽（261 预算代价）请反馈截图，可下版收紧
+- VM 会话基建沉淀：emu_redmiw5_start.sh / vm_repro_session.sh / vm_expand_session.sh / vm_bandpro_session.sh（单次长调用完成全部驱动，跨调用进程必被回收）

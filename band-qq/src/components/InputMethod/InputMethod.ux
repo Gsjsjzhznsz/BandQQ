@@ -172,7 +172,13 @@
         </div>
       </div>
       <!-- 方屏67 -->
-      <div if="{{screentype==='rect'}}" style="width: 100%;height: 274px;flex-direction: column">
+      <!-- v2.21.0 半屏键盘根修（VM 432×514 实测复现→定案）：v2.19 测得的"固件幻影 83~85px 上方偏移"
+           实为 #keyboard67 样式表残留 position:absolute;top:82px（62圆屏时代定位遗产）——幻影是自家 CSS；
+           且本容器 height:274 装不下子元素 261(scroll 预算)+60(动作行)=321，固件把动作行上提 47px
+           叠进第三排字母 = 用户口径"键盘只显示一半/输入不展开"。修=容器 274→321 高度链闭合
+           （28 拼音行+321=KB_H_RECT 349 与 dock 同值）+ 铲除 keyboard67 absolute 定位；
+           scroll 261 预算保留（真固件若另有内容注入偏移，多出的空间兜底不裁行）。 -->
+      <div if="{{screentype==='rect'}}" style="width: 100%;height: 321px;flex-direction: column">
         <div style="width:100%;height:261px;">
           <scroll id="keyboard67" scroll-x="{{true}}" onscroll="handelScroll" style="height:261px;">
             <div if="{{!numFlag}}" style="left: 6px; flex-direction: column;">
@@ -964,11 +970,8 @@ export default {
         border:3px solid rgba(255,255,255,0.06);
 }
 #keyboard67 {
-        position:absolute;
-        left:0px;
-        top:82px;
         width:100%;
-        height:170px;
+        height:261px;
 }
 #keyboard66 {
         position:absolute;

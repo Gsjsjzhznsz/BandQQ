@@ -696,6 +696,34 @@ patch_napcat_installer(){
   fi
 }
 
+# v2.21.0：预下载 NapCat 压缩包喂给上游脚本。用户 10-04 引擎日志（会话4）实证：
+# 上游脚本内部的 NapCat 下载不受我方 gh_fetch 管控——它自测代理选中 ghfast.top，
+# 4.5 分钟爬至 1.3% 后 curl(18) Transferred a partial file → exit=1。上游
+# download_napcat 检测脚本同目录 NapCat.Shell.zip 存在即跳过内部下载（官方支持
+# 路径，日志原话"或者手动下载压缩包并放在脚本同目录下"），故此处用 gh_fetch
+# （多源竞速+断流自杀）预取 + unzip -t 自验；失败不阻断，上游自下载路径保留兜底。
+ensure_napcat_zip(){
+  local zip_file="$HOME/NapCat.Shell.zip"
+  if [ -s "$zip_file" ] && unzip -t "$zip_file" >/dev/null 2>&1; then
+    echo "检测到有效 NapCat 离线包，跳过预下载"
+    return 0
+  fi
+  rm -f "$zip_file"
+  echo "预下载 NapCat 离线包（多源竞速，20 秒无数据自动换源）..."
+  if gh_fetch "$zip_file" "https://github.com/NapNeko/NapCatQQ/releases/latest/download/NapCat.Shell.zip"; then
+    if unzip -t "$zip_file" >/dev/null 2>&1; then
+      echo "NapCat 离线包预下载完成（上游脚本将跳过其内部下载）"
+      return 0
+    fi
+    echo "预下载包校验失败，删除后交由上游脚本自行下载"
+    rm -f "$zip_file"
+  else
+    echo "预下载未成功（保留上游脚本自下载兜底路径）"
+    rm -f "$zip_file"
+  fi
+  return 0
+}
+
 install_napcat(){
   # 检查是否完整安装。旧版本可能留下 launcher.sh，但 LinuxQQ 或依赖包安装失败。
   if ! check_napcat_ready >/dev/null 2>&1; then
@@ -742,6 +770,8 @@ install_napcat(){
     # v2.20.0：上游脚本硬性检查 sudo（10-04 日志实证 "sudo不存在" → exit 1），
     # proot 恒 root，垫片透传即可（幂等，前面装过这里秒过）
     ensure_sudo_shim
+    # v2.21.0：预取 NapCat 离线包，让上游脚本跳过其不受控的内部下载
+    ensure_napcat_zip
     if ! bash napcat.sh; then
       echo "NapCat 上游安装脚本执行失败"
       exit 1
