@@ -246,12 +246,14 @@ function main() {
       if (branchSrc === originalBranch) throw new Error('branch.js 改写失败：未找到 PROFILE 标记')
       fs.writeFileSync(BRANCH_FILE, branchSrc)
       // v2.13.0：版本行正则匹配（行尾可能带许可证后缀「· AGPL-3.0」等，不再精确匹配整行）
-      const verLineRe = new RegExp('>v' + versionName + ' · 快应用端[^<]*<')
+      // v2.25.0 加固：版本号通配（\d[\d.]*）——manifest 版本 bump 后 about.ux 漏同步
+      // 不再炸构建（CI 首跑实测 v2.24.0 行 + 2.25.0 manifest → 硬失败），此处自动对齐
+      const verLineRe = />v\d[\d.]* · 快应用端[^<]*</
       const aboutTagged = originalAbout.replace(
         verLineRe,
         '>v' + versionName + '-' + b.tag + ' · 快应用端 · AGPL-3.0<'
       )
-      if (aboutTagged === originalAbout) throw new Error('about.ux 版本行改写失败（先同步 manifest 版本）')
+      if (aboutTagged === originalAbout) throw new Error('about.ux 版本行缺失（需存在 ">vX.Y.Z · 快应用端" 行）')
       fs.writeFileSync(ABOUT_FILE, aboutTagged)
 
       // ⑥ 构建 release（立即收集，aiot release 会清空 dist）

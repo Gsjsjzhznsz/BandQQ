@@ -47,25 +47,31 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      # 同 ci.yml：runner 自带 SDK，不用 setup-android@v3（license 交互会卡死）
-      # 平台 37 目录陷阱修复（scripts/setup-buildenv.sh 同款手术）
+      # 同 ci.yml：runner 自带 SDK + 锁定 11076708 cmdline-tools（setup-buildenv.sh 同源）
       - name: 安装 SDK 组件并修复 android-37 目录名
         run: |
-          SDKM="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
-          [ -x "$SDKM" ] || SDKM="$(command -v sdkmanager)"
-          echo "sdkmanager: $SDKM"
-          yes | "$SDKM" --licenses >/dev/null 2>&1 || true
-          yes | "$SDKM" --install "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" \
-            > "${RUNNER_TEMP}/sdk-install.log" 2>&1 || true
-          P="${ANDROID_HOME}/platforms"
-          if [ -d "$P/android-37.0" ] && [ ! -d "$P/android-37" ]; then
-            mv "$P/android-37.0" "$P/android-37"
-            sed -i 's|path="platforms;android-37.0"|path="platforms;android-37"|' "$P/android-37/package.xml"
-            sed -i 's|AndroidVersion.ApiLevel=37.0|AndroidVersion.ApiLevel=37|' "$P/android-37/source.properties"
-          fi
+          CT="${RUNNER_TEMP}/cmdtools"
+          curl -sSL -o "${RUNNER_TEMP}/ct.zip" "https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
+          rm -rf "$CT"; unzip -q "${RUNNER_TEMP}/ct.zip" -d "$CT"
+          SDKM="$CT/cmdline-tools/bin/sdkmanager"
+          LOG="${RUNNER_TEMP}/sdk-install.log"
+          yes | "$SDKM" --sdk_root="$ANDROID_HOME" --licenses >/dev/null 2>&1 || true
+          yes | "$SDKM" --sdk_root="$ANDROID_HOME" --install "build-tools;37.0.0" "platform-tools" >> "$LOG" 2>&1 || true
+          yes | "$SDKM" --sdk_root="$ANDROID_HOME" --install "platforms;android-37" >> "$LOG" 2>&1 || true
+          P="$ANDROID_HOME/platforms"
           if [ ! -d "$P/android-37" ]; then
-            tail -30 "${RUNNER_TEMP}/sdk-install.log"
-            echo "::error::android-37 platform 安装失败，日志见上方 sdk-install.log"
+            yes | "$SDKM" --sdk_root="$ANDROID_HOME" --install "platforms;android-37.0" >> "$LOG" 2>&1 || true
+            [ -d "$P/android-37.0" ] && [ ! -d "$P/android-37" ] && mv "$P/android-37.0" "$P/android-37"
+            for F in "$P/android-37/package.xml" "$P/android-37/source.properties"; do
+              [ -f "$F" ] && sed -i 's|platforms;android-37\.0|platforms;android-37|g; s|AndroidVersion.ApiLevel=37\.0|AndroidVersion.ApiLevel=37|' "$F"
+            done
+          fi
+          echo "--- 平台目录 ---"; ls "$P" || true
+          echo "--- 注册表核对 ---"; "$SDKM" --sdk_root="$ANDROID_HOME" --list_installed 2>/dev/null | grep -i "android-37" || true
+          PX="$P/android-37/package.xml"
+          if [ ! -f "$PX" ] || ! grep -q 'platforms;android-37"' "$PX"; then
+            tail -40 "$LOG"; [ -f "$PX" ] && head -20 "$PX"
+            echo "::error::android-37 平台注册表校验失败"
             exit 1
           fi
           echo "platform android-37 ready"
