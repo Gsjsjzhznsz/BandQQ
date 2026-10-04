@@ -84,22 +84,30 @@ jobs:
           LOG="${RUNNER_TEMP}/sdk-install.log"
           yes | "$SDKM" --sdk_root="$ANDROID_HOME" --licenses >/dev/null 2>&1 || true
           yes | "$SDKM" --sdk_root="$ANDROID_HOME" --install "build-tools;37.0.0" "platform-tools" >> "$LOG" 2>&1 || true
-          # 先试非 minor 包名（若上游已发布 android-37 则免手术）
-          yes | "$SDKM" --sdk_root="$ANDROID_HOME" --install "platforms;android-37" >> "$LOG" 2>&1 || true
           P="$ANDROID_HOME/platforms"
+          # 镜像预装的 android-37（连同 37.1/37.2-beta）注册表 schema 与 AGP 8.13.2 不兼容：
+          # 三跑实证 sdkmanager --list_installed 认，AGP 仍报 Failed to find target
+          # 'android-37'。卸掉预装，用锁版工具全新重装重建注册表（本地验证过的状态）。
+          if [ -d "$P/android-37" ]; then
+            yes | "$SDKM" --sdk_root="$ANDROID_HOME" --uninstall "platforms;android-37" >> "$LOG" 2>&1 || true
+            rm -rf "$P/android-37"
+          fi
+          yes | "$SDKM" --sdk_root="$ANDROID_HOME" --install "platforms;android-37" >> "$LOG" 2>&1 || true
           if [ ! -d "$P/android-37" ]; then
+            # 上游无非 minor 包名时走 37.0 + 目录手术
             yes | "$SDKM" --sdk_root="$ANDROID_HOME" --install "platforms;android-37.0" >> "$LOG" 2>&1 || true
             [ -d "$P/android-37.0" ] && [ ! -d "$P/android-37" ] && mv "$P/android-37.0" "$P/android-37"
-            # 元数据手术：AGP 按 package.xml 的 path 注册表找 target，目录与 path 必须一致
             for F in "$P/android-37/package.xml" "$P/android-37/source.properties"; do
               [ -f "$F" ] && sed -i 's|platforms;android-37\.0|platforms;android-37|g; s|AndroidVersion.ApiLevel=37\.0|AndroidVersion.ApiLevel=37|' "$F"
             done
           fi
           echo "--- 平台目录 ---"; ls "$P" || true
+          echo "--- package.xml 头部 ---"; head -25 "$P/android-37/package.xml" || true
+          echo "--- source.properties ---"; cat "$P/android-37/source.properties" || true
           echo "--- 注册表核对 ---"; "$SDKM" --sdk_root="$ANDROID_HOME" --list_installed 2>/dev/null | grep -i "android-37" || true
           PX="$P/android-37/package.xml"
           if [ ! -f "$PX" ] || ! grep -q 'platforms;android-37"' "$PX"; then
-            tail -40 "$LOG"; [ -f "$PX" ] && head -20 "$PX"
+            tail -40 "$LOG"
             echo "::error::android-37 平台注册表校验失败"
             exit 1
           fi

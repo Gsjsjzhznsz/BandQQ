@@ -57,8 +57,13 @@ jobs:
           LOG="${RUNNER_TEMP}/sdk-install.log"
           yes | "$SDKM" --sdk_root="$ANDROID_HOME" --licenses >/dev/null 2>&1 || true
           yes | "$SDKM" --sdk_root="$ANDROID_HOME" --install "build-tools;37.0.0" "platform-tools" >> "$LOG" 2>&1 || true
-          yes | "$SDKM" --sdk_root="$ANDROID_HOME" --install "platforms;android-37" >> "$LOG" 2>&1 || true
           P="$ANDROID_HOME/platforms"
+          # 同 ci.yml：卸掉镜像预装 android-37，用锁版工具全新重装重建注册表
+          if [ -d "$P/android-37" ]; then
+            yes | "$SDKM" --sdk_root="$ANDROID_HOME" --uninstall "platforms;android-37" >> "$LOG" 2>&1 || true
+            rm -rf "$P/android-37"
+          fi
+          yes | "$SDKM" --sdk_root="$ANDROID_HOME" --install "platforms;android-37" >> "$LOG" 2>&1 || true
           if [ ! -d "$P/android-37" ]; then
             yes | "$SDKM" --sdk_root="$ANDROID_HOME" --install "platforms;android-37.0" >> "$LOG" 2>&1 || true
             [ -d "$P/android-37.0" ] && [ ! -d "$P/android-37" ] && mv "$P/android-37.0" "$P/android-37"
@@ -67,10 +72,12 @@ jobs:
             done
           fi
           echo "--- 平台目录 ---"; ls "$P" || true
+          echo "--- package.xml 头部 ---"; head -25 "$P/android-37/package.xml" || true
+          echo "--- source.properties ---"; cat "$P/android-37/source.properties" || true
           echo "--- 注册表核对 ---"; "$SDKM" --sdk_root="$ANDROID_HOME" --list_installed 2>/dev/null | grep -i "android-37" || true
           PX="$P/android-37/package.xml"
           if [ ! -f "$PX" ] || ! grep -q 'platforms;android-37"' "$PX"; then
-            tail -40 "$LOG"; [ -f "$PX" ] && head -20 "$PX"
+            tail -40 "$LOG"
             echo "::error::android-37 平台注册表校验失败"
             exit 1
           fi
@@ -82,7 +89,7 @@ jobs:
 
       - name: 单元测试 + 双 flavor Release 出包
         working-directory: android-sync
-        run: gradle --no-daemon --max-workers=2 test assembleBundledRelease assembleCompanionRelease
+        run: gradle --no-daemon --max-workers=2 --stacktrace test assembleBundledRelease assembleCompanionRelease
 
       # ---------- rpk ----------
       - uses: actions/setup-node@v4
