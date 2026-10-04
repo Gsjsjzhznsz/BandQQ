@@ -106,14 +106,16 @@ export function createApi(interconnectImpl) {
   function send(payload) {
     return new Promise((resolve, reject) => {
       ensureConn()
-        .then((c) => c.send({
+        // 就绪门控（v2.25.0 修复）：send 接入 waitReady，onopen 前入队等待，
+        // 避免通道未开时首拉帧直接丢失（此前门控只在 connectStatus 生效，send 漏接）
+        .then((c) => waitReady().then(() => c.send({
           data: payload,
           success: () => resolve(),
           fail: (data, code) => {
             console.log('[BANDQQ] v9 api.send fail', code, JSON.stringify(data && data.ts && {}) )
             reject({ data, code })
           }
-        }))
+        })))
         .catch((e) => { console.log('[BANDQQ] v9 api.send throw', String(e)) ; reject(e) })
     })
   }

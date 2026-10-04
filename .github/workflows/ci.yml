@@ -69,20 +69,31 @@ jobs:
           distribution: temurin
           java-version: 17
 
-      - uses: android-actions/setup-android@v3
-
+      # ubuntu-latest 自带 Android SDK（cmdline-tools/licenses 均在），
+      # 不用 android-actions/setup-android@v3 —— 其 license 交互对新出 preview
+      # 协议（如 Android XR）会卡死，首跑实测 failed
       # 平台 37 目录陷阱：sdkmanager 装出 platforms/android-37.0，AGP 只认 android-37
       # （scripts/setup-buildenv.sh 第 5 步同款手术，本地已验证）
       - name: 安装 SDK 组件并修复 android-37 目录名
         run: |
-          yes | sdkmanager --licenses >/dev/null 2>&1 || true
-          sdkmanager --install "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" >/dev/null
-          P="$ANDROID_HOME/platforms"
+          SDKM="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
+          [ -x "$SDKM" ] || SDKM="$(command -v sdkmanager)"
+          echo "sdkmanager: $SDKM"
+          yes | "$SDKM" --licenses >/dev/null 2>&1 || true
+          yes | "$SDKM" --install "platforms;android-37.0" "build-tools;37.0.0" "platform-tools" \
+            > "${RUNNER_TEMP}/sdk-install.log" 2>&1 || true
+          P="${ANDROID_HOME}/platforms"
           if [ -d "$P/android-37.0" ] && [ ! -d "$P/android-37" ]; then
             mv "$P/android-37.0" "$P/android-37"
             sed -i 's|path="platforms;android-37.0"|path="platforms;android-37"|' "$P/android-37/package.xml"
             sed -i 's|AndroidVersion.ApiLevel=37.0|AndroidVersion.ApiLevel=37|' "$P/android-37/source.properties"
           fi
+          if [ ! -d "$P/android-37" ]; then
+            tail -30 "${RUNNER_TEMP}/sdk-install.log"
+            echo "::error::android-37 platform 安装失败，日志见上方 sdk-install.log"
+            exit 1
+          fi
+          echo "platform android-37 ready"
           ls "$P"
 
       - uses: gradle/actions/setup-gradle@v4
