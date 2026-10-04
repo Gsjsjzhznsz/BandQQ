@@ -8,8 +8,20 @@
 上游：https://github.com/Astroptis/band-qq-assistant ；本仓库为完整版镜像（含签名/产物/legacy）。
 
 ## 版本线
-- 当前正式线：v2.22.0（vc63）—— 候选选择栏置顶+NapCat启动链四件套+密码复制/AstrBot开关（2026-10-04）
-  - 键盘第四轮（用户"选择栏怎么在下面了"）：rect 动作行（语言/候选/删除）与字母区换序，选择栏回键盘顶部（对齐 circle/pill），高度链 60+261=321 不变；VM bandpro 336×480 净启清装实测选择栏在顶+输入出字+整词候选进顶栏；新坑入库：①编译产物中 keyboard67 首现于样式表段而非渲染树，判 DOM 序必须用 __opts__:{id:"…"} 取样（v2.21 因同因误判"动作行归位"——其 (331,393) 下展验证实为误触 B 键）②VM bandpro 固件对 position:relative 不支持，abs 子元素疑似锚到页面级；胶囊 flex:1 在 336 宽下可溢出顶飞右侧件（v2.19 起的真机隐患候选，待真机截图确认）③gRPC 注入对小型 text/紧凑 img onclick 不响应是存量现象（真机不受影响）④vmcompose 调试包轮换版本号安装（同 versionCode pm install 会静默失败）；"纯净镜像" vela_data.bin 里烤着旧应用与旧草稿，会伪装成修复无效⑤磁盘 <1.5G 时 Vela 模拟器拒启（Not enough disk space）；gradle 构建需先杀 qemu 否则 daemon OOM 被杀
+- 当前正式线：v2.24.0（vc65）—— 发送链根修(params-only)+NapCat 状态/日志/配置三联动+一键填入热重连（2026-10-04）
+  - 发送链根修（用户第五份 bandqq-2026-10-04.log 定案：WS 3001 已连+get_group_list ok 但 send_group_msg 一律 retcode=200 "TypeError: Cannot read properties of undefined (reading 'type')"@aye napcat.mjs:74013）：NapCat 4.18.28 HTTP httpApiRequest 把**整个请求体直接当 params**（action 从路径取），旧 WS 风格信封 {action,params} → body.message=undefined → $a(undefined)=[undefined] → aye() 段校验 n.type 崩；修=buildSendParams 拆出 params-only 体（与 direct.js 直连通道同形状——该通道从未失败），WS 通道仍走信封；OneBotClient.sendMessage 改 judge() 语义（HTTP 200 但 retcode!=0 一律业务失败，"不支持的Api"才换通道）
+  - NapCat 状态联动（用户"napcat启动完成还在显示启动"）：①脚本 wait_napcat_ports（/dev/tcp 探测 3001/3000，仅 NapCat 模式前台调用出 stage 100 终态，AstrBot 模式后台只打日志）②EngineManager stage≥100 → State.Running（不再停"安装中 100%"）③EngineHooks.napcatConnected（main sourceSet 钩子，astrbot-engine 仅 bundledImplementation 不可直接 import）+ SyncService 包装 OneBotListener onState(true) → EngineManager.onNapcatConnected()（WS onOpen 即推进 Starting/Installing→Running，比端口探测轮询早）④AstrBotScreen 状态卡新增"● 手环直连：已连通/○ 未连通"行（OneBotStateBus 实时驱动，区分"容器在跑"与"QQ 登录后 3001/3000 可连"两层状态）
+  - NapCat 日志接入（用户"log没有napcat的log"）：①脚本 napcat_console_tap（tail -F napcat-console.log 逐行剥 ANSI/截 160 加 [NAPCAT] 前缀写回引擎 stdout；引擎停止链 pkill/重入/管道断裂三重收尾）②EngineManager.logSink + logLine 全量转发 ③bundled AstrBotScreen 首帧 LaunchedEffect 挂 sink → LogBus("AstrBotEngine") → 主页实时日志面板
+  - 一键填入热重连（用户"一键填写为什么没有用"）：根因=旧 configure() 只换引用不重连，运行中 WS 仍挂旧地址；修=OneBotClient.reconnectWith（关旧 WS→重连循环 1s 巡检用新端点重建，onState(true) 后 broker 自动重拉联系人）+ SyncService.reconnectEndpointNow 静态钩子 + bundled「一键填入本机 NapCat 地址并保存」与设置页「保存」两处接入
+  - 看门狗升级「保活+配置升级」双职责（QQ 扫码登录后 NapCat 新生成的 onebot11_<uin>.json 默认无端口服务端→进程活着端口永不监听的慢性死角）：每轮无条件 --step napcat-start（进程死→拉起；配置被 ensure_napcat_configs 升级→自动重启生效；一致→内部跳过 no-op），输出追加 watchdog.log
+  - 撤回闭环补完：手环发起 delete_msg retcode=0 后本机 store.recallByMessageId（全会话反查，新 API）灰显+buildRecallFrame+会话帧回推（旧链路只有 toast，手环聊天页永不灰显——此前撤回感知只覆盖对方撤回的 onRecall 事件）
+  - 验证：node 106/107 基线（api.test.js 环境失败）；APP 单测双 flavor 250/250 全绿（OneBotClientTest/MessageBrokerTest 同步三参 callback+params-only 断言）；双 APK badging vc65/2.24.0 签名 af8819e2 同源；四分支 rpk manifest 2.24.0-<tag>/vc65/designWidth 正确，compose.js 含 176/236/264 高度链常量
+- 前情：v2.23.0（vc64）—— 键盘第五轮高度链收紧铲黑区+AstrBot cwd 污染根修+NapCat per-uin 配置升级+QQ 账号提取（2026-10-04）
+  - 键盘第五轮（用户实测偏高+底部黑区）：rect 字母区实际 170px 而 scroll 261 预算死区 91px=黑区根因；修=scroll 261→176/容器 321→236/KB_H_RECT 349→264（28+236），branch-release 同步；VM 双分支实测（redmiwatch a's→按时哀伤阿是+bandpro q'w→请问千万气温，候选栏置顶+三排完整+键带止于 y=456=锚点469−缓冲，剩余底部 45px=系统手势保留区）
+  - AstrBot 启动失败根修（第四份日志定案：start_napcat 主 shell cd $HOME 污染工作目录→uv run main.py 在 /root spawn 必败）：修=launcher 子 shell 内 cd+launch_astrbot cd 移到 uv run 前+main.py 前置检查
+  - NapCat 检测根修：登录账号只读 onebot11_<uin>.json，模板无效；ensure_napcat_configs 扫描升级全部账号配置+变更自动重启+webui 一致跳写；NAPCAT_OB11_BODY 占位符展开
+  - QQ 账号提取（onebot11_<uin>.json 文件名+console.log 兜底）+密码卡状态自动刷新+主页日志上移
+- 前情：v2.22.0（vc63）—— 候选选择栏置顶+NapCat启动链四件套+密码复制/AstrBot开关（2026-10-04）
   - NapCat 启动链（用户"napcat没有启动"+第三份 engine-2026-10-04.log 定案：v2.21 全链生效后唯一断点=装而不启，3001/3000 永不监听；且旧 onebot11.json 两个 server 数组为空）：ensure_napcat_configs（onebot11.json 补 HTTP:3000/WS:3001 服务端+旧形状自动升级+webui.json 固定 5099/Token bandqq-napcat）+ start_napcat（Xvfb :20+launcher.sh 后台，napcat-console.log 落盘）+ 看门狗（5min 巡检 napcat-start 步骤重启）+ AstrBot 启动前并行拉起；EngineManager 停止链补杀 qq/Xvfb；探测细化 6185/5099 也算就绪（QQ 未扫码给指引）
   - 密码复制+AstrBot 开关（用户"自动读取2个程序的密码给复制"/"是否启动安装astrbot选项"）：AstrBotScreen「密码与登录」卡（AstrBotSecrets：引擎日志 Initial password + 容器 webui.json token，一键复制+开控制台 :6185+ NapCat 扫码 :5099）+「启动 AstrBot 机器人」Switch（prefs engine_start_astrbot→ASTRBOT_ENABLE 环境变量→脚本仅 NapCat 模式 while 常驻）
   - 验证：verify_2220 82/82；node 106/107 基线；APP 单测 250/250；badging vc63/2.22.0 签名 af8819e2 同源

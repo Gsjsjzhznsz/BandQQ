@@ -129,6 +129,8 @@ object EngineManager {
         }
         _log.value = synchronized(logBuf) { logBuf.toList() }
         android.util.Log.i("AstrBotEngine", s)
+        // v2.24.0：转发到 App 注入的 sink（主页日志面板 LogBus），引擎/NapCat 行主页可见
+        runCatching { logSink?.invoke(s) }
         // v2.18.1：异步落盘（用户反馈：引擎日志本地无 log 文件）。单文件 8MB 滚动 .old.log，
         // 保留策略随 FileLogger.cleanup（同目录 .log/.old.log 7 天统一回收）
         val ctx = logCtx ?: return
@@ -512,12 +514,19 @@ object EngineManager {
                 processRef.set(p)
                 // v2.20.0：逐行扫描 [STAGE:百分比:描述] 标记 → 更新 Installing 状态，
                 // 驱动 AstrBot 标签页的启动进度卡；标记行照常进日志（人可读）
+                // v2.24.0：stage 100 视为终态直接进 Running（仅 NapCat 模式的
+                // wait_napcat_ports 探测到端口后发 stage 100；此前停在
+                // "安装中：NapCat 已就绪 100%" 文案，用户误读为还在启动）
                 p.inputStream.bufferedReader().forEachLine { line ->
                     logLinesOf(line).forEach { l ->
                         tryParseStage(l)?.let { (pct, desc) ->
                             val cur = _state.value
-                            if (cur !is State.Running && cur !is State.Error) {
-                                _state.value = State.Installing(desc, pct)
+                            if (cur !is State.Error) {
+                                if (pct >= 100) {
+                                    _state.value = State.Running
+                                } else if (cur !is State.Running) {
+                                    _state.value = State.Installing(desc, pct)
+                                }
                             }
                         }
                         logLine(l)
@@ -610,6 +619,30 @@ object EngineManager {
 
     /** 追加一段外部探测结果进日志（UI 检测本机 NapCat 按钮复用） */
     fun note(msg: String) = logLine(msg)
+
+    // ---------- v2.24.0：真实连接驱动的状态联动 + 主页日志转发 ----------
+
+    /**
+     * App 侧可注入的日志 sink（引擎模块不依赖 app，反向由 app 在启动时挂入）。
+     * SyncService 启动后把引擎/ NapCat 行同步进主页日志面板（LogBus），修
+     * 「log 里没有 NapCat 的 log」——[NAPCAT] 前缀的控制台 tail 行会随之出现在主页。
+     */
+    @Volatile
+    var logSink: ((line: String) -> Unit)? = null
+
+    /**
+     * OneBotClient WS 连接成功时由 App 侧调用（NapCat 真就绪的铁证——比端口探测更权威）。
+     * 若引擎仍在 Starting/Installing，立即推进到 Running：修「NapCat 启动完成还在显示启动」
+     * ——端口探测线程虽有 30 分钟窗口，但探测间隔/时序落后于真实连接，状态卡会滞留在
+     * "92% 启动中"直到下一次探测；且手动探测的"未就绪"提示文案会一直挂屏不刷新。
+     */
+    fun onNapcatConnected() {
+        val cur = _state.value
+        if (cur is State.Starting || cur is State.Installing) {
+            _state.value = State.Running
+            logLine("OneBot WS 已连接：本机 NapCat 就绪（状态已自动更新）")
+        }
+    }
 
     // ---------- v2.22.0：「启动 AstrBot 机器人」开关（仅 NapCat 模式） ----------
 

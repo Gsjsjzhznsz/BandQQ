@@ -878,14 +878,70 @@ start_napcat(){
   export DISPLAY=":$NAPCAT_DISPLAY"
   nohup bash -c "cd '$HOME' && exec bash launcher.sh" > "$HOME/napcat/napcat-console.log" 2>&1 &
   echo "[AstrBot Android] NapCat 已后台拉起（控制台: /root/napcat/napcat-console.log）"
+  # v2.24.0：控制台 tail 进引擎日志（用户反馈 log 里看不到 NapCat 的日志）
+  napcat_console_tap
   echo "[AstrBot Android] QQ 登录完成后 OneBot :3001/:3000 自动可用；未登录时打开 WebUI :$NAPCAT_WEBUI_PORT 扫码"
   return 0
 }
 
 # NapCat 看门狗：进程消失自动重启（容器存活期间常驻；日志在 /root/napcat/watchdog.log）
+# v2.24.0：巡检升级为「保活 + 配置升级」双职责。旧逻辑只查进程存活——用户扫码登录后
+# NapCat 新生成的 onebot11_<uin>.json 默认无 :3001/:3000 服务端，进程活着端口永不监听，
+# 状态卡永远"启动中"且手环发不出消息（用户 10-04 第五份日志链路定案）。
+# 每轮无条件走 --step napcat-start：进程死→拉起；进程活但配置被 ensure_napcat_configs
+# 升级→自动重启生效；进程活且配置一致→内部"跳过重复启动"no-op。
 start_napcat_watchdog(){
-  nohup bash -c 'while true; do sleep 300; pgrep -f "qq --no-sandbox" >/dev/null 2>&1 || { echo "$(date "+%m-%d %H:%M:%S") NapCat 进程消失，自动重启"; bash /root/astrbot-startup.sh --step napcat-start >/dev/null 2>&1; }; done' > "$HOME/napcat/watchdog.log" 2>&1 &
-  echo "[AstrBot Android] NapCat 看门狗已启动（5 分钟巡检）"
+  nohup bash -c 'while true; do sleep 300; bash /root/astrbot-startup.sh --step napcat-start >> "$HOME/napcat/watchdog.log" 2>&1; done' > /dev/null 2>&1 &
+  echo "[AstrBot Android] NapCat 看门狗已启动（5 分钟巡检：进程保活 + 登录后配置自动升级重启）"
+}
+
+# v2.24.0：NapCat 控制台 tail（用户反馈「log 没有 napcat 的 log」）。
+# start_napcat 把 NapCat 输出重定向进容器内 napcat-console.log，引擎日志从此看不到
+# QQ 登录/WS 监听/扫码提示等任何 NapCat 动态。此 tap 把控制台逐行剥离 ANSI 转义、
+# 截断 160 字符后加 [NAPCAT] 前缀写回引擎 stdout → 引擎日志/落盘文件/App 日志面板
+# 全链可见。生命周期：引擎停止链 pkill -f napcat / 下次 start_napcat 重入 / 引擎进程
+# 退出后管道断裂（SIGPIPE）三者任一即收尾；tail -F 跨 NapCat 重启跟随截断重长的同一文件。
+napcat_console_tap(){
+  pkill -f "bandqq-napcat-tap-marker" 2>/dev/null || true
+  nohup bash -c '
+    # bandqq-napcat-tap-marker
+    log="$HOME/napcat/napcat-console.log"
+    for i in $(seq 1 40); do [ -f "$log" ] && break; sleep 0.5; done
+    [ -f "$log" ] || exit 0
+    tail -n +1 -F "$log" 2>/dev/null | while IFS= read -r line; do
+      clean=$(printf "%s" "$line" | tr -d "\000" | sed -e "s/\x1b\[[0-9;]*[A-Za-z]//g" -e "s/\r//g" | cut -c1-160)
+      [ -n "$clean" ] && echo "[NAPCAT] $clean"
+    done
+  ' &
+}
+
+# v2.24.0：等待 NapCat 端口真正监听（修「NapCat 启动完成还在显示启动」的窗口期）。
+# start_napcat 的"已启动"只表示进程拉起，QQ 引导完成前 3001/3000 不会监听（真机实测
+# 2~3 分钟），期间 App 检测按钮只会得到"未就绪"。此函数探测到端口即输出 stage 100
+# 终态标记（仅 NapCat 模式前台调用）；bg=1 时后台运行只打日志（AstrBot 模式，避免与
+# AstrBot 启动进度标记互相覆盖）。
+wait_napcat_ports(){
+  local mode="${1:-fg}" i ok=""
+  (
+    for i in $(seq 1 60); do
+      if (exec 3<>"/dev/tcp/127.0.0.1/3001") 2>/dev/null; then ok=1; break; fi
+      if (exec 3<>"/dev/tcp/127.0.0.1/3000") 2>/dev/null; then ok=1; break; fi
+      [ "$((i % 6))" = "0" ] && echo "[AstrBot Android] NapCat 启动中…（已等待 $((i * 5)) 秒，QQ 首次引导较慢）"
+      sleep 5
+    done
+    if [ -n "$ok" ]; then
+      if [ "$mode" = "fg" ]; then
+        stage 100 "NapCat 已就绪（:3001/:3000 可连，手环消息链路可用）"
+      else
+        echo "[AstrBot Android] NapCat 已就绪（:3001/:3000 可连）"
+      fi
+    else
+      echo "[AstrBot Android] NapCat 仍在启动（QQ 未登录时端口不会开启；可开 WebUI :$NAPCAT_WEBUI_PORT 扫码，App 会持续自动检测）"
+    fi
+  ) &
+  local pid=$!
+  [ "$mode" = "fg" ] && wait "$pid" 2>/dev/null
+  return 0
 }
 
 install_napcat(){
@@ -1268,7 +1324,10 @@ launch_astrbot(){
     ensure_napcat_configs
     start_napcat || echo "[AstrBot Android] NapCat 启动失败（可重启引擎重试）"
     start_napcat_watchdog
-    stage 92 "NapCat 已启动（QQ 扫码登录后 :3001/:3000 生效；AstrBot 已按开关关闭）"
+    # v2.24.0：等待端口真正监听（修「启动完成还显示启动中」的窗口期）——
+    # QQ 引导完成前 3001/3000 不监听（真机实测 2~3 分钟），等到即出 stage 100 终态
+    stage 92 "NapCat 启动中（QQ 引导完成后 :3001/:3000 生效；AstrBot 已按开关关闭）"
+    wait_napcat_ports fg
     progress_echo "NapCat 运行中（仅 NapCat 模式）"
     while true; do sleep 3600; done
   fi
@@ -1300,6 +1359,8 @@ launch_astrbot(){
   # 与 AstrBot 启动并行；登录态在 QQ 侧保持，重启引擎后 NapCat 自动恢复会话
   start_napcat || echo "[AstrBot Android] NapCat 启动失败（不影响 AstrBot 本体；可重启引擎重试）"
   start_napcat_watchdog
+  # v2.24.0：后台等待 NapCat 端口（只打日志不占 stage，避免与 AstrBot 启动进度互覆盖）
+  wait_napcat_ports bg
 
   # 使用 uv run --no-sync main.py 启动（跳过依赖同步）
   stage 92 "启动 AstrBot 服务（就绪后手机通知栏与手环会同步状态）"

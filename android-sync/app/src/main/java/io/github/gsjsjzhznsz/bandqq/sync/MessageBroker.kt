@@ -6,6 +6,8 @@ import io.github.gsjsjzhznsz.bandqq.onebot.OneBotParser
 import com.google.gson.JsonArray
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import io.github.gsjsjzhznsz.bandqq.sync.LogBus
+import io.github.gsjsjzhznsz.bandqq.sync.LogLevel
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -30,8 +32,9 @@ interface MessageSender {
         targetId: String,
         content: String,
         httpUrlOverride: String? = null,
-        /** v2.13.0：回传发送结果与协议端返回的 message_id（撤回定位用，可能为空） */
-        callback: (ok: Boolean, messageId: String) -> Unit = { _, _ -> }
+        /** v2.13.0：回传发送结果与协议端返回的 message_id（撤回定位用，可能为空）。
+         *  v2.24.0：增加 err=协议端拒绝原因（ok=false 时给手环 toast 展示；修假成功） */
+        callback: (ok: Boolean, messageId: String, err: String) -> Unit = { _, _, _ -> }
     )
 
     /**
@@ -91,49 +94,65 @@ class MessageBroker(
                 val content = obj.get("content")?.asString ?: ""
                 val frameTime = obj.get("time")?.takeIf { it.isJsonPrimitive && it.asJsonPrimitive.isNumber }?.asLong
                 val sendTime = if (frameTime != null && frameTime > 0) frameTime else System.currentTimeMillis()
-                oneBot.sendMessage(messageType, targetId, content) { ok, messageId ->
-                    // v2.13.0：发送结果与 message_id 回传手环（撤回/表情回应定位用）
-                    if (ok && messageId.isNotEmpty()) {
-                        store.setMessageId(targetId, sendTime, content, messageId)
+                // v2.24.0：发送结果三态处理——成功才入库+回推手环；失败回 action_result(ok=false)
+                // 让手环 toast 真实原因。旧实现「HTTP 200 即成功」+ 无条件回显 = NapCat 拒收时
+                // 手环仍显示已发送（用户实测"为什么发不了信息"的直接体验来源）。
+                oneBot.sendMessage(messageType, targetId, content) { ok, messageId, err ->
+                    if (ok) {
+                        // v2.13.0：发送结果与 message_id 回传手环（撤回/表情回应定位用）
+                        if (messageId.isNotEmpty()) {
+                            store.setMessageId(targetId, sendTime, content, messageId)
+                            bandSender(
+                                "{\"type\":\"action_result\",\"seq\":0,\"action\":\"send\",\"ok\":true," +
+                                    "\"target_id\":\"$targetId\",\"time\":$sendTime,\"message_id\":\"$messageId\"}"
+                            )
+                        }
+                        // 记录自己发送的消息，保证手机端历史与会话完整性。
+                        // 会话名以目标联系人的真实名称为准，避免落成"我"导致会话列表出现"我"
+                        val selfSenderName = store.contactName(targetId).ifBlank { targetId }
+                        store.addMessage(
+                            targetId,
+                            StoredMessage(
+                                messageType = messageType,
+                                senderId = targetId,
+                                senderName = selfSenderName,
+                                content = content,
+                                time = sendTime,
+                                isSelf = true
+                            )
+                        )
+                        MessageBus.notify(targetId)
+                        // 回推手环：与手环本地回显相同 time，upsertMessage 按 time|content 去重不会重复显示
+                        val visible = store.isVisibleContact(targetId)
+                        val targetName = store.conversationName(targetId, messageType, selfSenderName)
                         bandSender(
-                            "{\"type\":\"action_result\",\"seq\":0,\"action\":\"send\",\"ok\":true," +
-                                "\"target_id\":\"$targetId\",\"time\":$sendTime,\"message_id\":\"$messageId\"}"
+                            parser.toHandBandFrame(
+                                OneBotMessage(
+                                    messageType = messageType,
+                                    targetId = targetId,
+                                    senderId = targetId,
+                                    senderName = selfSenderName,
+                                    content = content,
+                                    time = sendTime,
+                                    isSelf = true
+                                ),
+                                visible = visible,
+                                targetName = targetName
+                            )
+                        )
+                    } else {
+                        LogBus.log(
+                            "MessageBroker", LogLevel.WARN,
+                            "send_message 失败（$messageType → $targetId）：${err.ifBlank { "未知原因" }}"
+                        )
+                        val info = "发送失败：" + (err.ifBlank { "协议端拒绝" })
+                            .take(60).replace("\\", "\\\\").replace("\"", "'")
+                        bandSender(
+                            "{\"type\":\"action_result\",\"seq\":0,\"action\":\"send\",\"ok\":false," +
+                                "\"target_id\":\"$targetId\",\"time\":$sendTime,\"info\":\"$info\"}"
                         )
                     }
                 }
-                // 记录自己发送的消息，保证手机端历史与会话完整性。
-                // 会话名以目标联系人的真实名称为准，避免落成"我"导致会话列表出现"我"
-                val selfSenderName = store.contactName(targetId).ifBlank { targetId }
-                store.addMessage(
-                    targetId,
-                    StoredMessage(
-                        messageType = messageType,
-                        senderId = targetId,
-                        senderName = selfSenderName,
-                        content = content,
-                        time = sendTime,
-                        isSelf = true
-                    )
-                )
-                MessageBus.notify(targetId)
-                // 回推手环：与手环本地回显相同 time，upsertMessage 按 time|content 去重不会重复显示
-                val visible = store.isVisibleContact(targetId)
-                val targetName = store.conversationName(targetId, messageType, selfSenderName)
-                bandSender(
-                    parser.toHandBandFrame(
-                        OneBotMessage(
-                            messageType = messageType,
-                            targetId = targetId,
-                            senderId = targetId,
-                            senderName = selfSenderName,
-                            content = content,
-                            time = sendTime,
-                            isSelf = true
-                        ),
-                        visible = visible,
-                        targetName = targetName
-                    )
-                )
                 return true
             }
             "send_like" -> {
@@ -789,6 +808,20 @@ class MessageBroker(
             val (retcode, detail) = parseRet(raw)
             if (retcode == 0) {
                 log("v11 action $action -> ok (attempt=$attempt)")
+                // v2.24.0：手环发起的撤回成功后，本机入库同步灰显 + 回推撤回帧。
+                // 旧链路只回 action_result toast——手环聊天页那条消息永远亮着
+                // （撤回感知只覆盖对方撤回的 WS 事件 onRecall，本端主动撤回无帧）。
+                if (action == "delete_msg") {
+                    val mid = paramsJson
+                        .substringAfter("\"message_id\":", "").trim()
+                        .trimEnd('}', ' ').trim('"')
+                    val hit = runCatching { store.recallByMessageId(mid) }.getOrNull()
+                    if (hit != null) {
+                        MessageBus.notify(hit.first)
+                        bandSender(buildRecallFrame(hit.first, hit.second))
+                        bandSender(store.buildConversationFrame(0))
+                    }
+                }
                 bandSender(actionResultFrame(seq, label + "成功", targetId))
                 return@requestApiAction
             }

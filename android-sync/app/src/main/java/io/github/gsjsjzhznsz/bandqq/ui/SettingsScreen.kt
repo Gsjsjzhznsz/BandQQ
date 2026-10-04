@@ -234,6 +234,16 @@ fun SettingsScreen(
                                     )
                                     // v2.7.0：保存后立即推给手环，免重启快应用
                                     SyncService.pushQuickRepliesNow?.invoke()
+                                    // v2.24.0：立即按新端点热重连 WS（旧链路保存后运行中的
+                                    // OneBotClient 仍挂旧地址，需重启 App 才生效）
+                                    SyncService.reconnectEndpointNow?.invoke(
+                                        EndpointConfig(
+                                            wsUrl = wsUrl.trim(),
+                                            wsToken = wsToken.trim(),
+                                            httpUrl = httpUrl.trim(),
+                                            httpToken = httpToken.trim(),
+                                        )
+                                    )
                                     toast(context, "配置已保存并同步快捷回复")
                                 }
                             },

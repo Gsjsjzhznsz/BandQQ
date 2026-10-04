@@ -285,3 +285,23 @@ Stage Summary:
 - 产物：bandqq-{2.23.0-bundled,2.23.0-companion}.apk + bandqq-{band,bandpro,xiaomis,redmiwatch}-2.23.0.rpk
 - 待用户回归：①方形分支键盘：整体变矮、按键贴近屏底、底部只剩系统手势区；候选栏仍在顶部、输入出字 ②AstrBot 启动：日志应见「AstrBot 启动中」后正常加载 v4.28.2 并打印 Initial password（若 AstrBot 目录缺失会明确提示重启引擎自动补装）③APK 应能检测到已扫码的 NapCat（3001/3000 监听）；密码与登录卡：QQ 账号（扫码后自动出现）/AstrBot 密码/ NapCat Token 三行均可复制且随引擎状态自动刷新 ④主页打开即可见实时日志
 - VM 会话脚本沉淀：vm_kb_session2.sh / vm_final_session.sh / vm_diag*.sh / build_vm_rpk.sh / build_debug_entry.sh / kb_measure.py（scripts/）
+
+---
+Task ID: 33
+Agent: Super Z (main)
+Task: band-qq v2.24.0 —— 第五份日志分析删除 + 发送链根修(params-only) + NapCat 状态/日志/配置三联动 + 一键填入热重连 + 撤回闭环补完
+
+Work Log:
+- 日志分析：git pull 取用户第五份 engine-2026-10-04.log（9 会话 3364 行）+bandqq-2026-10-04.log（415 行）→ 引擎侧 v2.23 全链实证已通（DNS 竞速/多源 apt/uv/LinuxQQ/NapCat/AstrBot 12:45 与 18:35 两次 WebUI ready、仅 NapCat 模式开关生效）；APK 侧 18:40 会话实锤唯一断点=send_group_msg retcode=200 "TypeError: Cannot read properties of undefined (reading 'type')"@aye napcat.mjs:74013（WS 3001 已连、get_group_list/get_friend_list ok、self_id=2308534727 换号登录成功）；旧会话 01:29/08:11 的 WS 拒连 mysv.dpdns.org:12050 为旧版遗留地址（v2.23 已切本地）；分析后删除+commit 9cdae8e
+- 发送链根修（上轮工作树遗留 v2.24 改动收尾）：NapCat 4.18.28 HTTP httpApiRequest 把整个 body 当 params（action 从路径取），旧信封 {action,params} → body.message=undefined → aye() 段校验崩；修=OneBotParser.buildSendParams params-only 体（与 direct.js 直连同形状），WS 通道仍信封；sendMessage judge() 三态（HTTP 200 但 retcode!=0=业务失败，不支持的Api=换通道）；MessageBroker 发送三态（成功才入库+回推手环 action_result(send,ok)，失败回 ok=false+原因给手环 toast——修"假成功"）
+- NapCat 状态联动：①脚本 wait_napcat_ports（/dev/tcp 探测 3001/3000，NapCat-only 模式前台出 stage 100 终态+每 30s 进度行，AstrBot 模式后台只打日志）②EngineManager stage≥100→Running（不再停"安装中 100%"）③新增 main sourceSet EngineHooks（astrbot-engine 仅 bundledImplementation 可见，main 不可 import）+SyncService 包装 OneBotListener（onState(true)→EngineManager.onNapcatConnected() WS onOpen 即推进状态）④bundled AstrBotScreen 首帧挂钩+状态卡新增"●/○ 手环直连"行（OneBotStateBus 驱动，区分容器在跑 vs QQ 登录后端口可连）
+- NapCat 日志接入：①脚本 napcat_console_tap（tail -F napcat-console.log 剥 ANSI/截 160/[NAPCAT] 前缀回写引擎 stdout，pkill/重入/SIGPIPE 三重收尾）②EngineManager.logSink 注入点+logLine 全量转发 ③AstrBotScreen LaunchedEffect 挂 sink→LogBus→主页实时日志面板
+- 一键填入热重连：根因=configure() 只换引用不重连（运行中 WS 挂旧地址）；修=OneBotClient.reconnectWith（关旧 WS→重连循环用新端点重建）+SyncService.reconnectEndpointNow 静态钩子+bundled「一键填入本机 NapCat 地址并保存」与设置页「保存」两处接入；companion 伴侣模式同路径受益
+- 看门狗升级「保活+配置升级」双职责：旧逻辑只 pgrep 进程——QQ 扫码登录后新生成 onebot11_<uin>.json 默认无端口服务端→进程活着端口永不监听的慢性死角；修=每轮无条件 --step napcat-start（死→拉起/配置升级→重启生效/一致→跳过 no-op）
+- 撤回闭环补完：MessageStore.recallByMessageId（全会话 message_id 反查灰显，新 API）+attemptCall delete_msg retcode=0 后 buildRecallFrame+会话帧回推（旧链路手环发起撤回只回 toast，聊天页永不灰显）
+- 构建链恢复：setup-buildenv.sh 重建（JDK17/Gradle 8.13/android-37.0 元数据手术复用）+npm 走 npmmirror（默认 registry 静默失败）；单测修 6 处旧两参 callback 编译错+2 处 params-only 断言更新；node 106/107 基线；APP 双 flavor 250/250 全绿；双 APK badging vc65/2.24.0 签名 af8819e2 同源（bundled 80.3MB/companion 12.2MB）；四分支 rpk manifest/键盘高度链常量（176/236/264）验证过；坑复验：nohup+disown 仍被工具调用回收，setsid 同灭——gradle 必须单次长调用直跑
+- 发布：MEMORY/worklog 更新 → commit+push → Release v2.24.0 六资产 → dist/v2.24.0/
+
+Stage Summary:
+- 产物：bandqq-{2.24.0-bundled,2.24.0-companion}.apk + bandqq-{band,bandpro,xiaomis,redmiwatch}-2.24.0.rpk
+- 待用户回归：①手环发消息（v2.24 应真成功；失败会 toast 协议端真实原因）②NapCat 启动后状态卡：进度到 100% 显示"启动完成/运行中"+「● 手环直连」行随 QQ 扫码登录变主色 ③主页实时日志应出现 [NAPCAT] 前缀行（QQ 登录/WS 监听动态）④AstrBot 标签页「一键填入本机 NapCat 地址并保存」点击后立即重连（无需重启 App）⑤长按消息撤回成功后手环聊天页原位灰显

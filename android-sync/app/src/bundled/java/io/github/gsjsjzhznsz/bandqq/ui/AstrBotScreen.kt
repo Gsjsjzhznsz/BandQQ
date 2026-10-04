@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -111,7 +112,33 @@ fun AstrBotScreen(
     var secretsVersion by remember { mutableStateOf(0) }
     val secrets = remember(secretsVersion) { AstrBotSecrets.read(context) }
     LaunchedEffect(state) { secretsVersion++ }
+    // v2.24.0：本页首帧即挂两个全局钩子（此后即使用户切走标签页依然生效）——
+    // ① 引擎日志 sink：EngineManager 的引擎/ NapCat 控制台行（[NAPCAT] 前缀）同步进
+    //    主页 LogBus 实时日志面板，修「log 里没有 napcat 的 log」；
+    // ② OneBot WS 连通钩子：SyncService 在 WS onOpen 时回调 → EngineManager 状态机
+    //    立即从 Starting/Installing 推进到 Running，修「NapCat 启动完成还在显示启动」。
+    LaunchedEffect(Unit) {
+        runCatching {
+            EngineManager.logSink = { line ->
+                io.github.gsjsjzhznsz.bandqq.sync.LogBus.log(
+                    "AstrBotEngine",
+                    io.github.gsjsjzhznsz.bandqq.sync.LogLevel.INFO,
+                    line,
+                )
+            }
+            io.github.gsjsjzhznsz.bandqq.astrbot.EngineHooks.napcatConnected = {
+                EngineManager.onNapcatConnected()
+            }
+        }
+    }
     var astrbotEnabled by remember { mutableStateOf(EngineManager.isAstrbotEnabled(context)) }
+    // v2.24.0：OneBot WS 真实直连状态（比引擎状态卡更准的“手环能不能发消息”信号）
+    var wsConnected by remember { mutableStateOf(io.github.gsjsjzhznsz.bandqq.sync.SyncState.oneBotConnected) }
+    DisposableEffect(Unit) {
+        val l = { connected: Boolean -> wsConnected = connected }
+        io.github.gsjsjzhznsz.bandqq.sync.OneBotStateBus.add(l)
+        onDispose { io.github.gsjsjzhznsz.bandqq.sync.OneBotStateBus.remove(l) }
+    }
 
     val running = EngineManager.isRunning()
     val installing = state as? EngineManager.State.Installing
@@ -123,7 +150,7 @@ fun AstrBotScreen(
             "安装中：${installing?.step}（${installing?.percent}%）"
         is EngineManager.State.Starting ->
             "启动中（首次安装 AstrBot/NapCat 需联网数分钟，请保持前台）"
-        is EngineManager.State.Running -> "运行中 · 本机 NapCat 在线"
+        is EngineManager.State.Running -> "运行中"
         is EngineManager.State.Stopped -> "已停止"
         is EngineManager.State.Error -> (state as EngineManager.State.Error).msg
     }
@@ -157,6 +184,16 @@ fun AstrBotScreen(
                         modifier = Modifier.padding(top = 8.dp),
                         fontSize = 12.sp,
                         color = colorScheme.onSurfaceSecondary,
+                    )
+                    // v2.24.0：手环直连真实状态（OneBot WS 是否已连通）——
+                    // 引擎 Running 只表示容器在跑，QQ 未扫码登录前 3001/3000 不会监听，
+                    // 用户此前的“启动完成还在显示启动”困惑多源于这两层状态被混为一谈
+                    Text(
+                        text = if (wsConnected) "● 手环直连：已连通本机 NapCat（WS :3001），消息链路可用"
+                        else "○ 手环直连：未连通（引擎未启动或 QQ 尚未扫码登录；WebUI :5099 扫码）",
+                        modifier = Modifier.padding(top = 8.dp),
+                        fontSize = 13.sp,
+                        color = if (wsConnected) colorScheme.primary else colorScheme.onSurfaceSecondary,
                     )
                     if (state is EngineManager.State.Error) {
                         Text(
@@ -393,16 +430,17 @@ fun AstrBotScreen(
                         onClick = {
                             scope.launch {
                                 val cfg = ConfigHolder.config
-                                configManager.save(
-                                    cfg.copy(
-                                        endpoint = cfg.endpoint.copy(
-                                            wsUrl = AstrBotBridge.LOCAL_WS_URL,
-                                            httpUrl = AstrBotBridge.LOCAL_HTTP_URL,
-                                        )
-                                    )
+                                val ep = cfg.endpoint.copy(
+                                    wsUrl = AstrBotBridge.LOCAL_WS_URL,
+                                    httpUrl = AstrBotBridge.LOCAL_HTTP_URL,
                                 )
+                                configManager.save(cfg.copy(endpoint = ep))
                                 SyncService.pushQuickRepliesNow?.invoke()
-                                toast(context, "已写入并保存本机地址（Token 未变），手环同步已触发")
+                                // v2.24.0：立即按新端点热重连 WS（旧链路只落盘不重连，
+                                // 运行中的 WS 仍挂旧地址——按钮"按了没反应"的主因）；
+                                // onState(true) 后 broker 自动重拉联系人并恢复手环同步帧
+                                SyncService.reconnectEndpointNow?.invoke(ep)
+                                toast(context, "已写入并保存本机地址（Token 未变），正在重连本机 NapCat")
                             }
                         },
                         colors = ButtonDefaults.buttonColorsPrimary(),

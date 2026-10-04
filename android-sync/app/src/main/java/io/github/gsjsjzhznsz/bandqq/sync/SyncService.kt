@@ -142,6 +142,17 @@ class SyncService : Service() {
         @Volatile
         var pushSettingsNow: (() -> Unit)? = null
             private set
+
+        /**
+         * v2.24.0：端点热切换钩子（「一键填入本机 NapCat 地址」/ 设置页保存后调用）。
+         * 旧链路 configManager.save() 只落盘+更新 ConfigHolder，运行中的 OneBotClient
+         * WS 仍挂在旧地址上——按钮"按了没反应/还是发不出消息"的主因。
+         * 实现：oneBot.reconnectWith(ep)（关旧 WS → 重连循环立即用新端点重建，
+         * onState(true) 后 broker 自动重拉联系人/恢复手环同步帧）。
+         */
+        @Volatile
+        var reconnectEndpointNow: ((io.github.gsjsjzhznsz.bandqq.config.EndpointConfig) -> Unit)? = null
+            private set
     }
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
@@ -188,7 +199,21 @@ class SyncService : Service() {
                 settled()
             }
         }
-        oneBot.startWithListener(broker)
+        // v2.24.0：端点热切换钩子落地——UI 一键填入/设置页保存后立即按新端点重连 WS
+        reconnectEndpointNow = { ep -> runCatching { oneBot.reconnectWith(ep) } }
+        // v2.24.0：WS 连通 → 通知引擎状态机推进（bundled 挂实现；companion 恒 null 跳过）。
+        // 修「NapCat 启动完成还在显示启动」：真实连接比端口探测轮询更早，立即把滞留在
+        // Starting/Installing 的状态卡推进到 Running。
+        oneBot.startWithListener(object : OneBotListener by broker {
+            override fun onState(connected: Boolean) {
+                broker.onState(connected)
+                if (connected) {
+                    try {
+                        io.github.gsjsjzhznsz.bandqq.astrbot.EngineHooks.napcatConnected?.invoke()
+                    } catch (_: Throwable) {}
+                }
+            }
+        })
         InterconnectBridge.register(broker)
         testPush = { chatType, scenario -> broker.pushTestMessage(chatType, scenario) }
         pushQuickRepliesNow = { broker.pushQuickReplies() }

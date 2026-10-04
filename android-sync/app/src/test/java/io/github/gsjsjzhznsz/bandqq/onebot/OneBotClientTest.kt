@@ -38,12 +38,16 @@ class OneBotClientTest {
         val client = OneBotClient(parser)
         val latch = CountDownLatch(1)
         var ok = false
-        client.sendMessage("group", "123", "收到", url) { _ok, _mid -> ok = _ok; latch.countDown() }
+        client.sendMessage("group", "123", "收到", url) { _ok, _mid, _err -> ok = _ok; latch.countDown() }
         latch.await(3, TimeUnit.SECONDS)
         val request = server.takeRequest(3, TimeUnit.SECONDS)!!
         assertEquals("POST", request.method)
         assertTrue(request.path!!.contains("send_group_msg"))
-        assertTrue(request.body.readUtf8().contains("send_group_msg"))
+        // v2.24.0：HTTP 路径式请求体改 params-only（NapCat 把整个 body 当 params，
+        // 旧信封 body.message=undefined → aye() TypeError retcode=200）
+        val body = request.body.readUtf8()
+        assertTrue(body.contains("\"group_id\":123"))
+        assertTrue(body.contains("\"message\":\"收到\""))
         assertTrue(ok)
     }
 
@@ -54,11 +58,14 @@ class OneBotClientTest {
         val client = OneBotClient(parser)
         val latch = CountDownLatch(1)
         var ok = false
-        client.sendMessage("private", "456", "hi", url) { _ok, _mid -> ok = _ok; latch.countDown() }
+        client.sendMessage("private", "456", "hi", url) { _ok, _mid, _err -> ok = _ok; latch.countDown() }
         latch.await(3, TimeUnit.SECONDS)
         val request = server.takeRequest(3, TimeUnit.SECONDS)!!
         assertTrue(request.path!!.contains("send_private_msg"))
-        assertTrue(request.body.readUtf8().contains("send_private_msg"))
+        // v2.24.0：params-only body（params 内含 user_id/message，不含 action 信封）
+        val body = request.body.readUtf8()
+        assertTrue(body.contains("\"user_id\":456"))
+        assertTrue(body.contains("\"message\":\"hi\""))
         assertTrue(ok)
     }
 
@@ -120,7 +127,7 @@ class OneBotClientTest {
             server.enqueue(MockResponse().setResponseCode(500))
             val latch = CountDownLatch(1)
             var ok = false
-            client.sendMessage("group", "1124665323", "测适", httpUrl) { _ok, _mid -> ok = _ok; latch.countDown() }
+            client.sendMessage("group", "1124665323", "测适", httpUrl) { _ok, _mid, _err -> ok = _ok; latch.countDown() }
             latch.await(8, TimeUnit.SECONDS)
             assertTrue("WS 回退应判定发送成功", ok)
         } finally {
@@ -138,7 +145,7 @@ class OneBotClientTest {
             server.enqueue(MockResponse().setResponseCode(500))
             val latch = CountDownLatch(1)
             var ok = true
-            client.sendMessage("group", "999999999", "hi", httpUrl) { _ok, _mid -> ok = _ok; latch.countDown() }
+            client.sendMessage("group", "999999999", "hi", httpUrl) { _ok, _mid, _err -> ok = _ok; latch.countDown() }
             latch.await(8, TimeUnit.SECONDS)
             assertTrue("retcode!=0 应判定发送失败", !ok)
         } finally {

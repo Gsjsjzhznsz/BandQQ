@@ -95,6 +95,19 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
         httpDisabledUntil = 0L
     }
 
+    /**
+     * v2.24.0：换配置并立即按新端点重连（「一键填入本机地址」/ 自动对接用）。
+     * 旧 configure() 只换引用不重连，运行中的 WS 仍挂在旧地址上——按钮"按了没反应"的主因。
+     * 实现：更新配置 → 主动关闭现有 WS → onClosed 置 connected=false → 既有重连循环
+     * （reconnectJob，1s 巡检）自动用新 config 重建连接。
+     */
+    fun reconnectWith(endpoint: EndpointConfig) {
+        configure(endpoint)
+        runCatching { ws?.close(1000, "reconfigure") }
+        // 若重连循环尚未在跑（stop 后未 start 的场景），兜底拉起
+        if (reconnectJob?.isActive != true) reconnect()
+    }
+
     /** v2.18.0：HTTP 通道是否可用（空地址或降级窗口内不可用） */
     private fun httpUsable(): Boolean {
         val root = config.httpUrl.trim().trimEnd('/')
@@ -244,11 +257,14 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
         targetId: String,
         content: String,
         httpUrlOverride: String?,
-        callback: (ok: Boolean, messageId: String) -> Unit
+        callback: (ok: Boolean, messageId: String, err: String) -> Unit
     ) {
         val baseUrl = httpUrlOverride ?: config.httpUrl
-        val body = parser.buildSendRequest(messageType, targetId, content)
-        // SnowLuma 从路径解析 action：发到与 body action 一致的路径（如 /send_group_msg）
+        // v2.24.0：HTTP 路径式请求体改为 params-only（OneBot v11 标准）。
+        // NapCat 4.18.28 httpApiRequest 把整个 body 直接当 params（action 从路径取），
+        // 旧信封 {action,params} → body.message=undefined → "$aye" 校验崩 → retcode=200
+        // "Cannot read properties of undefined (reading 'type')" → 手环永远发不出消息。
+        val paramsJson = parser.buildSendParams(messageType, targetId, content)
         val action = parser.actionName(messageType)
         /** v2.13.0：从 OneBot 应答 data.message_id 提取消息 ID（撤回定位用） */
         fun extractMessageId(resp: String): String = try {
@@ -264,15 +280,34 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
         } catch (_: Throwable) {
             ""
         }
+        /**
+         * v2.24.0：应答判定。返回 null=传输层失败（继续换通道）；
+         * Pair(first=业务成功, second=错误摘要)。HTTP 200 但 retcode!=0 一律业务失败，
+         * 修 v2.9.5 起 "HTTP 200 即成功" 的假成功（NapCat 失败也回 HTTP 200）。
+         */
+        fun judge(resp: String, httpCode: Int): Pair<Boolean, String>? {
+            val obj = runCatching { com.google.gson.JsonParser.parseString(resp).asJsonObject }.getOrNull()
+                ?: return true to "" // 非标准应答体（纯 data/文本）：维持 HTTP 200 即成功的历史契约
+            val retcode = obj.get("retcode")?.takeIf { it.isJsonPrimitive }?.let { runCatching { it.asInt }.getOrNull() }
+            val status = obj.get("status")?.takeIf { it.isJsonPrimitive }?.asString ?: ""
+            val errMsg = (obj.get("message")?.takeIf { it.isJsonPrimitive }?.asString
+                ?: obj.get("wording")?.takeIf { it.isJsonPrimitive }?.asString ?: "").replace('\n', ' ')
+            if (retcode == null) return (status.equals("ok", true) || status.equals("async", true)) to errMsg
+            if (retcode == 0) return true to ""
+            // 协议端不认识该动作（如 NapCat /api/xxx 前缀 → "不支持的Api"）→ 视为传输失败换通道
+            val unsupported = httpCode == 404 || errMsg.contains("不支持的") ||
+                errMsg.contains("unsupported", ignoreCase = true) || errMsg.contains("not found", ignoreCase = true)
+            return if (unsupported) null else false to errMsg.take(160).ifBlank { "retcode=$retcode" }
+        }
         fun doSend(url: String, onFail: () -> Unit) {
             val request = Request.Builder()
                 .url(url)
-                .post(body.toRequestBody("application/json".toMediaType()))
+                .post(paramsJson.toRequestBody("application/json".toMediaType()))
                 .apply { if (config.httpToken.isNotBlank()) header("Authorization", "Bearer ${config.httpToken}") }
                 .build()
             client.newCall(request).enqueue(object : okhttp3.Callback {
                 override fun onFailure(call: okhttp3.Call, e: java.io.IOException) {
-                    try { LogBus.log("OneBotClient", LogLevel.ERROR, "send failed: $url: $e") } catch (t: Throwable) {}
+                    try { LogBus.log("OneBotClient", LogLevel.DEBUG, "send transport fail: $url: ${e.message}") } catch (t: Throwable) {}
                     noteHttpFailure(e)
                     onFail()
                 }
@@ -281,13 +316,26 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
                     httpFailStreak = 0
                     response.use {
                         val resp = it.body?.string() ?: ""
-                        if (it.isSuccessful) {
-                            // OneBot 返回 HTTP 200，但业务可能失败（retcode != 0），记录下来便于定位
-                            try { LogBus.log("OneBotClient", LogLevel.DEBUG, "send ok(${it.code}) $url -> $resp") } catch (t: Throwable) {}
-                            callback(true, extractMessageId(resp))
-                        } else {
-                            try { LogBus.log("OneBotClient", LogLevel.ERROR, "send http ${it.code} $url -> $resp") } catch (t: Throwable) {}
+                        if (!it.isSuccessful) {
+                            try { LogBus.log("OneBotClient", LogLevel.WARN, "send http ${it.code} $url -> ${resp.take(160)}") } catch (t: Throwable) {}
                             onFail()
+                            return
+                        }
+                        when (val v = judge(resp, it.code)) {
+                            null -> {
+                                try { LogBus.log("OneBotClient", LogLevel.DEBUG, "send unsupported at $url, 换通道") } catch (t: Throwable) {}
+                                onFail()
+                            }
+                            else -> {
+                                val (ok, err) = v
+                                try {
+                                    LogBus.log(
+                                        "OneBotClient", if (ok) LogLevel.DEBUG else LogLevel.WARN,
+                                        "send $url -> " + if (ok) "ok(retcode=0)" else "fail: $err"
+                                    )
+                                } catch (t: Throwable) {}
+                                if (ok) callback(true, extractMessageId(resp), "") else callback(false, "", err)
+                            }
                         }
                     }
                 }
@@ -296,55 +344,53 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
         val root = baseUrl.trimEnd('/')
         // v2.18.0：HTTP 降级窗口内/空地址直接走 WS，不再空转拒连
         if (!httpUsable()) {
-            sendViaWs(body, action, callback)
+            sendViaWs(action, paramsJson, callback)
             return
         }
         doSend("$root/$action") {
             doSend("$root/api/$action") {
                 // v2.9.5：HTTP 两路均不可达（真实 NapCat 常只开 WS，HTTP API 是独立开关）
                 // → 经 WS 通道下发同样的 action，根治「WS-only 部署发不出消息」
-                sendViaWs(body, action, callback)
+                sendViaWs(action, paramsJson, callback)
             }
         }
     }
 
     /**
-     * v2.9.5：sendMessage 的 WS 回退通道。
-     * body 即 buildSendRequest 的 {action,params} 信封，取 params 复用 requestViaWs
-     * 的 echo 路由（bandqq-api-* 前缀）；应答 retcode==0 判定成功。
-     * 实测依据（用户 09-26 日志）：拉名单已走 WS 回退成功，但发送只试 HTTP 双路即失败，
-     * 手环上显示"已发送"实为本地回显，QQ 侧从未收到。
+     * v2.9.5：sendMessage 的 WS 回退通道（WS 协议用 {action,params} 信封——与 HTTP 的
+     * params-only 不同，requestViaWs 内部按 WS 标准自行组信封）。
+     * 应答 retcode==0 判定成功。
      */
-    private fun sendViaWs(body: String, action: String, callback: (ok: Boolean, messageId: String) -> Unit) {
-        val paramsJson = try {
-            com.google.gson.JsonParser.parseString(body).asJsonObject
-                .get("params")?.toString() ?: "{}"
-        } catch (t: Throwable) {
-            "{}"
-        }
+    private fun sendViaWs(action: String, paramsJson: String, callback: (ok: Boolean, messageId: String, err: String) -> Unit) {
         requestViaWs(action, paramsJson) { resp ->
             if (resp == null) {
-                callback(false, "")
+                callback(false, "", "OneBot 未连接（WS/HTTP 均不可达）")
                 return@requestViaWs
-            }
-            val ok = try {
-                com.google.gson.JsonParser.parseString(resp).asJsonObject
-                    .get("retcode")?.takeIf { it.isJsonPrimitive }?.asInt == 0
-            } catch (t: Throwable) {
-                false
             }
             val messageId = try {
                 com.google.gson.JsonParser.parseString(resp).asJsonObject
                     .get("data")?.takeIf { it.isJsonObject }?.asJsonObject
-                    ?.get("message_id")?.takeIf { it.isJsonPrimitive }?.asString ?: ""
+                    ?.get("message_id")?.let { m -> if (m.isJsonPrimitive) m.asString else "" } ?: ""
             } catch (_: Throwable) { "" }
+            var ok = false
+            var err = ""
+            try {
+                val obj = com.google.gson.JsonParser.parseString(resp).asJsonObject
+                val retcode = obj.get("retcode")?.takeIf { it.isJsonPrimitive }?.let { runCatching { it.asInt }.getOrNull() }
+                val status = obj.get("status")?.takeIf { it.isJsonPrimitive }?.asString ?: ""
+                ok = retcode == 0 || status.equals("ok", true) || status.equals("async", true)
+                if (!ok) err = (obj.get("message")?.takeIf { it.isJsonPrimitive }?.asString ?: "retcode=$retcode")
+                    .replace('\n', ' ').take(160)
+            } catch (_: Throwable) {
+                ok = false; err = "应答解析失败"
+            }
             try {
                 LogBus.log(
                     "OneBotClient", if (ok) LogLevel.DEBUG else LogLevel.WARN,
-                    "send via ws $action -> ${if (ok) "ok(retcode=0)" else "fail: ${resp.take(200)}"}"
+                    "send via ws $action -> ${if (ok) "ok(retcode=0)" else "fail: ${err.ifBlank { resp.take(200) }}"}"
                 )
             } catch (t: Throwable) {}
-            callback(ok, messageId)
+            callback(ok, messageId, err)
         }
     }
 
@@ -366,13 +412,15 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
         requestApiAction(action, paramsJson, config.httpUrl, callback)
     }
 
-    /** v2.9.5：支持显式 baseUrl 的通用 API 调用（HTTP 优先，失败回退 WS） */
+    /** v2.9.5：支持显式 baseUrl 的通用 API 调用（HTTP 优先，失败回退 WS）。
+     *  v2.24.0：HTTP 路径式请求体改 params-only（NapCat 4.18.28 把整个 body 当 params，
+     *  信封 shape 会让 body.group_id/user_id 全部 undefined——get_group_info 等带参动作
+     *  在 NapCat 上"看起来 ok 实际 retcode!=0"）。WS 通道仍走信封（requestViaWs 内部组）。 */
     fun requestApiAction(action: String, paramsJson: String, baseUrl: String, callback: (String?) -> Unit) {
-        val body = "{\"action\":\"$action\",\"params\":$paramsJson}"
         fun doRequest(url: String, onFail: () -> Unit) {
             val request = Request.Builder()
                 .url(url)
-                .post(body.toRequestBody("application/json".toMediaType()))
+                .post(paramsJson.toRequestBody("application/json".toMediaType()))
                 .apply { if (config.httpToken.isNotBlank()) header("Authorization", "Bearer ${config.httpToken}") }
                 .build()
             client.newCall(request).enqueue(object : okhttp3.Callback {
@@ -386,13 +434,25 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
                     httpFailStreak = 0
                     response.use {
                         val resp = it.body?.string() ?: ""
-                        if (it.isSuccessful) {
-                            try { LogBus.log("OneBotClient", LogLevel.DEBUG, "api $action http ok") } catch (t: Throwable) {}
-                            callback(resp)
-                        } else {
+                        if (!it.isSuccessful) {
                             try { LogBus.log("OneBotClient", LogLevel.DEBUG, "api $action http ${it.code}") } catch (t: Throwable) {}
                             onFail()
+                            return
                         }
+                        // 协议端明确"不认识该动作"→ 换通道（/api 前缀 → WS）；其余原样透传给调用方解析
+                        val unsupported = runCatching {
+                            val o = com.google.gson.JsonParser.parseString(resp).asJsonObject
+                            val msg = o.get("message")?.takeIf { m -> m.isJsonPrimitive }?.asString ?: ""
+                            o.get("retcode")?.takeIf { m -> m.isJsonPrimitive }?.asInt != 0 &&
+                                (msg.contains("不支持的") || msg.contains("unsupported", ignoreCase = true))
+                        }.getOrDefault(false)
+                        if (unsupported) {
+                            try { LogBus.log("OneBotClient", LogLevel.DEBUG, "api $action unsupported at $url, 换通道") } catch (t: Throwable) {}
+                            onFail()
+                            return
+                        }
+                        try { LogBus.log("OneBotClient", LogLevel.DEBUG, "api $action http ok") } catch (t: Throwable) {}
+                        callback(resp)
                     }
                 }
             })

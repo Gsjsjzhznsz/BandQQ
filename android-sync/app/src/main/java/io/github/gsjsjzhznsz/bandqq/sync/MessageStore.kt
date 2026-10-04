@@ -254,6 +254,26 @@ class MessageStore(private val storage: KvStorage = InMemoryKv()) {
         return old.time
     }
 
+    /**
+     * v2.24.0：按 message_id 全会话反查撤回（手环发起的撤回帧不带 target_id）。
+     * message_id 由协议端全局唯一，遍历各会话定位后与 recallMessage 同语义灰显；
+     * 返回 (targetId, 原时间戳)，找不到返回 null。
+     */
+    fun recallByMessageId(messageId: String): Pair<String, Long>? {
+        if (messageId.isBlank()) return null
+        for ((targetId, list) in messagesByTarget) {
+            val idx = list.indexOfFirst { it.messageId == messageId }
+            if (idx >= 0) {
+                val old = list[idx]
+                if (old.content == RECALL_MARK) return null
+                list[idx] = old.copy(content = RECALL_MARK)
+                persistMessages()
+                return targetId to old.time
+            }
+        }
+        return null
+    }
+
     fun unreadOf(targetId: String): Int = unreadByTarget[targetId] ?: 0
 
     /** 该会话是否有未读 @我 消息（会话帧 cat 字段） */

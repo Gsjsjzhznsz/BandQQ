@@ -243,7 +243,7 @@ class MessageBrokerTest {
     fun `message_action delete 下发数字 message_id（NapCat 按 number 索引）`() {
         val captured = mutableListOf<Pair<String, String>>()
         val oneBot = object : MessageSender {
-            override fun sendMessage(messageType: String, targetId: String, content: String, httpUrlOverride: String?, callback: (ok: Boolean, messageId: String) -> Unit) {}
+            override fun sendMessage(messageType: String, targetId: String, content: String, httpUrlOverride: String?, callback: (ok: Boolean, messageId: String, err: String) -> Unit) {}
             override fun requestApiAction(action: String, paramsJson: String, callback: (String?) -> Unit) {
                 captured.add(action to paramsJson)
                 callback("""{"retcode":0,"status":"ok"}""")
@@ -261,7 +261,7 @@ class MessageBrokerTest {
     fun `message_action emoji 下发数值 message_id 与字符串 emoji_id`() {
         val captured = mutableListOf<Pair<String, String>>()
         val oneBot = object : MessageSender {
-            override fun sendMessage(messageType: String, targetId: String, content: String, httpUrlOverride: String?, callback: (ok: Boolean, messageId: String) -> Unit) {}
+            override fun sendMessage(messageType: String, targetId: String, content: String, httpUrlOverride: String?, callback: (ok: Boolean, messageId: String, err: String) -> Unit) {}
             override fun requestApiAction(action: String, paramsJson: String, callback: (String?) -> Unit) {
                 captured.add(action to paramsJson)
                 callback("""{"retcode":0,"status":"ok"}""")
@@ -282,8 +282,8 @@ class FakeOneBot(private val onSend: (String, String, String) -> Boolean) : Mess
         targetId: String,
         content: String,
         httpUrlOverride: String?,
-        callback: (ok: Boolean, messageId: String) -> Unit
+        callback: (ok: Boolean, messageId: String, err: String) -> Unit
     ) {
-        callback(onSend(messageType, targetId, content), "fake_mid_1")
+        callback(onSend(messageType, targetId, content), "fake_mid_1", "")
     }
 }

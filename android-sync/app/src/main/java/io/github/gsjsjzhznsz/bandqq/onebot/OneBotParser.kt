@@ -658,18 +658,31 @@ class OneBotParser {
 
     fun buildSendRequest(messageType: String, targetId: String, content: String): String {
         val body = JsonObject()
+        body.addProperty("action", actionName(messageType))
+        val params = com.google.gson.JsonParser.parseString(buildSendParams(messageType, targetId, content)).asJsonObject
+        body.add("params", params)
+        return body.toString()
+    }
+
+    /**
+     * v2.24.0：仅参数 JSON（HTTP 路径式请求体）。
+     * 实证（用户 10-04 日志 + NapCat 4.18.28 源码行号比对）：NapCat 的 HTTP 服务
+     * httpApiRequest 把**整个请求体直接当 params** 传给 action（action 从路径取），
+     * 旧实现发 WS 风格信封 {action,params} → NapCat 读 body.message = undefined →
+     * $a(undefined)=[undefined] → aye() 里 n.type 抛 "Cannot read properties of
+     * undefined (reading 'type')" retcode=200 → 手环发消息永远失败。
+     * OneBot v11 标准 HTTP 即 params-only（direct.js 直连通道一直是此形状，从未失败）。
+     */
+    fun buildSendParams(messageType: String, targetId: String, content: String): String {
         val params = JsonObject()
         val idAsLong = targetId.toLongOrNull()
         if (messageType == "group") {
-            body.addProperty("action", "send_group_msg")
             if (idAsLong != null) params.addProperty("group_id", idAsLong) else params.addProperty("group_id", targetId)
         } else {
-            body.addProperty("action", "send_private_msg")
             if (idAsLong != null) params.addProperty("user_id", idAsLong) else params.addProperty("user_id", targetId)
         }
         params.addProperty("message", content)
-        body.add("params", params)
-        return body.toString()
+        return params.toString()
     }
 
     /** 与 buildSendRequest 对应的 OneBot 动作路径名。 */

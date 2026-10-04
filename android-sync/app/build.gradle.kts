@@ -18,8 +18,8 @@ android {
         // 降回 28 走 legacy untrusted_app 域，恢复数据目录 exec 权限 —— 与 Termux/UserLAnd
         // 同款方案（GitHub 直发无商店 targetSdk 约束）；运行时权限代码均按 SDK_INT 守卫，不受影响。
         targetSdk = 28
-        versionCode = 64
-        versionName = "2.23.0"
+        versionCode = 65
+        versionName = "2.24.0"
     }
 
     // v2.13.0 双包分发（用户可二选一安装，同 applicationId 同 versionCode）：
