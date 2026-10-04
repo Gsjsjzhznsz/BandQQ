@@ -263,3 +263,25 @@ Stage Summary:
 - 产物：bandqq-{2.22.0-bundled,2.22.0-companion}.apk + bandqq-{band,bandpro,xiaomis,redmiwatch}-2.22.0.rpk
 - 待用户回归：①方形分支（Watch 5=redmiwatch 包）键盘：候选选择栏应在键盘顶部、输入出字、候选进顶栏 ②AstrBot 标签页：密码与登录卡应显示 AstrBot 控制台密码+ NapCat Token（启动过引擎后）且可复制； NapCat 扫码按钮打开 :5099 ③「启动 AstrBot 机器人」开关关闭后重启引擎：日志应见「仅 NapCat 模式」且不下载 AstrBot ④引擎日志应见 [STAGE:90:启动 NapCat] 与「NapCat 已后台拉起」；QQ 扫码登录后 3001/3000 自动可连
 - 已知候选隐患（下版）：胶囊 flex:1 在窄屏溢出顶飞 del/箭头（v2.19 起，VM 实证；真机待截图）；VM position:relative 不支持
+
+---
+Task ID: 32
+Agent: Super Z (main)
+Task: band-qq v2.23.0 —— 第四份引擎日志分析删除 + 键盘第五轮（高度链收紧铲黑区）+ AstrBot cwd 污染根修 + NapCat per-uin 配置升级 + QQ 账号提取
+
+Work Log:
+- 日志分析：git pull 取用户第四份 engine-2026-10-04.log（6 会话 3294 行）→ 12:44/15:21 两会话实锤 AstrBot 启动断点 = `uv run main.py` 报 "Failed to spawn: main.py / No such file or directory"+"--no-sync outside of a project"（launch_astrbot 先 cd AstrBot 再调 start_napcat，start_napcat 主 shell `cd "$HOME"` 污染 cwd → uv 在 /root spawn 必败；12:44 v2.21 自愈分支同根因，12:45 重启未走该分支即成功）；15:21 会话同时证明 NapCat 启动链四件套全链生效（onebot11/webui 写入+后台拉起+看门狗）；分析后删除（本轮 commit）
+- 键盘第五轮（用户"键盘有点高，下面有块黑色区域"）：rect 字母区实际内容 170px（60+55+55 负 margin），scroll 261 预算死区 91px=黑区根因；高度链收紧 scroll 261→176、容器 321→236、KB_H_RECT 349→264（28+236），branch-release.js kbFinal/KB_H_CONSTS 同步；VM 像素探针实测键带止于 y=456（固件 bottom:0 锚点 469−13 缓冲），与设计值吻合，旧位黑区消灭，剩余 45px=系统手势保留区（真机显示手势条非死黑）
+- AstrBot cwd 根修：start_napcat launcher 改子 shell 内 cd（nohup bash -c "cd '$HOME' && exec bash launcher.sh"）；launch_astrbot cd "$INSTALL_DIR" 移到 uv run 前（start_napcat/看门狗之后）+ main.py 缺失前置检查
+- NapCat 检测根修（用户"napcat启动成功但apk没有检测到"）：NapCat 登录账号只读 onebot11_<uin>.json，v2.22 只写通用模板对已登录账号无效；ensure_napcat_configs 扫描升级全部 onebot11_*.json（旧空 server 形状→规范配置），start_napcat 配置先行+变更自动重启 NapCat 生效；webui.json 内容一致跳写（返回值 0=有变更/1=无变化）；NAPCAT_OB11_BODY 单引号字面量+__OB_WS_PORT__ 占位符 sed 展开（修 heredoc 变量在单引号体中不展开的隐患）；本地沙盒功能测试（升级/幂等/端口展开/JSON 有效）全过
+- QQ 账号提取（用户"怎么没有提取账号"）：AstrBotSecrets.readQqAccounts（首选 onebot11_<uin>.json 文件名提取+mtime 排序，兜底 napcat-console.log 账号/uin/self_id/logged in 行）；「密码与登录」卡新增 QQ 账号行+复制；LaunchedEffect(state) 自动刷新密码卡
+- 主页实时日志上移到状态卡之后快捷操作之前（用户上轮反馈日志被沉底）；HomeScreen 动画序号重排
+- VM 验证基建大修（坑库）：①SDK 目录 cp 缺子目录（qemu/lib64/lib 未递归拷贝→"can't find the emulator executable"）→ cp -rf 全量；②libandroid-emu-agents.so + LD_LIBRARY_PATH（v2.21 已知坑复现）；③Qt xcb 无显示 → -no-window；④pm install 静默失败三重根因：同 versionCode 降级拒装（v2.22 已知）+ **固件只加载 .jsc 字节码（无 jsc 包 openFile Failed→crash 表盘）** + **nsh 无通配符**；⑤enableJsc=false 默认 → BQ_JSC=1 透传 --enable-jsc（branch-release.js 新增环境变量开关）+ @aiot-toolkit/jsc 补装；⑥adb push 静默丢文件（executeInstall: rpkfile not exist / -100，/tmp tmpfs 每次重启清空）→ push 后 ls 验证；⑦pm 只可靠支持"升级安装"（全新安装/卸载后重装大概率静默失败）→ 镜像内置旧应用+逐级升版本号策略；⑧模拟器进程跨调用存活与 adb 端口复用 → 会话首尾 pkill -9 清场
+- VM 实测结论：redmiwatch 432×514（输入 a's→按时/哀伤/阿是 候选进顶栏，三排完整，候选栏置顶）+ bandpro 336×480（q'w→请问/千万/气温）双分支通过；截图+像素探针双证据归档 /tmp/vmkb/
+- 版本 vc64/2.23.0 三处同步；verify_2230 新建 100 项断言（继承回归+高度链/cwd 根修/per-uin 升级/QQ 账号/自动刷新/日志上移）；node 106/107 基线；APP 单测双 flavor 250/250；双 APK badging vc64/2.23.0 签名 af8819e2 同源；构建环境重建（setup-buildenv.sh）+ gradle.properties 内存限流（Xmx1792m+workers 1+kotlin 1024m，4GB 机器防 daemon OOM）+ android-37.0 元数据手术复用
+- 发布：commit+push → Release v2.23.0 六资产 → download/bandqq-2.23.0/
+
+Stage Summary:
+- 产物：bandqq-{2.23.0-bundled,2.23.0-companion}.apk + bandqq-{band,bandpro,xiaomis,redmiwatch}-2.23.0.rpk
+- 待用户回归：①方形分支键盘：整体变矮、按键贴近屏底、底部只剩系统手势区；候选栏仍在顶部、输入出字 ②AstrBot 启动：日志应见「AstrBot 启动中」后正常加载 v4.28.2 并打印 Initial password（若 AstrBot 目录缺失会明确提示重启引擎自动补装）③APK 应能检测到已扫码的 NapCat（3001/3000 监听）；密码与登录卡：QQ 账号（扫码后自动出现）/AstrBot 密码/ NapCat Token 三行均可复制且随引擎状态自动刷新 ④主页打开即可见实时日志
+- VM 会话脚本沉淀：vm_kb_session2.sh / vm_final_session.sh / vm_diag*.sh / build_vm_rpk.sh / build_debug_entry.sh / kb_measure.py（scripts/）

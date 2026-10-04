@@ -89,9 +89,20 @@ fun HomeScreen(bottomInnerPadding: Dp, isActive: Boolean = true) {
                 )
             }
 
+            // ===== 实时日志（v2.23.0：上移到状态卡之后——用户反馈日志面板被沉底，
+            //      打开主页首屏即可见引擎/连接日志，无需滚过快捷操作） =====
+            SmallTitle(text = "实时日志")
+            // v2.18.1：不再外挂固定 360dp（内部日志盒已定高 300dp，面板自洽），
+            // 避免外层定高与内部定高叠加时把标签行/日志盒挤压出测量歧义
+            LogPanel(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .listItemReveal(entered, 2),
+            )
+
             // ===== 快捷操作（2×2 网格，紧凑不散） =====
             SmallTitle(text = "快捷操作")
-            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 2)) {
+            Card(modifier = Modifier.fillMaxWidth().listItemReveal(entered, 3)) {
                 Column(
                     modifier = Modifier.padding(12.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -148,16 +159,6 @@ fun HomeScreen(bottomInnerPadding: Dp, isActive: Boolean = true) {
                     }
                 }
             }
-
-            // ===== 实时日志 =====
-            SmallTitle(text = "实时日志")
-            // v2.18.1：不再外挂固定 360dp（内部日志盒已定高 300dp，面板自洽），
-            // 避免外层定高与内部定高叠加时把标签行/日志盒挤压出测量歧义
-            LogPanel(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .listItemReveal(entered, 3),
-            )
 
             // 底部安全余量：外层底栏总高（含导航栏 inset），末项可完全滚出底栏
             Spacer(Modifier.height(bottomInnerPadding + 12.dp))

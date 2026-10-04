@@ -633,17 +633,26 @@ object EngineManager {
  *    「Initial username/password」（最新一份优先；用户若在控制台改过密码，以改后为准）
  *  - NapCat WebUI Token：读容器内 /root/napcat/config/webui.json（astrbot-startup.sh 固定写入，
  *    未登录 QQ 时用该 Token 打开 WebUI :5099 扫码）
+ * v2.23.0：新增 QQ 账号提取（用户反馈"怎么没有提取账号"）——
+ *  - 首选：NapCat 登录后生成的按账号配置文件名 onebot11_<uin>.json 直接提取 uin；
+ *  - 兕底：napcat-console.log 里登录成功行（账号/UIN/logged in 等常见格式）。
  */
 object AstrBotSecrets {
     data class Secrets(
         val webuiUser: String?,
         val webuiPassword: String?,
         val napcatToken: String?,
+        val qqAccounts: List<String> = emptyList(),
     )
 
     private val userRe = Regex("Initial username:\\s*(\\S+)")
     private val passRe = Regex("Initial password:\\s*(\\S+)")
     private val tokenRe = Regex("\"token\"\\s*:\\s*\"([^\"]+)\"")
+    private val uinFileRe = Regex("onebot11_(\\d{5,12})\\.json")
+    private val uinLogRes = listOf(
+        Regex("(?:账号|帐号|QQ号|QQ 号|uin|UIN|self_id)[=:：\\s]+(\\d{5,12})"),
+        Regex("logged in[\\s\\S]{0,40}?((?<!\\d)\\d{5,12}(?!\\d))", RegexOption.IGNORE_CASE),
+    )
 
     fun read(ctx: Context): Secrets {
         var user: String? = null
@@ -669,7 +678,38 @@ object AstrBotSecrets {
             val f = File(EngineManager.rootfsDir(ctx), "root/napcat/config/webui.json")
             if (f.exists()) tokenRe.find(f.readText())?.let { token = it.groupValues[1] }
         }
-        return Secrets(user, pass, token)
+        return Secrets(user, pass, token, readQqAccounts(ctx))
+    }
+
+    /** QQ 账号列表（登录过的账号从配置文件名提取；兑底扫 NapCat 控制台日志） */
+    private fun readQqAccounts(ctx: Context): List<String> {
+        val accounts = mutableListOf<String>()
+        runCatching {
+            val cfgDir = File(EngineManager.rootfsDir(ctx), "root/napcat/config")
+            cfgDir.listFiles { f -> f.name.startsWith("onebot11_") && f.name.endsWith(".json") }
+                ?.sortedByDescending { it.lastModified() }
+                ?.forEach { f ->
+                    uinFileRe.find(f.name)?.groupValues?.get(1)?.let { uin ->
+                        if (uin !in accounts) accounts.add(uin)
+                    }
+                }
+        }
+        if (accounts.isEmpty()) runCatching {
+            val f = File(EngineManager.rootfsDir(ctx), "root/napcat/napcat-console.log")
+            if (f.exists()) {
+                val lines = f.useLines { it.toList() }
+                outer@ for (i in lines.indices.reversed()) {
+                    for (re in uinLogRes) {
+                        re.find(lines[i])?.groupValues?.get(1)?.let { uin ->
+                            if (uin !in accounts) accounts.add(uin)
+                            if (accounts.size >= 3) return@runCatching
+                            break@outer
+                        }
+                    }
+                }
+            }
+        }
+        return accounts
     }
 }
 

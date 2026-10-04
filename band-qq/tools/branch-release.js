@@ -86,7 +86,7 @@ function applyScreenType(src, kb) {
 }
 
 /** 键盘 script 常量换算：circle 滚动总宽 + v2.14.0 键盘总高常量按 kbScale（仅 xiaomis 命中） */
-const KB_H_CONSTS = { KB_H_CIRCLE: 321, KB_H_RECT: 349, KB_H_PILL: 333 }
+const KB_H_CONSTS = { KB_H_CIRCLE: 321, KB_H_RECT: 264, KB_H_PILL: 333 }
 function scaleKeyboardConsts(src, kb) {
   if (kb.kbScale === 1.0) return src
   let out = src
@@ -134,7 +134,7 @@ function overridesFor(tag) {
     rules.push(['src/pages/chat/chat.ux', /\.poke-wrap \{ width: \d+px;/, '.poke-wrap { width: 100%;'])
     // v2.16.0 compose 去 flex 化：preview-text padding-bottom 源值 333（band 基准），
     // 换算后与本分支键盘物理高对齐（键盘 kbHpx：bandpro/redmiwatch 283、xiaomis 312）
-    const kbFinal = { bandpro: 349, xiaomis: 312, redmiwatch: 349 }
+    const kbFinal = { bandpro: 264, xiaomis: 312, redmiwatch: 264 }
     // preview-box 显式高 = 屏高 - top-bar 物理高（absolute 容器零高裁剪同防）
     // v2.19.0 kb-dock 锚定改为 bottom:0（compose.ux 源码级，全分支统一）。
     // v2.18.0/2.18.1 的 top=视口高-键盘高 构建期常量在 redmiw5 VM（432×514）实测翻车：
@@ -255,7 +255,10 @@ function main() {
       fs.writeFileSync(ABOUT_FILE, aboutTagged)
 
       // ⑥ 构建 release（立即收集，aiot release 会清空 dist）
-      execSync('npx aiot release', { cwd: ROOT, stdio: 'inherit' })
+      // BQ_JSC=1 时追加 --enable-jsc（VM 20250716 镜像固件只加载 .jsc 字节码，
+      // 真机固件 .js/.jsc 均可——VM 验证构建需 BQ_JSC=1，发布构建保持默认）
+      const jscFlag = process.env.BQ_JSC === '1' ? ' --enable-jsc' : ''
+      execSync('npx aiot release' + jscFlag, { cwd: ROOT, stdio: 'inherit' })
       const distFiles = fs.readdirSync(path.join(ROOT, 'dist')).filter((f) => f.endsWith('.rpk'))
       if (distFiles.length !== 1) throw new Error('dist 产物异常: ' + distFiles.join(','))
       const outFile = path.join(OUT_DIR, 'bandqq-' + b.tag + '-' + versionName + '.rpk')

@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -106,8 +107,10 @@ fun AstrBotScreen(
     var probeMsg by remember { mutableStateOf("") }
     var showLogs by remember { mutableStateOf(true) }
     // v2.22.0：本机两个程序的账号信息（AstrBot WebUI 密码 / NapCat WebUI Token）+ 手动刷新计数
+    // v2.23.0：①新增 QQ 账号展示（onebot11_<uin>.json 提取）②引擎状态变化自动刷新
     var secretsVersion by remember { mutableStateOf(0) }
     val secrets = remember(secretsVersion) { AstrBotSecrets.read(context) }
+    LaunchedEffect(state) { secretsVersion++ }
     var astrbotEnabled by remember { mutableStateOf(EngineManager.isAstrbotEnabled(context)) }
 
     val running = EngineManager.isRunning()
@@ -420,7 +423,7 @@ fun AstrBotScreen(
                     }
                     Text(
                         text = "AstrBot 控制台用户名默认 astrbot；若你在控制台改过密码，以改后的为准。" +
-                            "首次使用需先启动引擎完成安装。",
+                            "首次使用需先启动引擎完成安装；引擎状态变化时本卡信息自动刷新。",
                         modifier = Modifier.padding(top = 4.dp),
                         fontSize = 11.sp,
                         color = colorScheme.onSurfaceSecondary,
@@ -443,6 +446,28 @@ fun AstrBotScreen(
                                 val v = secrets.webuiPassword
                                 if (v.isNullOrBlank()) toast(context, "暂无密码：先启动引擎完成一次安装")
                                 else copySecret(context, "AstrBot 密码", v)
+                            },
+                            colors = ButtonDefaults.buttonColorsPrimary(),
+                        ) { Text("复制", fontSize = 12.sp) }
+                    }
+                    // QQ 账号（v2.23.0：onebot11_<uin>.json 文件名提取，登录过即自动出现）
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(top = 8.dp),
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("QQ 账号（已登录）", fontSize = 13.sp)
+                            Text(
+                                text = secrets.qqAccounts.joinToString("、").ifEmpty { "尚未获取（ NapCat 扫码登录后自动出现）" },
+                                fontSize = 12.sp,
+                                color = colorScheme.primary,
+                            )
+                        }
+                        Button(
+                            onClick = {
+                                val v = secrets.qqAccounts.firstOrNull()
+                                if (v.isNullOrBlank()) toast(context, "暂无账号： NapCat 扫码登录后自动出现")
+                                else copySecret(context, "QQ 账号", v)
                             },
                             colors = ButtonDefaults.buttonColorsPrimary(),
                         ) { Text("复制", fontSize = 12.sp) }

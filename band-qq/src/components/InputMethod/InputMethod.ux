@@ -177,15 +177,18 @@
            且本容器 height:274 装不下子元素 261(scroll 预算)+60(动作行)=321，固件把动作行上提 47px
            叠进第三排字母 = 用户口径"键盘只显示一半/输入不展开"。修=容器 274→321 高度链闭合
            （28 拼音行+321=KB_H_RECT 349 与 dock 同值）+ 铲除 keyboard67 absolute 定位；
-           scroll 261 预算保留（真固件若另有内容注入偏移，多出的空间兜底不裁行）。
+           v2.23.0：用户实测键盘偏高+底部一块黑色区域——字母区实际内容仅 170px
+           （60+55+55，负 margin 收紧），scroll 261 预算多出 91px 死区（容器无背景
+           露出页面黑底）。修=scroll 261→176（170 内容+6px 兜底），容器 321→236，
+           KB_H_RECT 349→264（28+236），dock/preview 由 branch-release.js 同步写入。
            v2.22.0：动作行与字母区换序（动作行在顶部）——v2.19 重构将候选选择栏放到字母区
            下方，用户实测不可接受（"键盘选择栏怎么在下面了"）；候选栏应贴近输入预览
            （对齐 circle/pill 分支），换序不动高度链。 -->
-      <div if="{{screentype==='rect'}}" style="width: 100%;height: 321px;flex-direction: column">
+      <div if="{{screentype==='rect'}}" style="width: 100%;height: 236px;flex-direction: column">
         <!-- v2.22.0：动作行（语言/候选选择栏/删除）移回键盘顶部——v2.19 重构时误置字母区下方，
              用户实测不可接受（"键盘选择栏怎么在下面了"）；候选栏应贴近输入预览，
-             对齐 circle/pill 分支（候选栏恒在键盘上部）。仅换序不动高度链：
-             60(动作行)+261(字母区)=321 不变，KB_H_RECT 349 不变，下展层 absolute 覆盖不变。 -->
+             对齐 circle/pill 分支（候选栏恒在键盘上部）。v2.23.0 高度链：
+             60(动作行)+176(字母区)=236，KB_H_RECT=28+236=264，下展层 absolute 覆盖不变。 -->
         <div style="width: 100%;height: 60px;flex-direction: row; justify-content: center; padding:0 6px;">
           <img src="./assets/horizontal/cn.png" style="padding: 6px;width: 60px;height: 60px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang==='cn'}}" />
           <img src="./assets/horizontal/jp.png" style="padding:6px;width:60px;height:60px;" @click="onBtnClick('lang')" if="{{downFlag==='' && !numFlag && lang==='jp'}}" />
@@ -208,8 +211,8 @@
           <img if="{{!numFlag}}" src="./assets/horizontal/del.png" style="margin-left: 6px;padding: 6px;width: 60px;height: 60px;" @click="onBtnClick('D')" />
           <img else src="./assets/horizontal/del2.png" style="margin-left: 6px;padding: 6px;" @click="onBtnClick('D')" />
         </div>
-        <div style="width:100%;height:261px;">
-          <scroll id="keyboard67" scroll-x="{{true}}" onscroll="handelScroll" style="height:261px;">
+        <div style="width:100%;height:176px;">
+          <scroll id="keyboard67" scroll-x="{{true}}" onscroll="handelScroll" style="height:176px;">
             <div if="{{!numFlag}}" style="left: 6px; flex-direction: column;">
               <div static style="margin-left: 0px;margin-top: 0px;height: 60px;">
                 <text class="calbtn67" for="{{item in keys['full'][0]}}" @click="onSelect(item)">{{item}}</text>
@@ -247,7 +250,7 @@
           </scroll>
         </div>
         <!-- 这里使用show会导致每次输入都会加载全部候选列表，很卡 -->
-        <div style="position: absolute;left: 0px;top: 0px;width: 100%;height: 321px;background-color: black; justify-content:center; flex-direction:column; align-items:center" if="{{downFlag==='down'}}">
+        <div style="position: absolute;left: 0px;top: 0px;width: 100%;height: 236px;background-color: black; justify-content:center; flex-direction:column; align-items:center" if="{{downFlag==='down'}}">
           <div static class="list67">
             <scroll class="expanded-scroll" scroll-y="{{true}}" style="width:100%;height:100%;">
               <div class="expanded-candidates">
@@ -347,10 +350,10 @@ function deleteLast(t) {
 }
 
 // v2.15.0 键盘总高常量（与模板/样式分区高度一一对应；branch-release.js 按 kbScale 同步换算）：
-//   circle 321（拼音行在键盘内部，不占外高）/ rect 255+28 / pill 305+28（拼音行恒预留）
+//   circle 321（拼音行在键盘内部，不占外高）/ rect 236+28 / pill 305+28（拼音行恒预留）
 //   根容器 + 懒建层 + 黑底层三层全部以此显式定高（见模板头注释）
 var KB_H_CIRCLE = 321;
-var KB_H_RECT = 349;
+var KB_H_RECT = 264;
 var KB_H_PILL = 333;
 function kbTotalFor(screentype) {
   if (screentype === "circle") return KB_H_CIRCLE;
@@ -978,7 +981,7 @@ export default {
 }
 #keyboard67 {
         width:100%;
-        height:261px;
+        height:176px;
 }
 #keyboard66 {
         position:absolute;

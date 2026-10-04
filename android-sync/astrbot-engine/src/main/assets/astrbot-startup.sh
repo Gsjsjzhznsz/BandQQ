@@ -734,18 +734,11 @@ NAPCAT_DISPLAY="${NAPCAT_DISPLAY:-20}"
 
 # onebot11.json：本机服务端（HTTP :3000 / WS :3001，BandQQ 直连）+ 反向 WS 客户端（AstrBot :6199）。
 # v2.20/2.21 旧默认只有反向客户端且两个 server 数组为空——即使 NapCat 启动，App 也连不上。
-ensure_napcat_configs(){
-  mkdir -p "$HOME/napcat/config"
-  local ob="$HOME/napcat/config/onebot11.json"
-  local need_write=0
-  if [ ! -f "$ob" ]; then
-    need_write=1
-  elif grep -q '"httpServers": \[\]' "$ob" && grep -q '"websocketServers": \[\]' "$ob"; then
-    need_write=1   # v2.20/2.21 旧默认形状（server 为空）→ 升级补齐
-  fi
-  if [ "$need_write" = "1" ]; then
-    echo "写入 onebot11.json（OneBot HTTP :3000 / WS :3001 + AstrBot 桥 :6199）"
-    cat > "$ob" <<EOF
+# v2.23.0：账号配置根修——NapCat 登录账号后加载的是按账号的 onebot11_<uin>.json
+# （用户实测：通用模板写齐了 3001/3000 但 App 依旧连不上，NapCat 已登录过账号时
+# 根本不读模板）。此处扫描全部账号配置，旧空 server 形状自动升级为规范配置。
+# 返回值：0=本次有写入/升级（调用方应重启 NapCat 生效），1=无变化。
+NAPCAT_OB11_BODY='
 {
   "network": {
     "httpServers": [
@@ -781,7 +774,7 @@ ensure_napcat_configs(){
       {
         "name": "AstrBot",
         "enable": true,
-        "url": "ws://localhost:${ASTRBOT_ONEBOT_WS_PORT:-6199}/ws",
+        "url": "ws://localhost:__OB_WS_PORT__/ws",
         "messagePostFormat": "array",
         "reportSelfMessage": false,
         "reconnectInterval": 5000,
@@ -794,27 +787,79 @@ ensure_napcat_configs(){
   "musicSignUrl": "",
   "enableLocalFile2Url": false,
   "parseMultMsg": false
-}
-EOF
+}'
+
+upgrade_ob11_file(){
+  # $1=目标文件；server 数组为空（旧默认形状）→ 用规范配置覆盖；返回 0=有升级
+  local f="$1"
+  [ -f "$f" ] || return 1
+  if grep -qE '"httpServers":\s*\[\]' "$f" && grep -qE '"websocketServers":\s*\[\]' "$f"; then
+    write_ob11_config "$f"
+    echo "已升级账号配置 $(basename "$f")（OneBot HTTP :3000 / WS :3001）"
+    return 0
   fi
-  # webui.json：固定端口与 Token（App「复制密码」读取展示；未登录 QQ 时扫码登录入口）
-  printf '{\n  "port": %s,\n  "token": "%s",\n  "loginRate": 3\n}\n' "$NAPCAT_WEBUI_PORT" "$NAPCAT_WEBUI_TOKEN" > "$HOME/napcat/config/webui.json"
-  echo "webui.json 已写入（WebUI :$NAPCAT_WEBUI_PORT，Token 可在 App 复制）"
+  return 1
+}
+
+write_ob11_config(){
+  # 展开端口占位符后写入（NAPCAT_OB11_BODY 为单引号字面量，不展开变量）
+  printf '%s\n' "$NAPCAT_OB11_BODY" | sed "s/__OB_WS_PORT__/${ASTRBOT_ONEBOT_WS_PORT:-6199}/g" > "$1"
+}
+
+ensure_napcat_configs(){
+  mkdir -p "$HOME/napcat/config"
+  local ob="$HOME/napcat/config/onebot11.json"
+  local changed=0
+  if [ ! -f "$ob" ]; then
+    echo "写入 onebot11.json（OneBot HTTP :3000 / WS :3001 + AstrBot 桥 :6199）"
+    write_ob11_config "$ob"
+    changed=1
+  else
+    upgrade_ob11_file "$ob" && changed=1
+  fi
+  # v2.23.0：全部已存在账号配置升级（登录过的账号只读 onebot11_<uin>.json）
+  local f
+  for f in "$HOME"/napcat/config/onebot11_*.json; do
+    [ -f "$f" ] || continue
+    upgrade_ob11_file "$f" && changed=1
+  done
+  # webui.json：内容一致跳写（v2.23.0：此前每次强制重写导致调用方无法判断配置变化）
+  local wj="$HOME/napcat/config/webui.json"
+  local wj_new
+  wj_new=$(printf '{\n  "port": %s,\n  "token": "%s",\n  "loginRate": 3\n}' "$NAPCAT_WEBUI_PORT" "$NAPCAT_WEBUI_TOKEN")
+  if [ ! -s "$wj" ] || [ "$(cat "$wj" 2>/dev/null)" != "$wj_new" ]; then
+    printf '%s\n' "$wj_new" > "$wj"
+    echo "webui.json 已写入（WebUI :$NAPCAT_WEBUI_PORT，Token 可在 App 复制）"
+    changed=1
+  fi
+  [ "$changed" = "1" ] && return 0 || return 1
 }
 
 # 后台启动 NapCat（Xvfb 虚拟显示 + launcher.sh），幂等；QQ 登录后 :3001/:3000 自动可用
+# v2.23.0：①配置升级先行（已运行时若 onebot11 配置有变更，自动重启生效）
+# ②launcher 改子 shell 内 cd（原主 shell cd $HOME 污染工作目录——用户 10-04 第四份日志
+# 定案：launch_astrbot 先 cd AstrBot 再调 start_napcat，cwd 被改成 /root，
+# uv run main.py 报 "Failed to spawn: No such file or directory" → AstrBot 启动失败 exit=1）
 start_napcat(){
   if ! check_napcat_ready >/dev/null 2>&1; then
     echo "[AstrBot Android] NapCat 未安装完整，跳过启动"
     return 1
   fi
+  # 配置先行：无论是否已运行都确保 onebot11/webui 配置为规范形状
+  local cfg_changed=0
+  ensure_napcat_configs && cfg_changed=1
   if pgrep -f 'qq --no-sandbox' >/dev/null 2>&1; then
-    echo "[AstrBot Android] NapCat 已在运行，跳过重复启动"
-    return 0
+    if [ "$cfg_changed" = "1" ]; then
+      echo "[AstrBot Android] onebot11 配置已升级，重启 NapCat 使 :3001/:3000 生效"
+      pkill -f 'qq --no-sandbox' 2>/dev/null || true
+      sleep 2
+    else
+      echo "[AstrBot Android] NapCat 已在运行，跳过重复启动"
+      return 0
+    fi
   fi
   stage 90 "启动 NapCat（首次需扫码登录 QQ，Token 在 App「密码与登录」卡复制）"
   progress_echo "NapCat 启动中"
-  ensure_napcat_configs
   pkill -f "Xvfb :$NAPCAT_DISPLAY" 2>/dev/null || true
   rm -f "/tmp/.X$NAPCAT_DISPLAY-lock" "/tmp/.X11-unix/X$NAPCAT_DISPLAY" 2>/dev/null || true
   mkdir -p /tmp/.X11-unix
@@ -831,8 +876,7 @@ start_napcat(){
     return 1
   fi
   export DISPLAY=":$NAPCAT_DISPLAY"
-  cd "$HOME" || return 1
-  nohup bash launcher.sh > "$HOME/napcat/napcat-console.log" 2>&1 &
+  nohup bash -c "cd '$HOME' && exec bash launcher.sh" > "$HOME/napcat/napcat-console.log" 2>&1 &
   echo "[AstrBot Android] NapCat 已后台拉起（控制台: /root/napcat/napcat-console.log）"
   echo "[AstrBot Android] QQ 登录完成后 OneBot :3001/:3000 自动可用；未登录时打开 WebUI :$NAPCAT_WEBUI_PORT 扫码"
   return 0
@@ -1247,7 +1291,6 @@ launch_astrbot(){
     progress_echo "环境自愈完成"
   fi
 
-  cd "$INSTALL_DIR"
   if [ ! -f "$HOME/.local/bin/uv" ]; then
     echo "uv 未找到"
     exit 1
@@ -1262,6 +1305,13 @@ launch_astrbot(){
   stage 92 "启动 AstrBot 服务（就绪后手机通知栏与手环会同步状态）"
   progress_echo "AstrBot 启动中"
 
+  # v2.23.0：cd 移到 uv run 前——start_napcat/自愈分支会改变工作目录
+  # （用户 10-04 第四份日志：uv run 在 /root 下报 Failed to spawn main.py → 启动必败）
+  cd "$INSTALL_DIR" || { echo "AstrBot 目录缺失（$INSTALL_DIR），请重启引擎重试自动补装"; exit 1; }
+  if [ ! -f "main.py" ]; then
+    echo "main.py 缺失（$INSTALL_DIR 不完整），请重启引擎重试自动补装"
+    exit 1
+  fi
   if ! $HOME/.local/bin/uv run --no-sync main.py; then
     echo "AstrBot 启动失败"
     exit 1
