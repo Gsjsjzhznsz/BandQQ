@@ -562,16 +562,37 @@ fun AstrBotScreen(
                             modifier = Modifier.weight(1f),
                         ) { Text(" NapCat 扫码", fontSize = 12.sp) }
                     }
-                    // v2.26.0：反检测状态说明——引擎启动时自动在配置层全开（node 运行时
-                    // 回退链：node → nodejs → QQ Electron ELECTRON_RUN_AS_NODE，容器内
-                    // 无独立 node 也可写入）；若启动崩溃自愈升级到第 2 级，会持久禁用
-                    // bypass 钩子保启动（删除 /root/napcat/.bypass_disabled 可恢复）。
+                    // v2.28.0：反检测真实状态（读取 rootfs 标记文件+配置，与引擎分级阶梯严格
+                    // 一致）+ 风控保护说明 + 封禁应对指引。旧静态文案已废（v2.27.0 及以前
+                    // "6 项自动全开"在被崩溃自愈禁用时是假象——用户封号案例的根因之一）。
                     Text(
-                        text = "反检测：6 项自动全开（配置层持久生效）。启动崩溃自愈时会禁用 bypass 保启动（日志有说明），" +
-                            "删除 /root/napcat/.bypass_disabled 并重启引擎可恢复；开启失败请按 WebUI 提示手动全开",
+                        text = secrets.antiDetect.label,
+                        fontSize = 11.sp,
+                        color = colorScheme.primary,
+                        modifier = Modifier.padding(top = 8.dp),
+                    )
+                    Text(
+                        text = "风控保护：NapCat 重启/重登后 45 秒预热不外发 + 相邻发送≥2.5 秒 + " +
+                            "突发 12 条/分钟触发 60 秒冷却（模拟人工节奏，降低封号概率；拦截原因会 toast 提示）",
                         fontSize = 11.sp,
                         color = colorScheme.onSurfaceSecondary,
-                        modifier = Modifier.padding(top = 8.dp),
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    Text(
+                        text = "封号分析（10-05 日志取证）：当日 4.18.29 漂移版崩溃循环（频繁崩溃重登+崩溃报告上传）已把风控分拉满，" +
+                            "晚间首条消息发出 1 秒后即被踢下线冻结；bypass 反检测钩子在本环境段错误无法常开（已分级规避）。" +
+                            "防护主线 = 稳定运行（版本钉扎）+ 设备身份固定 + 发送风控 + 控制发送节奏。",
+                        fontSize = 11.sp,
+                        color = colorScheme.onSurfaceSecondary,
+                        modifier = Modifier.padding(top = 4.dp),
+                    )
+                    Text(
+                        text = "账号被冻结怎么办：手机 QQ 重新登录时按「账号解冻」提示自助解锁，" +
+                            "或访问腾讯安全中心 aq.qq.com / 手机 QQ「设置→账号安全」处理；" +
+                            "解封后 24 小时内少发消息、勿反复重登，让风控分自然回落。同账号避免在多套环境频繁切换登录。",
+                        fontSize = 11.sp,
+                        color = colorScheme.onSurfaceSecondary,
+                        modifier = Modifier.padding(top = 4.dp),
                     )
                 }
             }

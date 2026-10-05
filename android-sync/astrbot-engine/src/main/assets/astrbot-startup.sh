@@ -149,6 +149,39 @@ ensure_container_dns(){
   return 0
 }
 
+# v2.28.0：设备身份稳定化（用户 10-05 封号反馈的对抗基础项：疑似虚拟设备风控）。
+# 两个特征源：
+# ① /etc/machine-id 缺失/为空时，Ubuntu 工具链（systemd-machine-id-setup/dbus/
+#   machine-id 消费方）会各自随机生成 → rootfs 每次重装后设备身份漂移，QQ NT 侧
+#   设备指纹随之变化，腾讯侧视为「新电脑频繁登录」→ 风控分累积。首次生成一次后
+#   永久固定（rootfs 持久保存；自愈 L1~L3 均不触碰，L4 深度重置也只清 ~/.config/QQ）。
+# ② /etc/hostname 缺失时固定为常规 Linux 桌面名（空/异常主机名本身就是一个
+#   容器特征）；/etc/hosts 补 127.0.1.1 桌面惯例条目（部分程序启动时反解主机名）。
+ensure_stable_identity(){
+  # machine-id：仅缺失/空时生成（两个 uuid 拼接取 32 hex；存在则绝不动）
+  if [ ! -s /etc/machine-id ]; then
+    local a b
+    a=$(tr -d '-' < /proc/sys/kernel/random/uuid 2>/dev/null)
+    b=$(tr -d '-' < /proc/sys/kernel/random/uuid 2>/dev/null)
+    if [ -n "$a" ] && [ -n "$b" ]; then
+      printf '%s%s\n' "$a" "$b" | cut -c1-32 > /etc/machine-id 2>/dev/null || true
+      if [ -s /etc/machine-id ]; then
+        echo "[AstrBot Android] 设备身份已初始化并永久固定（/etc/machine-id；重装引擎不变，腾讯侧始终视为同一台电脑）"
+      fi
+    fi
+  fi
+  chmod 444 /etc/machine-id 2>/dev/null || true
+  # hostname：仅缺失时固定（存在则保留用户的取名）
+  if [ ! -s /etc/hostname ]; then
+    echo "bandqq-desktop" > /etc/hostname 2>/dev/null || true
+    echo "[AstrBot Android] 主机名已固定为 bandqq-desktop（常规桌面命名，避免空主机名暴露容器特征）"
+  fi
+  if [ -f /etc/hosts ] && ! grep -q '127\.0\.1\.1' /etc/hosts 2>/dev/null; then
+    echo "127.0.1.1 $(cat /etc/hostname 2>/dev/null || echo bandqq-desktop)" >> /etc/hosts 2>/dev/null || true
+  fi
+  return 0
+}
+
 # v2.19.0：ubuntu-ports 多源竞速。apt 无内置多源并行，此处用 bash /dev/tcp 在容器内
 # 并发探测（DNS+TCP:80 一体，与 apt 同一条解析路径），全部后台并发、首个打通者按
 # 国内优先级胜出，总耗时 ≤10s；curl 尚未安装也能跑（不依赖任何外部工具）。
@@ -901,19 +934,46 @@ write_ob11_config(){
 # 用户需求："自动把所有反检测开启，或者提示用户手动开启"。
 # NapCat 4.18.x WebUI「反检测开关配置」对应 napcat.json 的 bypass 块
 # （hook/window/module/process/container/js 全 boolean）+ o3HookMode。
+# v2.28.0 源码考据（NapCat master bypass.tsx）：六项语义 = hook:hook特征隐藏 /
+# window:窗口伪造 / module:加载模块隐藏 / process:进程反检测 / container:容器反检测 /
+# js:JS反检测；实现 = 闭源原生模块 napi2native.linux.arm64.node 的
+# enableAllBypasses(options)，NAPCAT_DISABLE_BYPASS=1 时整体跳过。
 # 关键坑（上游 issue #1805 / NapCat-Docker #134）：WebUI 开启后重启会被重置，
 # 配置层写入是唯一可靠路径。读取规则：登录后 per-UIN napcat_<uin>.json 优先，
 # 全局 napcat.json 只在无 per-UIN 文件时兜底 → 两边都必须写，缺一不可。
 # 工具链（v2.27.0）：JSON 合并首选 python3（rootfs 自带 3.12，node 三连退在真机
 # 全军覆没）；本 JS 仅作 python3 缺失时的 node 兜底。幂等：内容一致不写
 # （防看门狗死循环重启）。
+
+# ---------- v2.28.0 反检测禁用标记分级复检（封号案例根治） ----------
+# 日志取证定案（用户 10-05 上传日志 + 发消息即封）：21:44 配置层全开 → NapCat
+# 4.18.28 启动带 bypass → Worker SIGSEGV×3 主进程退出（本环境全开形态必崩，
+# 钉扎版也一样）→ 21:45 自愈 NAPCAT_DISABLE_BYPASS=1 才稳定 → 21:46:44 发送
+# 1 条群消息 → 21:46:45 即被踢下线（"当前登录已失效"）→ 封禁。即：封号发生时
+# bypass 实际处于运行时禁用态（配置层"全开"是假象），且全开形态在本环境从未
+# 真正跑起来过——docker/泡泡版基线本就是 bypass 关闭（上游默认全 false）。
+# 修法：旧全禁标记一次性分级复检（.bypass_retry_done_v228 防循环）——迁移为
+# nohook 形态（仅禁实证崩溃源 hook/write-writev 钩子，其余 5 项恢复开启），
+# 绝不自动重试已实证必崩的全开形态；若 nohook 仍崩，自愈阶梯自动回到全禁。
+napcat_antidetect_upgrade(){
+  local mark="$HOME/napcat/.bypass_disabled" retry="$HOME/napcat/.bypass_retry_done_v228"
+  [ -f "$mark" ] || return 0
+  [ -f "$retry" ] && return 0
+  rm -f "$mark"
+  : > "$HOME/napcat/.bypass_nohook"
+  : > "$retry"
+  echo "[AstrBot Android] 反检测分级复检：旧全禁标记（漂移崩溃时代产物）迁移为 nohook 形态——仅禁用 hook 钩子（实证崩溃源），window/module/process/container/js 五项恢复开启；若仍崩将自动回到全禁（仅复检一次，不循环）"
+  return 0
+}
 NAPCAT_ANTI_DETECT_JS='
 const fs = require("fs");
 const f = process.argv[2] || process.argv[1];
+// v2.28.0：argv[3]==="0" 表示 nohook 形态（hook 单项关闭，其余五项开启；崩溃分级规避）
+const hookOff = process.argv[3] === "0";
 let c = {};
 try { c = JSON.parse(fs.readFileSync(f, "utf8")); } catch (e) { c = {}; }
 if (typeof c !== "object" || c === null || Array.isArray(c)) c = {};
-const want = { hook: true, window: true, module: true, process: true, container: true, js: true };
+const want = { hook: !hookOff, window: true, module: true, process: true, container: true, js: true };
 const before = JSON.stringify({ b: c.bypass || null, o: c.o3HookMode, l: c.fileLog });
 c.bypass = Object.assign({}, c.bypass, want);
 c.o3HookMode = 1;
@@ -958,13 +1018,17 @@ napcat_node_run(){
 #   自愈判定之前），JS/子进程挂起会冻结整条自愈链 → 所有执行路径限时。
 # 语义与原 JS 完全对齐：bypass 六项全 true + o3HookMode=1 + fileLog=true +
 # fileLogLevel 兜底 info；幂等（无变化 exit 3 不写，防看门狗死循环重启）。
+# v2.28.0：$2="0" 表示 nohook 形态——hook 单项写 false（write/writev 钩子是实证
+# 崩溃源，issue #1626 崩溃点「prepare write and writev hooks」），其余五项仍全开：
+# 反检测裸奔 = 风控封号，能保一项是一项。缺省 $2 非 "0" = 六项全开。
 napcat_antidetect_patch_one(){
-  # $1=目标 json；exit 0=已写入 3=无变化 其他=失败
-  local f="$1"
+  # $1=目标 json [$2="0"=hook 关闭]；exit 0=已写入 3=无变化 其他=失败
+  local f="$1" hook_off="${2:-}"
   if command -v python3 >/dev/null 2>&1; then
-    python3 - "$f" <<'BANDQQ_AD_PY' 2>/dev/null
+    python3 - "$f" "$hook_off" <<'BANDQQ_AD_PY' 2>/dev/null
 import json, sys
 f = sys.argv[1]
+hook_off = len(sys.argv) > 2 and sys.argv[2] == "0"
 try:
     with open(f, encoding="utf-8") as fh:
         c = json.load(fh)
@@ -975,7 +1039,7 @@ except Exception:
 b = c.get("bypass") if isinstance(c.get("bypass"), dict) else {}
 before = (b, c.get("o3HookMode"), c.get("fileLog"))
 b = dict(b)
-b.update({"hook": True, "window": True, "module": True, "process": True, "container": True, "js": True})
+b.update({"hook": not hook_off, "window": True, "module": True, "process": True, "container": True, "js": True})
 c["bypass"] = b
 c["o3HookMode"] = 1
 c["fileLog"] = True
@@ -992,10 +1056,10 @@ print("write")
 BANDQQ_AD_PY
     return $?
   fi
-  # node 兜底（JS 落临时文件调用；argv[2]||argv[1] 双兼容）
+  # node 兜底（JS 落临时文件调用；argv[2]||argv[1] 双兼容；argv[3]=hook 开关）
   local jsfile="$HOME/napcat/.antidetect.js" out rc
   printf '%s' "$NAPCAT_ANTI_DETECT_JS" > "$jsfile"
-  out=$(napcat_node_run "$jsfile" "$f" 2>/dev/null)
+  out=$(napcat_node_run "$jsfile" "$f" "$hook_off" 2>/dev/null)
   rc=$?
   [ "$rc" = "0" ] && [ "$out" = "write" ] && return 0
   return "$rc"
@@ -1005,8 +1069,17 @@ ensure_napcat_antidetect(){
   # v2.26.0：崩溃自愈已禁用 bypass 时跳过写入（NAPCAT_DISABLE_BYPASS=1 下配置被
   # 短路，写入会造成“反检测已全开”假象）
   if [ -f "$HOME/napcat/.bypass_disabled" ]; then
-    echo "[AstrBot Android] bypass 反检测钩子处于崩溃自愈禁用态（删除 /root/napcat/.bypass_disabled 可恢复），跳过反检测写入"
+    echo "[AstrBot Android] 反检测状态：关闭（bypass 钩子崩溃自愈禁用；NAPCAT_DISABLE_BYPASS=1 短路配置，跳过写入）"
     return 1
+  fi
+  # v2.28.0：nohook 分级形态——hook 单项关闭（write/writev 钩子实证崩溃源），
+  # 其余五项保持开启；写入的配置形态与运行时形态严格一致，杜绝"假已开"
+  local hook_on=1
+  if [ -f "$HOME/napcat/.bypass_nohook" ]; then
+    hook_on=0
+    echo "[AstrBot Android] 反检测状态：部分（hook 单项崩溃规避，window/module/process/container/js 五项保持开启）"
+  else
+    echo "[AstrBot Android] 反检测状态：全开（hook/window/module/process/container/js 六项 + o3HookMode）"
   fi
   local f written=0 skipped=0 failed=0 rc
   local files=()
@@ -1016,10 +1089,10 @@ ensure_napcat_antidetect(){
   done
   for f in "${files[@]}"; do
     # v2.27.0：stdout（write/skip）必须捕获，否则漏进引擎日志刷屏
-    out=$(napcat_antidetect_patch_one "$f" 2>/dev/null)
+    out=$(napcat_antidetect_patch_one "$f" "$hook_on" 2>/dev/null)
     rc=$?
     if [ "$rc" = "0" ]; then
-      echo "反检测已全部开启：$(basename "$f")（hook/window/module/process/container/js + o3HookMode）"
+      echo "反检测已开启：$(basename "$f")（$([ "$hook_on" = "1" ] && echo 六项 || echo 五项/hook 规避) + o3HookMode）"
       written=$((written+1))
     elif [ "$rc" = "3" ]; then
       skipped=$((skipped+1))
@@ -1028,7 +1101,7 @@ ensure_napcat_antidetect(){
     fi
   done
   if [ "$written" -gt 0 ]; then
-    echo "[AstrBot Android] 反检测已自动全开（重启 NapCat 生效，看门狗/启动链会自动重启）"
+    echo "[AstrBot Android] 反检测配置已更新（重启 NapCat 生效，看门狗/启动链会自动重启）"
     return 0
   fi
   if [ "$failed" -gt 0 ]; then
@@ -1157,8 +1230,9 @@ napcat_mark_healthy(){
 napcat_reinstall_pinned(){
   echo "[AstrBot Android] 重装 NapCat v${NAPCAT_SHELL_VERSION}（配置保留）..."
   # 自愈标记文件随 napcat 目录一起被删，先摘到 TMPDIR 用后放回
+  # v2.28.0：补 .bypass_nohook（分级 bypass 标记）与 .bypass_retry_done_v228（复检防循环标记）
   local m
-  for m in .crash_count .bypass_disabled .need_clean .pin_retry; do
+  for m in .crash_count .bypass_disabled .bypass_nohook .bypass_retry_done_v228 .need_clean .pin_retry; do
     [ -f "$HOME/napcat/$m" ] && cp "$HOME/napcat/$m" "$TMPDIR/bandqq-marker$m"
   done
   if [ -d "$HOME/napcat/config" ]; then
@@ -1186,7 +1260,7 @@ napcat_reinstall_pinned(){
     rm -rf "$HOME/napcat_config_backup"
   fi
   mkdir -p "$HOME/napcat"
-  for m in .crash_count .bypass_disabled .need_clean .pin_retry; do
+  for m in .crash_count .bypass_disabled .bypass_nohook .bypass_retry_done_v228 .need_clean .pin_retry; do
     [ -f "$TMPDIR/bandqq-marker$m" ] && mv "$TMPDIR/bandqq-marker$m" "$HOME/napcat/$m"
   done
   configure_napcat_token_ttl
@@ -1207,6 +1281,9 @@ start_napcat(){
   # v2.27.0：版本钉扎强制执行——漂移版容器在下次启动即被降级重装（不再依赖
   # 自愈阶梯三轮升级；用户设备 4.18.29 崩溃循环的根治入口）
   napcat_enforce_pinned || true
+  # v2.28.0：旧禁用标记一次性自动复检（封号根治——4.18.29 时代被永久禁用的
+  # 反检测在钉扎版本上重新开启，详见函数头注释）
+  napcat_antidetect_upgrade || true
   # 配置先行：无论是否已运行都确保 onebot11/webui/反检测 配置为规范形状
   local cfg_changed=0
   ensure_napcat_configs && cfg_changed=1
@@ -1245,13 +1322,21 @@ start_napcat(){
     fi
   fi
   rm -f "$HOME/napcat/.need_clean"
-  # 自愈阶梯动作（L2 起禁用 bypass 钩子；标记持久化，后续启动沿用）
+  # v2.28.0：分级 bypass 自愈阶梯。旧 L2 一步禁全部 bypass → 反检测裸奔=风控
+  # 封号（用户 10-05 封号案例）。新阶梯：L2 先只禁 hook（write/writev 钩子，
+  # issue #1626 崩溃点「prepare write and writev hooks」实证崩溃源，其余五项
+  # 保持开启；nohook 仍崩才升级完全禁用。能保一项是一项。
   if [ "$heal" -ge 2 ]; then
-    if [ ! -f "$HOME/napcat/.bypass_disabled" ]; then
-      touch "$HOME/napcat/.bypass_disabled"
-      echo "[AstrBot Android] 自愈第 2 级：禁用 bypass 反检测钩子启动（NapCat 上游 issue #1626 同类崩溃的官方规避 NAPCAT_DISABLE_BYPASS=1；恢复：删除 /root/napcat/.bypass_disabled 后重启引擎）"
+    if [ ! -f "$HOME/napcat/.bypass_disabled" ] && [ ! -f "$HOME/napcat/.bypass_nohook" ]; then
+      : > "$HOME/napcat/.bypass_nohook"
+      echo "[AstrBot Android] 自愈第 2 级：仅禁用 hook 钩子（write/writev 崩溃源规避），其余 5 项反检测保持开启（window/module/process/container/js）"
+    elif [ -f "$HOME/napcat/.bypass_nohook" ] && [ ! -f "$HOME/napcat/.bypass_disabled" ]; then
+      : > "$HOME/napcat/.bypass_disabled"
+      echo "[AstrBot Android] 自愈升级：nohook 形态仍崩溃 → 完全禁用 bypass（NAPCAT_DISABLE_BYPASS=1；恢复：删除 /root/napcat/.bypass_disabled 后重启引擎）"
     fi
-    export NAPCAT_DISABLE_BYPASS=1
+    if [ -f "$HOME/napcat/.bypass_disabled" ]; then
+      export NAPCAT_DISABLE_BYPASS=1
+    fi
   elif [ -f "$HOME/napcat/.bypass_disabled" ]; then
     export NAPCAT_DISABLE_BYPASS=1
   fi
@@ -1849,6 +1934,8 @@ launch_astrbot(){
 run_step(){
   # v2.18.1：所有路径（start 与 --step）先做 DNS 自举，再进入安装/启动链
   ensure_container_dns || true
+  # v2.28.0：设备身份稳定化（machine-id/hostname 固定；防"每次都是新电脑"进风控特征）
+  ensure_stable_identity || true
   case "$1" in
     start)
       launch_astrbot

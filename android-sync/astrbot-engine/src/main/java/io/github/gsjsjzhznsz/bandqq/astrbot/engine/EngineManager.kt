@@ -385,13 +385,42 @@ object EngineManager {
     }
 
     /**
+     * v2.28.0：环境伪装文件（宿主侧生成，proot -b 绑定进容器）。
+     *
+     * 用户 10-05 封号反馈怀疑“虚拟设备被识别”：proot 容器的 /proc 是 Android 宿主的，
+     * /proc/version 直接暴露 Android 内核字符串（uname 系统调用无法伪装，但 procfs
+     * 读口可以）；/proc/sys/kernel/hostname 是 glibc gethostname() 的读口。把这两处
+     * 绑定成常规 Ubuntu arm64 桌面值，消除最易采样的两个容器特征。生效文件在
+     * buildLaunchScript 里条件绑定（文件不存在则跳过绑定，绝不阻断启动）。
+     */
+    private fun writeEnvMaskFiles(ctx: Context) {
+        runCatching {
+            val dir = containerEtcDir(ctx)
+            if (!dir.exists()) dir.mkdirs()
+            File(dir, "proc-version").writeText(
+                "Linux version 6.8.0-45-generic (buildd@bos01-arm64-015) " +
+                    "(aarch64-linux-gnu-gcc-13 (Ubuntu 13.2.0-23ubuntu4) 13.2.0, GNU ld (GNU Binutils) 2.42) " +
+                    "#45-Ubuntu SMP PREEMPT_DYNAMIC Mon Jul 15 14:21:45 UTC 2024\n"
+            )
+            File(dir, "kernel-osrelease").writeText("6.8.0-45-generic\n")
+            File(dir, "kernel-hostname").writeText("bandqq-desktop\n")
+        }.onFailure { logLine("环境伪装文件写入失败: ${it.message}") }
+    }
+
+    /**
      * 组装 proot 启动命令并 exec。命令逐参数对齐上游 scripts.dart（仅去掉 sdcard
      * 绑定：引擎全部数据自包含于容器，不需要手机存储，减少权限面）。
      * v2.19.0：新增 -b resolv.conf 绑定（Termux proot-distro 同款做法，见上）。
+     * v2.28.0：新增 /proc/version、/proc/sys/kernel/osrelease、/proc/sys/kernel/hostname
+     * 伪装绑定（细路径绑定在宽绑定 /proc 之后声明，proot 最长路径优先遮蔽——
+     * Termux proot-distro 同款模式），消除 Android 宿主内核/主机名直接暴露。
      */
     private fun buildLaunchScript(ctx: Context, bin: File, tmp: File, ubuntu: File, astrbotEnabled: Boolean): String {
         val tz = java.util.TimeZone.getDefault().id
         val resolv = File(containerEtcDir(ctx), "resolv.conf")
+        val procVersion = File(containerEtcDir(ctx), "proc-version")
+        val osrelease = File(containerEtcDir(ctx), "kernel-osrelease")
+        val hostname = File(containerEtcDir(ctx), "kernel-hostname")
         return buildString {
             append("exec ").append(bin.absolutePath).append("/proot ")
             append("-0 ")
@@ -403,6 +432,10 @@ object EngineManager {
             if (resolv.exists()) {
                 append("-b '").append(resolv.absolutePath).append("':/etc/resolv.conf ")
             }
+            // v2.28.0：环境伪装绑定（文件不存在则跳过，绝不阻断启动）
+            if (procVersion.exists()) append("-b '").append(procVersion.absolutePath).append("':/proc/version ")
+            if (osrelease.exists()) append("-b '").append(osrelease.absolutePath).append("':/proc/sys/kernel/osrelease ")
+            if (hostname.exists()) append("-b '").append(hostname.absolutePath).append("':/proc/sys/kernel/hostname ")
             append("-b /proc/self/fd:/dev/fd ")
             append("-w /root ")
             append("/usr/bin/env -i ")
@@ -456,7 +489,7 @@ object EngineManager {
                 }
             }
         }
-        logLine("启动脚本已与 APK 资产对齐（v2.27.0 每次启动强制刷新）")
+        logLine("启动脚本已与 APK 资产对齐（v2.28.0 每次启动强制刷新）")
     }
 
     /**
@@ -494,6 +527,7 @@ object EngineManager {
                 }
                 refreshContainerScripts(appCtx)
                 writeContainerResolvConf(appCtx)
+                writeEnvMaskFiles(appCtx)
                 // v2.22.0：「启动 AstrBot 机器人」开关（关闭 = 仅 NapCat 模式）
                 val astrbotEnabled = isAstrbotEnabled(appCtx)
                 if (!astrbotEnabled) logLine("AstrBot 机器人开关已关闭：本次仅启动 NapCat（手环 QQ 直连），不安装/启动 AstrBot")
@@ -697,7 +731,24 @@ object AstrBotSecrets {
         val webuiPassword: String?,
         val napcatToken: String?,
         val qqAccounts: List<String> = emptyList(),
+        val antiDetect: AntiDetectState = AntiDetectState.Unknown,
     )
+
+    /**
+     * v2.28.0 反检测真实状态（密码卡展示用）。判据优先级：
+     * ① root/napcat/.bypass_disabled 在 → Off（崩溃自愈禁用）
+     * ② root/napcat/.bypass_nohook 在 → Partial（hook 单项规避，五项开启）
+     * ③ napcat-console.log 近期出现「Bypass已通过环境变量禁用」→ Off（运行时真相：
+     *    配置层写了全开但实际未生效——用户 10-05 封号时正是这种状态）
+     * ④ 读 napcat_<uin>.json / napcat.json 的 bypass 块 → 六项全 true=Full，
+     *    部分开启=Partial；无文件/解析失败=Unknown（未安装/未写入）
+     */
+    enum class AntiDetectState(val label: String) {
+        Full("反检测：6 项全开（配置层持久生效，重启不丢）"),
+        Partial("反检测：5 项开启（hook 因崩溃规避，其余全开）"),
+        Off("反检测：运行时已禁用（bypass 钩子在本环境段错误，崩溃自愈已关闭；环境/行为层防护生效中）"),
+        Unknown("反检测：待引擎启动后自动写入（当前未检测到配置）"),
+    }
 
     private val userRe = Regex("Initial username:\\s*(\\S+)")
     private val passRe = Regex("Initial password:\\s*(\\S+)")
@@ -732,7 +783,42 @@ object AstrBotSecrets {
             val f = File(EngineManager.rootfsDir(ctx), "root/napcat/config/webui.json")
             if (f.exists()) tokenRe.find(f.readText())?.let { token = it.groupValues[1] }
         }
-        return Secrets(user, pass, token, readQqAccounts(ctx))
+        return Secrets(user, pass, token, readQqAccounts(ctx), readAntiDetect(ctx))
+    }
+
+    /** v2.28.0：反检测真实状态（标记文件 > 控制台运行时真相 > 配置内容，与壳脚本分级阶梯严格一致） */
+    private fun readAntiDetect(ctx: Context): AntiDetectState {
+        val napcatDir = File(EngineManager.rootfsDir(ctx), "root/napcat")
+        if (File(napcatDir, ".bypass_disabled").exists()) return AntiDetectState.Off
+        if (File(napcatDir, ".bypass_nohook").exists()) return AntiDetectState.Partial
+        // 运行时真相：控制台近期出现过「Bypass已通过环境变量禁用」→ 配置层全开也是假象
+        // （本环境全开必崩，崩溃自愈会禁用；用户 10-05 封号时即此状态）
+        runCatching {
+            val console = File(napcatDir, "napcat-console.log")
+            if (console.exists()) {
+                val tail = console.useLines { lines -> lines.toList().takeLast(200) }
+                if (tail.any { it.contains("Bypass已通过环境变量禁用") }) return AntiDetectState.Off
+            }
+        }
+        val cfgDir = File(napcatDir, "config")
+        if (!cfgDir.isDirectory) return AntiDetectState.Unknown
+        // 登录后 per-uin 优先（与壳脚本读取规则一致），无则全局兜底
+        val f = cfgDir.listFiles { it.isFile }?.filter { it.name == "napcat.json" || (it.name.startsWith("napcat_") && it.name.endsWith(".json")) }
+            ?.sortedByDescending { it.name.startsWith("napcat_") }
+            ?.firstOrNull() ?: return AntiDetectState.Unknown
+        val content = runCatching { f.readText() }.getOrNull() ?: return AntiDetectState.Unknown
+        return runCatching {
+            // engine 模块无 Gson 依赖，用 Android 框架自带 org.json（NapCat 配置即标准 JSON）
+            val obj = org.json.JSONObject(content)
+            val bp = obj.optJSONObject("bypass")
+            val keys = listOf("hook", "window", "module", "process", "container", "js")
+            val flags = keys.map { bp?.optBoolean(it, false) == true }
+            when {
+                flags.all { it } -> AntiDetectState.Full
+                flags.any { it } -> AntiDetectState.Partial
+                else -> AntiDetectState.Unknown
+            }
+        }.getOrDefault(AntiDetectState.Unknown)
     }
 
     /** QQ 账号列表（登录过的账号从配置文件名提取；兑底扫 NapCat 控制台日志） */

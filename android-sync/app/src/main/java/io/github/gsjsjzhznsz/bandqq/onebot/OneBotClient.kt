@@ -63,6 +63,12 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
     @Volatile private var connected = false
 
     /**
+     * v2.28.0 发送风控保护（用户 10-05 封号反馈）：登录预热 + 限速抖动 + 突发冷却。
+     * 仅约束 send_* 外发；读取/握手不受影响。详见 SendGuard 类注释。
+     */
+    private val sendGuard = SendGuard()
+
+    /**
      * v2.9.4：经 WS 下发的 API 请求（echo → 回调）。
      * 真实 NapCat 部署常只开 WS 服务（HTTP API 是独立开关），
      * 联系人拉取（get_friend_list/get_group_list）必须有 WS 通道兜底。
@@ -191,6 +197,14 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
                     webSocket.send(identify)
                     LogBus.log("OneBotClient", LogLevel.DEBUG, "WS identify sent (echo=bandqq-${BuildConfig.VERSION_NAME})")
                     listener?.onState(true)
+                    // v2.28.0：风控预热判定（断开≥2 分钟重连 = NapCat 重启/重登，进入 45s 预热）
+                    sendGuard.onConnected()
+                    if (sendGuard.activeRestriction() != null) {
+                        LogBus.log(
+                            "OneBotClient", LogLevel.WARN,
+                            "风控保护已激活：${sendGuard.activeRestriction()}"
+                        )
+                    }
                 } catch (t: Throwable) {
                     LogBus.log("OneBotClient", LogLevel.ERROR, "onOpen/onState exception: $t")
                 }
@@ -235,6 +249,7 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
                 connected = false
+                sendGuard.onDisconnected()
                 try {
                     LogBus.log("OneBotClient", LogLevel.WARN, "WS failure: ${t.javaClass.simpleName}: ${t.message}")
                 } catch (_: Throwable) {}
@@ -243,6 +258,7 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
                 connected = false
+                sendGuard.onDisconnected()
                 try {
                     listener?.onState(false)
                 } catch (t: Throwable) {
@@ -253,6 +269,34 @@ class OneBotClient(private val parser: OneBotParser) : MessageSender {
     }
 
     override fun sendMessage(
+        messageType: String,
+        targetId: String,
+        content: String,
+        httpUrlOverride: String?,
+        callback: (ok: Boolean, messageId: String, err: String) -> Unit
+    ) {
+        // v2.28.0 发送风控：预热/突发冷却硬拦截（失败原因直达手环 toast）
+        sendGuard.gate()?.let { reason ->
+            try { LogBus.log("OneBotClient", LogLevel.WARN, "发送被风控保护拦截：$reason") } catch (_: Throwable) {}
+            callback(false, "", reason)
+            return
+        }
+        // v2.28.0 限速+抖动：非阻塞延迟后真实下发（下发时计入突发窗口）；
+        // 取消安全：stop() 后延迟中的发送以失败回调收尾，调用方不悬挂
+        val wait = sendGuard.pacingDelay()
+        scope.launch {
+            try {
+                if (wait > 0) delay(wait)
+                sendGuard.commit()
+                doSendMessage(messageType, targetId, content, httpUrlOverride, callback)
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                try { callback(false, "", "发送已取消（引擎停止中）") } catch (_: Throwable) {}
+            }
+        }
+    }
+
+    /** v2.24.0 发送链实现（原 sendMessage 主体；v2.28.0 风控调度拆到上层入口） */
+    private fun doSendMessage(
         messageType: String,
         targetId: String,
         content: String,
