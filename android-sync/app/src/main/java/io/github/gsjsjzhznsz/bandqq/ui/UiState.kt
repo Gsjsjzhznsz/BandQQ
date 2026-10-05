@@ -25,6 +25,25 @@ fun useBandConnected(): State<Boolean> {
     return state
 }
 
+/**
+ * v2.28.2：手环互联签名校验失败状态。
+ * 复用 BandStateBus 事件流：markSignatureError/clearSignatureError 均会触发 notify，
+ * 监听器触发时直接读 SyncState.bandSignatureError 最新值。
+ */
+@Composable
+fun useBandSignatureError(): State<Boolean> {
+    val state = remember { mutableStateOf(SyncState.bandSignatureError) }
+    DisposableEffect(Unit) {
+        val mainHandler = android.os.Handler(android.os.Looper.getMainLooper())
+        val listener: (Boolean) -> Unit = { _ ->
+            mainHandler.post { state.value = SyncState.bandSignatureError }
+        }
+        BandStateBus.add(listener)
+        onDispose { BandStateBus.remove(listener) }
+    }
+    return state
+}
+
 @Composable
 fun useOneBotConnected(refreshKey: Int): State<Boolean> {
     val state = remember { mutableStateOf(SyncState.oneBotConnected) }

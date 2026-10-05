@@ -52,6 +52,7 @@ fun HomeScreen(bottomInnerPadding: Dp, isActive: Boolean = true) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val bandConnected by useBandConnected()
+    val bandSignatureError by useBandSignatureError()
     var oneBotRefreshKey by remember { mutableStateOf(0) }
     val oneBotConnected by useOneBotConnected(refreshKey = oneBotRefreshKey)
     var entered by remember { mutableStateOf(false) }
@@ -77,7 +78,11 @@ fun HomeScreen(bottomInnerPadding: Dp, isActive: Boolean = true) {
                     title = "手环",
                     online = bandConnected,
                     summary = "小米运动健康互联通道",
-                    detail = if (bandConnected) "已连接" else "未连接",
+                    detail = when {
+                        bandConnected -> "已连接"
+                        bandSignatureError -> "签名不一致"
+                        else -> "未连接"
+                    },
                     modifier = Modifier.weight(1f).listItemReveal(entered, 0),
                 )
                 StatusCard(
@@ -87,6 +92,23 @@ fun HomeScreen(bottomInnerPadding: Dp, isActive: Boolean = true) {
                     detail = if (oneBotConnected) "在线" else "离线",
                     modifier = Modifier.weight(1f).listItemReveal(entered, 1),
                 )
+            }
+
+            // ===== v2.28.2：签名不一致修复指引（手环端快应用证书 ≠ APK 证书） =====
+            if (bandSignatureError && !bandConnected) {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text("手环端快应用与手机 APK 签名不一致")
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "常见于手环还装着旧版快应用（v2.23.0 前为旧证书，无法覆盖升级）。修复步骤：\n" +
+                                "① 在手环上卸载旧版 BandQQ 快应用\n" +
+                                "② 用 GitHub Release 最新 rpk 重新安装手环端（REDMI Watch 5 选 bandqq-redmiwatch-*.rpk）\n" +
+                                "③ 手机端重启同步服务，并在小米运动健康「设备授权管理」重新授权 BandQQ",
+                            color = MiuixTheme.colorScheme.onSurfaceSecondary,
+                        )
+                    }
+                }
             }
 
             // ===== 实时日志（v2.23.0：上移到状态卡之后——用户反馈日志面板被沉底，

@@ -2,6 +2,7 @@ package io.github.gsjsjzhznsz.bandqq.sync
 
 import android.content.Context
 import com.xiaomi.xms.wearable.Wearable
+import com.xiaomi.xms.wearable.exception.SignatureVerifyFailedException
 import com.xiaomi.xms.wearable.auth.AuthApi
 import com.xiaomi.xms.wearable.auth.Permission
 import com.xiaomi.xms.wearable.message.MessageApi
@@ -37,6 +38,9 @@ object InterconnectBridge {
     private const val TIMEOUT_MS = 10000L
     private const val RECONNECT_INTERVAL_MS = 5000L
 
+    /** v2.28.2：签名不一致时重连退避到 60s（日志实测 5s 循环每分钟刷 6 轮三连错，纯噪音） */
+    private const val RECONNECT_INTERVAL_SIGNERR_MS = 60000L
+
     private var broker: MessageBroker? = null
     private var context: Context? = null
 
@@ -64,6 +68,55 @@ object InterconnectBridge {
     private val heartbeatScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private var heartbeatJob: Job? = null
     private var reconnectJob: Job? = null
+
+    /** v2.28.2：详细修复指引只打一次，避免重连循环刷屏 */
+    @Volatile
+    private var signatureHintShown: Boolean = false
+
+    /**
+     * v2.28.2：识别互联签名校验失败。
+     * 运动健康/手环侧会拿「手机 APK 签名指纹」比对「手环端快应用 rpk 证书指纹」，
+     * 不一致即抛 SignatureVerifyFailedException("fingerprint verify failed")。
+     * 常见根因：手环还装着旧证书时代的快应用（v2.23.0 前 rpk 用另一套证书，证书已随
+     * 隐私清理移出仓库），APK 换新证书后从未重装手环端。
+     */
+    private fun isSignatureError(e: Throwable?): Boolean {
+        if (e is SignatureVerifyFailedException) return true
+        val msg = e?.message.orEmpty()
+        return msg.contains("fingerprint verify failed", ignoreCase = true) ||
+            msg.contains("SignatureVerifyFailed", ignoreCase = true)
+    }
+
+    /** 置位签名错误状态 + 一次性打印可操作修复指引（成功后自动复位，再次失败会重新提示） */
+    private fun markSignatureError(where: String) {
+        val first = !signatureHintShown
+        signatureHintShown = true
+        if (SyncState.bandConnected) {
+            SyncState.bandConnected = false
+            BandStateBus.notify(false)
+        }
+        SyncState.bandSignatureError = true
+        LogBus.log(TAG, LogLevel.ERROR,
+            "$where: 手环互联签名校验失败（APK 证书与手环端快应用证书不一致）")
+        if (first) {
+            LogBus.log(TAG, LogLevel.ERROR,
+                "修复步骤：① 在手环上卸载旧版 BandQQ 快应用（旧证书签名，无法覆盖升级）" +
+                " ② 从 GitHub Release 下载与本机匹配的最新 rpk（如 REDMI Watch 5 用 bandqq-redmiwatch-*.rpk）重新安装手环端" +
+                " ③ 手机端停止并重新开启同步服务，在小米运动健康「设备授权管理」中重新授权 BandQQ")
+            LogBus.log(TAG, LogLevel.INFO,
+                "说明：v2.23.0 起工程更换了统一签名证书，仅更新手机 APK 不会同步更新手环端快应用，「签名不一致」需两端同时换新")
+        }
+    }
+
+    /** 连接链路任一环节成功即清零签名错误（用户已重装/重授权） */
+    private fun clearSignatureError() {
+        if (SyncState.bandSignatureError) {
+            SyncState.bandSignatureError = false
+            LogBus.log(TAG, LogLevel.INFO, "签名校验已恢复通过（手环端快应用与 APK 证书一致）")
+            BandStateBus.notify(SyncState.bandConnected)
+        }
+        signatureHintShown = false
+    }
 
     /**
      * 注册手环消息监听。
@@ -97,6 +150,7 @@ object InterconnectBridge {
             .addOnSuccessListener {
                 registeredNodes.add(node.id)
                 LogBus.log(TAG, LogLevel.DEBUG, "registerListener ok")
+                clearSignatureError()
                 connecting = false
                 startHeartbeat()
             }
@@ -106,6 +160,9 @@ object InterconnectBridge {
                     LogBus.log(TAG, LogLevel.WARN, "listener already registered, continue")
                     connecting = false
                     startHeartbeat()
+                } else if (isSignatureError(error)) {
+                    markSignatureError("registerListener")
+                    connecting = false
                 } else {
                     LogBus.log(TAG, LogLevel.ERROR, "registerListener failed: $error")
                     SyncState.bandConnected = false
@@ -212,7 +269,11 @@ object InterconnectBridge {
                 openApp(node, launchApp)
             }
             .addOnFailureListener { e ->
-                LogBus.log(TAG, LogLevel.ERROR, "auth check failed: $e")
+                if (isSignatureError(e)) {
+                    markSignatureError("auth check")
+                } else {
+                    LogBus.log(TAG, LogLevel.ERROR, "auth check failed: $e")
+                }
                 openApp(node, launchApp)
             }
     }
@@ -259,8 +320,17 @@ object InterconnectBridge {
         // 回调线程（OneBot 消息链）内，异常上抛会被 OkHttp 当作连接失败断开。全部兜住。
         try {
             messageApi.sendMessage(node.id, bytes)
-                .addOnSuccessListener { LogBus.log(TAG, LogLevel.DEBUG, "sendToBand ok (${bytes.size}B)") }
-                .addOnFailureListener { e -> LogBus.log(TAG, LogLevel.ERROR, "sendToBand failed (${bytes.size}B): ${e.message}") }
+                .addOnSuccessListener {
+                    LogBus.log(TAG, LogLevel.DEBUG, "sendToBand ok (${bytes.size}B)")
+                    clearSignatureError()
+                }
+                .addOnFailureListener { e ->
+                    if (isSignatureError(e)) {
+                        markSignatureError("sendToBand")
+                    } else {
+                        LogBus.log(TAG, LogLevel.ERROR, "sendToBand failed (${bytes.size}B): ${e.message}")
+                    }
+                }
         } catch (t: Throwable) {
             LogBus.log(TAG, LogLevel.ERROR, "sendToBand exception (${bytes.size}B): $t")
         }
@@ -318,7 +388,8 @@ object InterconnectBridge {
                     LogBus.log(TAG, LogLevel.ERROR, "reconnect loop error: ${t.message}")
                     connecting = false
                 }
-                delay(RECONNECT_INTERVAL_MS)
+                // v2.28.2：签名不一致时退避到 60s——需用户重装手环端才能恢复，5s 重试毫无意义
+                delay(if (SyncState.bandSignatureError) RECONNECT_INTERVAL_SIGNERR_MS else RECONNECT_INTERVAL_MS)
             }
         }
     }

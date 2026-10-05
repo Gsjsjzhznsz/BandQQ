@@ -24,6 +24,13 @@ import kotlinx.coroutines.launch
 object SyncState {
     @Volatile var oneBotConnected: Boolean = false
     @Volatile var bandConnected: Boolean = false
+
+    /**
+     * v2.28.2：手环互联签名校验失败（SignatureVerifyFailedException: fingerprint verify failed）。
+     * 根因几乎总是「手环端快应用证书 ≠ 手机 APK 证书」——手环还装着旧证书时代的快应用
+     * （v2.23.0 前 rpk 用的是另一套证书）。置位后主页给出可操作修复指引，重连循环同步退避。
+     */
+    @Volatile var bandSignatureError: Boolean = false
 }
 
 /** 全局可访问的数据仓（手机端为主存储），供服务与界面共享 */

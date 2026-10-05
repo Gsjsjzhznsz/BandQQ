@@ -129,6 +129,8 @@ object FileLogger {
             + if (a11y.contains(context.packageName)) "已开启" else "未开启")
         LogBus.log(TAG, LogLevel.INFO, "提示: 运动健康「设备授权管理」条目在 APP 发起 DEVICE_MANAGER 授权请求后才生成，"
             + "开启同步服务并连接一次即会触发")
+        LogBus.log(TAG, LogLevel.INFO, "提示: 若手环一直「未连接」且日志反复出现 fingerprint verify failed，"
+            + "为手环端快应用与 APK 签名不一致：请卸载手环旧版 BandQQ 后用最新 rpk 重装并重新授权（v2.23.0 起换过签名证书）")
     }
 
     /** 打包全部日志 + 崩溃记录并拉起系统分享。 */
