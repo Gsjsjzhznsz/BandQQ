@@ -750,6 +750,29 @@ patch_napcat_installer(){
     echo "修补 NapCat 上游 LinuxQQ 重复安装步骤失败"
     return 1
   fi
+  # v2.28.1：上游 install_dependency 无条件 sudo apt-get update（proot 下最慢最易被杀的
+  # 一步，10-05 23:29 实证 Killed 于该步）——依赖齐备时跳过。python3 幂等改写（rootfs 自带
+  # 3.12）；无 python3 或上游脚本变更时优雅降级保持上游行为。
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$installer" <<'BANDQQ_PY_EOF' || return 1
+import sys
+p = sys.argv[1]
+s = open(p, encoding="utf-8", errors="surrogateescape").read()
+if "BandQQ 快速通道" in s:
+    sys.exit(0)
+old = "sudo apt-get update -y -qq"
+if old not in s:
+    sys.stderr.write("BandQQ 依赖快速通道补丁未匹配（上游脚本可能已变更），跳过（保持上游行为）\n")
+    sys.exit(0)
+guard = ("if command -v g++ >/dev/null 2>&1 && command -v jq >/dev/null 2>&1 && command -v zip >/dev/null 2>&1 "
+         "&& command -v unzip >/dev/null 2>&1 && command -v Xvfb >/dev/null 2>&1 && command -v screen >/dev/null 2>&1 "
+         "&& command -v xauth >/dev/null 2>&1 && command -v ps >/dev/null 2>&1 && command -v curl >/dev/null 2>&1; then "
+         "log \"依赖已齐备，跳过 apt-get update（BandQQ 快速通道）\"; else sudo apt-get update -y -qq; fi")
+s = s.replace(old, guard)
+open(p, "w", encoding="utf-8", errors="surrogateescape").write(s)
+sys.exit(0)
+BANDQQ_PY_EOF
+  fi
 }
 
 # v2.21.0：预下载 NapCat 压缩包喂给上游脚本。用户 10-04 引擎日志（会话4）实证：
@@ -792,8 +815,64 @@ NAPCAT_DISPLAY="${NAPCAT_DISPLAY:-20}"
 # SIGSEGV×3 崩溃循环（用户 10-05 第七份日志；同症状上游 issue #1626 实证为 bypass
 # 反检测原生钩子在部分容器/proot 环境段错误，官方规避 NAPCAT_DISABLE_BYPASS=1）。
 # 钉扎本设备实测可用版本；如需升级用环境变量 NAPCAT_SHELL_URL / NAPCAT_SHELL_VERSION 覆盖。
-NAPCAT_SHELL_VERSION="${NAPCAT_SHELL_VERSION:-4.18.28}"
+# v2.28.1：区分「显式环境变量钉扎」与「默认基线钉扎」——用户在 NapCat WebUI 主动更新的
+# 更高版本会被采纳为新基线（否则钉扎永远对抗用户更新：10-05 23:27 实测 WebUI 更新
+# v4.18.30 被整链吞掉：自更新动 launcher → 误判未安装 → 全量 rm -rf → 重装链被杀）；
+# 显式环境变量钉扎时采纳机制停用（运维指定版本即以指定为准）。采纳版连崩自动回退基线。
+NAPCAT_SHELL_VERSION_DEFAULT="4.18.28"
+NAPCAT_SHELL_URL_DEFAULT="https://github.com/NapNeko/NapCatQQ/releases/download/v${NAPCAT_SHELL_VERSION_DEFAULT}/NapCat.Shell.zip"
+if [ -n "${NAPCAT_SHELL_VERSION:-}" ]; then
+  NAPCAT_PIN_EXPLICIT=1
+else
+  NAPCAT_PIN_EXPLICIT=0
+  NAPCAT_SHELL_VERSION="$NAPCAT_SHELL_VERSION_DEFAULT"
+fi
 NAPCAT_SHELL_URL="${NAPCAT_SHELL_URL:-https://github.com/NapNeko/NapCatQQ/releases/download/v${NAPCAT_SHELL_VERSION}/NapCat.Shell.zip}"
+
+# v2.28.1：读取已安装 NapCat 版本（package.json 为权威来源——WebUI 自更新与离线包都带）。
+# python3 优先（rootfs 自带 3.12），grep 兜底。输出空串=无法识别（不采纳，走原降级重装路径）。
+get_napcat_version(){
+  local v=""
+  if [ -f "$HOME/napcat/package.json" ]; then
+    if command -v python3 >/dev/null 2>&1; then
+      v=$(python3 -c 'import json,sys
+try:
+    print(json.load(open(sys.argv[1], encoding="utf-8")).get("version", "") or "")
+except Exception:
+    pass' "$HOME/napcat/package.json" 2>/dev/null || true)
+    fi
+    if [ -z "$v" ]; then
+      v=$(grep -m1 -oE '"version"[[:space:]]*:[[:space:]]*"[0-9][0-9A-Za-z.+-]*"' "$HOME/napcat/package.json" 2>/dev/null | grep -oE '[0-9][0-9A-Za-z.+-]*' || true)
+    fi
+  fi
+  printf '%s' "$v"
+}
+
+# v2.28.1：三段数字版本比较。ver_gt a b → a>b 返回 0（纯 bash，非数字段按 0 处理）
+ver_gt(){
+  local av="$1" bv="$2" i x y
+  local -a a b
+  local IFS=.
+  set -- $av; a=("$@")
+  set -- $bv; b=("$@")
+  unset IFS
+  for i in 0 1 2; do
+    x=${a[i]:-0}; y=${b[i]:-0}
+    case "$x" in ''|*[!0-9]*) x=0;; esac
+    case "$y" in ''|*[!0-9]*) y=0;; esac
+    [ "$x" -gt "$y" ] && return 0
+    [ "$x" -lt "$y" ] && return 1
+  done
+  return 1
+}
+
+# v2.28.1：生效钉扎版本 = 显式环境变量 > 已采纳标记（WebUI 更新）> 默认基线
+napcat_effective_version(){
+  if [ "${NAPCAT_PIN_EXPLICIT:-0}" = "1" ]; then printf '%s' "$NAPCAT_SHELL_VERSION"; return; fi
+  local adopted
+  adopted=$(cat "$HOME/napcat/.pinned_version" 2>/dev/null || true)
+  case "$adopted" in 4.[0-9]*.[0-9]*) printf '%s' "$adopted";; *) printf '%s' "$NAPCAT_SHELL_VERSION";; esac
+}
 
 # ---------- v2.27.0 版本钉扎强制执行 ----------
 # v2.26.0 的钉扎只管「新下载」——10-04 20:30 漂移窗口内已装上 4.18.29 的容器
@@ -804,26 +883,43 @@ NAPCAT_SHELL_URL="${NAPCAT_SHELL_URL:-https://github.com/NapNeko/NapCatQQ/releas
 # 钉扎版本号 = 装的是漂移版 → 立即重装钉扎版（napcat_reinstall_pinned 配置保留，
 # 离线包优先不需要联网）。不做 semver 解析，避免 minify 代码里其它版本串误匹配。
 napcat_pinned_ok(){
-  [ -f "$HOME/napcat/napcat.mjs" ] && grep -qF "\"${NAPCAT_SHELL_VERSION}\"" "$HOME/napcat/napcat.mjs" 2>/dev/null
+  local pin="${1:-$(napcat_effective_version)}"
+  [ -f "$HOME/napcat/napcat.mjs" ] && grep -qF "\"${pin}\"" "$HOME/napcat/napcat.mjs" 2>/dev/null
 }
 
 napcat_enforce_pinned(){
   # 未安装（无 napcat.mjs）不归本函数管——交给安装链
   [ -f "$HOME/napcat/napcat.mjs" ] || return 0
-  napcat_pinned_ok && return 0
+  local pin; pin=$(napcat_effective_version)
+  # v2.28.1：采纳标记跨会话生效——把下载 URL 同步到生效钉扎版（URL 是本进程全局量）
+  if [ "${NAPCAT_PIN_EXPLICIT:-0}" != "1" ] && [ "$pin" != "$NAPCAT_SHELL_VERSION" ]; then
+    NAPCAT_SHELL_VERSION="$pin"
+    NAPCAT_SHELL_URL="https://github.com/NapNeko/NapCatQQ/releases/download/v${pin}/NapCat.Shell.zip"
+  fi
+  napcat_pinned_ok "$pin" && return 0
+  # v2.28.1：WebUI 更新采纳——用户主动更新的更高版本直接采纳为新基线（旧逻辑一律强制
+  # 降回钉扎版 = 用户永远更新不了）。显式环境变量钉扎时不采纳；采纳后仍受崩溃自愈保护。
+  local installed; installed=$(get_napcat_version)
+  if [ "${NAPCAT_PIN_EXPLICIT:-0}" != "1" ] && [ -n "$installed" ] && ver_gt "$installed" "$pin"; then
+    echo "$installed" > "$HOME/napcat/.pinned_version"
+    NAPCAT_SHELL_VERSION="$installed"
+    NAPCAT_SHELL_URL="https://github.com/NapNeko/NapCatQQ/releases/download/v${installed}/NapCat.Shell.zip"
+    echo "[AstrBot Android] 检测到 NapCat 已更新到 v${installed}（WebUI 更新生效），采纳为新基线（原基线 v${pin}）；若新版本连续崩溃将自动回退"
+    return 0
+  fi
   # 退避：重装尝试间隔 ≥15 分钟（离线包缺失且无网络时，看门狗不至每 2 分钟白耗一轮）
   local now last
   now=$(date +%s); last=$(cat "$HOME/napcat/.pin_retry" 2>/dev/null || echo 0)
   case "$last" in ''|*[!0-9]*) last=0;; esac
   if [ $((now - last)) -lt 900 ]; then
-    echo "[AstrBot Android] NapCat 版本与钉扎版 v${NAPCAT_SHELL_VERSION} 不符（15 分钟内已尝试过重装，本轮跳过）"
+    echo "[AstrBot Android] NapCat v${installed:-未知版本} 与钉扎版 v${pin} 不符（15 分钟内已尝试过重装，本轮跳过）"
     return 1
   fi
   echo "$now" > "$HOME/napcat/.pin_retry"
-  echo "[AstrBot Android] 检测到 NapCat 非钉扎版 v${NAPCAT_SHELL_VERSION}（漂移版在本环境有 Worker SIGSEGV 崩溃循环）——立即重装钉扎版（配置保留）..."
+  echo "[AstrBot Android] 检测到 NapCat v${installed:-未知版本}（非钉扎版 v${pin}，漂移版在本环境有 Worker SIGSEGV 崩溃循环）——立即重装钉扎版（配置保留）..."
   if napcat_reinstall_pinned; then
-    if napcat_pinned_ok; then
-      echo "[AstrBot Android] 钉扎版 v${NAPCAT_SHELL_VERSION} 重装完成，崩溃源已移除"
+    if napcat_pinned_ok "$pin"; then
+      echo "[AstrBot Android] 钉扎版 v${pin} 重装完成，崩溃源已移除"
     else
       echo "[AstrBot Android] 警告：重装后 napcat.mjs 仍非钉扎版（离线包缺失时上游拉到最新版），自愈阶梯兜底"
     fi
@@ -831,6 +927,71 @@ napcat_enforce_pinned(){
   fi
   echo "[AstrBot Android] 钉扎版重装未成功（可能无网络），保留现有版本继续；自愈阶梯兜底（L2 禁 bypass 绕开崩溃源）"
   return 1
+}
+
+# ---------- v2.28.1 launcher 原位重建 + 构建依赖快速通道 ----------
+# NapCat WebUI 自更新会动安装文件——10-05 23:28 实证自更新后 $HOME/launcher.sh 消失，
+# 看门狗重启链全灭（bash: launcher.sh: No such file or directory），下次引擎启动又被
+# 旧逻辑误判为「未安装」→ rm -rf 整个框架（把用户刚更新好的版本一并删掉）。
+ensure_napcat_launcher(){
+  # 重启垫片：外部组件（含 WebUI 自更新器重启）可能以 napcat 目录为工作目录调 launcher.sh
+  if [ -f "$HOME/launcher.sh" ] && [ ! -f "$HOME/napcat/launcher.sh" ]; then
+    printf '#!/bin/bash\nexec bash "$HOME/launcher.sh" "$@"\n' > "$HOME/napcat/launcher.sh" 2>/dev/null \
+      && chmod +x "$HOME/napcat/launcher.sh" 2>/dev/null || true
+  fi
+  [ -f "$HOME/launcher.sh" ] && [ -f "$HOME/libnapcat_launcher.so" ] && return 0
+  # 框架不在 → 无从谈起，交给安装链
+  [ -f "$HOME/napcat/napcat.mjs" ] || return 1
+  command -v qq >/dev/null 2>&1 || return 1
+  echo "[AstrBot Android] NapCat launcher 文件缺失（WebUI 自更新后遗症），原位重建（不动框架与配置）..."
+  cd "$HOME" || return 1
+  if [ ! -f "$HOME/launcher.cpp" ]; then
+    gh_fetch "$HOME/launcher.cpp" "https://raw.githubusercontent.com/NapNeko/napcat-linux-launcher/refs/heads/main/launcher.cpp" --max-time 60 \
+      || { echo "launcher.cpp 下载失败"; return 1; }
+  fi
+  if [ ! -f "$HOME/libnapcat_launcher.so" ]; then
+    command -v g++ >/dev/null 2>&1 || { echo "g++ 不可用，无法编译 launcher"; return 1; }
+    g++ -shared -fPIC "$HOME/launcher.cpp" -o "$HOME/libnapcat_launcher.so" -ldl \
+      || { echo "libnapcat_launcher.so 编译失败"; return 1; }
+  fi
+  if [ ! -f "$HOME/launcher.sh" ]; then
+    cat > "$HOME/launcher.sh" <<'BANDQQ_LAUNCHER_EOF'
+#!/bin/bash
+Xvfb :1 -screen 0 1x1x8 +extension GLX +render > /dev/null 2>&1 &
+export DISPLAY=:1
+trap "" SIGPIPE
+LD_PRELOAD=./libnapcat_launcher.so qq --no-sandbox
+BANDQQ_LAUNCHER_EOF
+    chmod +x "$HOME/launcher.sh"
+  fi
+  if [ ! -f "$HOME/napcat/launcher.sh" ]; then
+    printf '#!/bin/bash\nexec bash "$HOME/launcher.sh" "$@"\n' > "$HOME/napcat/launcher.sh"
+    chmod +x "$HOME/napcat/launcher.sh"
+  fi
+  echo "[AstrBot Android] NapCat launcher 重建完成"
+  return 0
+}
+
+# v2.28.1：构建依赖快速通道。上游 install_dependency 无条件 sudo apt-get update -y -qq——
+# proot 下最慢最易被杀的一步（10-05 23:29 实证 Killed 于该步，重装链全断，引擎 exit=137）。
+# 依赖已在时零 apt 操作；缺失时先不刷源直接装（秒级），失败才回退刷新源。
+ensure_napcat_build_deps(){
+  local need=() pair pkg cmd
+  for pair in zip:zip unzip:unzip jq:jq curl:curl xvfb:Xvfb screen:screen xauth:xauth procps:ps g++:g++; do
+    pkg="${pair%%:*}"; cmd="${pair##*:}"
+    command -v "$cmd" >/dev/null 2>&1 || need+=("$pkg")
+  done
+  if [ ${#need[@]} -eq 0 ]; then
+    echo "[AstrBot Android] NapCat 构建依赖已齐备（跳过 apt-get update 快速通道）"
+    return 0
+  fi
+  echo "[AstrBot Android] 缺少构建依赖: ${need[*]}——直接安装（不刷新源）..."
+  if ! apt-get install -y --no-install-recommends "${need[@]}"; then
+    echo "直接安装失败，刷新软件源后重试..."
+    apt-get update || return 1
+    apt-get install -y --no-install-recommends "${need[@]}" || return 1
+  fi
+  return 0
 }
 
 # onebot11.json：本机服务端（HTTP :3000 / WS :3001，BandQQ 直连）+ 反向 WS 客户端（AstrBot :6199）。
@@ -1232,7 +1393,7 @@ napcat_reinstall_pinned(){
   # 自愈标记文件随 napcat 目录一起被删，先摘到 TMPDIR 用后放回
   # v2.28.0：补 .bypass_nohook（分级 bypass 标记）与 .bypass_retry_done_v228（复检防循环标记）
   local m
-  for m in .crash_count .bypass_disabled .bypass_nohook .bypass_retry_done_v228 .need_clean .pin_retry; do
+  for m in .crash_count .bypass_disabled .bypass_nohook .bypass_retry_done_v228 .need_clean .pin_retry .pinned_version; do
     [ -f "$HOME/napcat/$m" ] && cp "$HOME/napcat/$m" "$TMPDIR/bandqq-marker$m"
   done
   if [ -d "$HOME/napcat/config" ]; then
@@ -1247,6 +1408,7 @@ napcat_reinstall_pinned(){
   chmod +x napcat.sh || return 1
   if ! patch_napcat_installer napcat.sh; then echo "修补 napcat.sh 失败"; return 1; fi
   ensure_sudo_shim
+  ensure_napcat_build_deps
   ensure_napcat_zip
   if ! bash napcat.sh; then
     echo "NapCat 上游安装脚本执行失败"
@@ -1260,7 +1422,7 @@ napcat_reinstall_pinned(){
     rm -rf "$HOME/napcat_config_backup"
   fi
   mkdir -p "$HOME/napcat"
-  for m in .crash_count .bypass_disabled .bypass_nohook .bypass_retry_done_v228 .need_clean .pin_retry; do
+  for m in .crash_count .bypass_disabled .bypass_nohook .bypass_retry_done_v228 .need_clean .pin_retry .pinned_version; do
     [ -f "$TMPDIR/bandqq-marker$m" ] && mv "$TMPDIR/bandqq-marker$m" "$HOME/napcat/$m"
   done
   configure_napcat_token_ttl
@@ -1275,8 +1437,14 @@ napcat_reinstall_pinned(){
 # uv run main.py 报 "Failed to spawn: No such file or directory" → AstrBot 启动失败 exit=1）
 start_napcat(){
   if ! check_napcat_ready >/dev/null 2>&1; then
-    echo "[AstrBot Android] NapCat 未安装完整，跳过启动"
-    return 1
+    # v2.28.1：先原位修复再放弃（WebUI 自更新会动 launcher 文件——10-05 23:28 实证
+    # 看门狗重启链因 launcher.sh 缺失全灭，用户被迫手停引擎）
+    ensure_napcat_launcher || true
+    if ! check_napcat_ready >/dev/null 2>&1; then
+      echo "[AstrBot Android] NapCat 未安装完整，跳过启动"
+      return 1
+    fi
+    echo "[AstrBot Android] NapCat 缺失文件已自动修复，继续启动"
   fi
   # v2.27.0：版本钉扎强制执行——漂移版容器在下次启动即被降级重装（不再依赖
   # 自愈阶梯三轮升级；用户设备 4.18.29 崩溃循环的根治入口）
@@ -1341,6 +1509,14 @@ start_napcat(){
     export NAPCAT_DISABLE_BYPASS=1
   fi
   if [ "$heal" -ge 3 ]; then
+    # v2.28.1：采纳版崩溃回退——WebUI 更新的新版本若连崩到 L3，重装回已知可用基线
+    # （采纳标记清除 + 离线包删除，确保 ensure_napcat_zip 重新下载基线版而非采纳版）
+    if [ "${NAPCAT_PIN_EXPLICIT:-0}" != "1" ] && [ -f "$HOME/napcat/.pinned_version" ]; then
+      echo "[AstrBot Android] 采纳版本 v$(cat "$HOME/napcat/.pinned_version" 2>/dev/null) 连续崩溃，回退已知可用基线 v${NAPCAT_SHELL_VERSION_DEFAULT}（如需升级请重新在 WebUI 更新）"
+      rm -f "$HOME/napcat/.pinned_version" "$HOME/NapCat.Shell.zip"
+      NAPCAT_SHELL_VERSION="$NAPCAT_SHELL_VERSION_DEFAULT"
+      NAPCAT_SHELL_URL="$NAPCAT_SHELL_URL_DEFAULT"
+    fi
     echo "[AstrBot Android] 自愈第 3 级：重装 NapCat v${NAPCAT_SHELL_VERSION}（钉扎版本，配置保留）"
     napcat_reinstall_pinned || echo "[AstrBot Android] NapCat 重装未成功，继续尝试启动现有文件"
   fi
@@ -1493,6 +1669,23 @@ wait_napcat_ports(){
 install_napcat(){
   # 检查是否完整安装。旧版本可能留下 launcher.sh，但 LinuxQQ 或依赖包安装失败。
   if ! check_napcat_ready >/dev/null 2>&1; then
+    # v2.28.1：缺失项进日志（旧逻辑 >/dev/null 君掉失败原因，10-05 23:29 案例无从诊断）
+    echo "[AstrBot Android] NapCat 就绪检查未通过，缺失项："
+    check_napcat_ready 2>&1 | sed 's/^/  /'
+    local repaired=0
+    # v2.28.1：原位修复优先——框架(napcat.mjs)与 LinuxQQ 完好时只补缺失件，
+    # 绝不 rm -rf 整个安装（旧逻辑把 WebUI 自更新后仅缺 launcher 的完好安装整删）
+    if [ -f "$HOME/napcat/napcat.mjs" ] && dpkg -s linuxqq 2>/dev/null | grep -q "Status: install ok installed"; then
+      if ensure_napcat_launcher && check_napcat_ready >/dev/null 2>&1; then
+        echo "[AstrBot Android] NapCat 已原位修复（保留现有版本与全部配置，跳过重装）"
+        repaired=1
+      else
+        echo "[AstrBot Android] 原位修复未成功，转入全量重装"
+      fi
+    else
+      echo "[AstrBot Android] NapCat 框架或 LinuxQQ 缺失，走全量重装"
+    fi
+    if [ "$repaired" != "1" ]; then
     stage 45 "安装 NapCat（QQ↔OneBot 协议桥，含依赖，约 2~5 分钟）"
     progress_echo "Napcat $L_NOT_INSTALLED，$L_INSTALLING..."
 
@@ -1536,6 +1729,8 @@ install_napcat(){
     # v2.20.0：上游脚本硬性检查 sudo（10-04 日志实证 "sudo不存在" → exit 1），
     # proot 恒 root，垫片透传即可（幂等，前面装过这里秒过）
     ensure_sudo_shim
+    # v2.28.1：构建依赖快速通道——依赖已在时上游的 apt-get update 被补丁跳过（防被杀）
+    ensure_napcat_build_deps
     # v2.21.0：预取 NapCat 离线包，让上游脚本跳过其不受控的内部下载
     ensure_napcat_zip
     if ! bash napcat.sh; then
@@ -1559,6 +1754,7 @@ install_napcat(){
       cp -r "$HOME/napcat_config_backup"/* "$HOME/napcat/config/"
       rm -rf "$HOME/napcat_config_backup"
     fi
+    fi  # v2.28.1：repaired 守卫结束（原位修复成功时跳过整个全量重装块）
     
   # v2.22.0：配置写入/修补统一走 ensure_napcat_configs（幂等，装与未装路径都执行）
 fi

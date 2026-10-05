@@ -373,3 +373,16 @@ Stage Summary:
 - 产物：bundled/companion 2.27.0(vc70) 双 APK（CI tag 触发）
 - 回归建议：装新包启动引擎——预期日志出现"检测到 NapCat 非钉扎版…立即重装钉扎版"→"钉扎版 v4.18.28 重装完成"→反检测自动全开→端口监听；若 4.18.28 仍崩（bypass 在 4.18.28 未实测过），立即自愈会在数秒内升级 L2 禁 bypass 保启动
 - 教训入库：钉扎必须含"已装版本的强制降级"（只管下载等于没钉）；"承诺 X 分钟内重启"必须配套"到期未重启的可观测信号"；容器内 JS 需求先查 rootfs 自带 python3（比 Electron RUN_AS_NODE 可靠）
+
+## 2026-10-05 v2.28.1(vc72)：NapCat 更新链路修复（第十份日志定案——"为什么更新不了 NapCat"）
+- 日志：engine-2026-10-05.log 3900 行（07:21~23:29 五会话），分析后已删除
+- 案情定案：23:27:33 用户在 NapCat WebUI 点更新 v4.18.28→v4.18.30（下载 29.5MB+解压成功）→ 23:28:15 看门狗巡检重启报 `bash: launcher.sh: No such file or directory`（WebUI 自更新动了安装文件）→ 23:29:14 引擎重启 check_napcat_ready 失败（原因被 >/dev/null 吞）误判"未安装"→ install_napcat rm -rf 整个框架（4.18.30 一并删）→ 23:29:21 全量重装在上游 napcat.sh 的 `apt-get update` 处被 SIGKILL（7397 Killed，exit=137）→ NapCat 彻底坏。四层根因：自更新毁 launcher / 一票否决全量重装+零可观测 / apt-get update 脆弱点 / 钉扎永远对抗用户更新
+- astrbot-startup.sh 六件套修复：
+  1. WebUI 更新采纳：get_napcat_version（package.json 权威+grep 兜底）+ ver_gt（纯 bash 三段比较）+ napcat_effective_version（env 显式 > .pinned_version 采纳标记 > 默认 4.18.28）；enforce 检测 installed>pin 即采纳（落盘+URL 同步+跨会话生效）；显式 env 钉扎不采纳；采纳版连崩 L3 回退基线（清标记+删离线包）
+  2. launcher 原位重建：ensure_napcat_launcher（launcher.sh 上游同款内容+g++ 编译 so+napcat 目录重启垫片）；install_napcat/start_napcat 修复优先（框架+LinuxQQ 完好只补缺失件，绝不整删）；就绪检查失败项逐行进日志
+  3. apt-get update 快速通道：ensure_napcat_build_deps（齐备零 apt/缺则直接装不刷源/失败才刷源）+ patch_napcat_installer python3 幂等守卫补丁（上游无条件 update→依赖守卫）；install_napcat 与 napcat_reinstall_pinned 双入口接入
+  4. 消息真实性：重装消息打真实检测版本 v{installed}（非钉扎版 v{pin}），修"检测到非钉扎版 v4.18.28 显示钉扎号"误导
+- 其它：napcat_reinstall_pinned 标记摘存清单补 .pinned_version；版本 bump 2.28.1/vc72（gradle/manifest/about/EngineManager 对齐标签）
+- 验证：scripts/test-v2281-napcat-update.sh 68/68 PASS（源语法/ver_gt 六例/版本读取三态/采纳+幂等/显式不采纳/退避/跨会话同步/launcher 重建+幂等+拒绝/install 修复优先哨兵+全量双路径/快速通道零apt+缺依赖直装/真实上游脚本补丁幂等语法/静态断言）；脚手架踩坑入库：bash -c 多行拼接禁行首分号、g++ shim 需跳过 -o 目标、env 预置 NAPCAT_SHELL_VERSION 会让 lib 判显式钉扎
+- 产物：CI 触发 bundled/companion 2.28.1(vc72) 双 APK
+- 回归建议：装新包启动 → 在 NapCat WebUI 点更新到 4.18.30 → 预期日志「检测到 NapCat 已更新到 v4.18.30（WebUI 更新生效），采纳为新基线」→ 重启引擎后版本保持 4.18.30 不被降级；若 4.18.30 连崩自愈 L3 自动回退 4.18.28 并明确提示

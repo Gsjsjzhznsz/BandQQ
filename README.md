@@ -144,7 +144,18 @@ gradle :devtools:assembleRelease
 
 ## 📦 更新日志
 
-### v2.26.0（当前版本 · vc68）
+### v2.28.1（当前版本 · vc72）
+
+> NapCat 更新链路修复（第十份引擎日志定案：用户在 NapCat WebUI 点「更新到 v4.18.30」，下载/解压成功但整链被吞——**四层根因**：① WebUI 自更新动了安装文件，`launcher.sh` 消失，看门狗重启链全灭（`bash: launcher.sh: No such file or directory`）② 引擎重启后 `check_napcat_ready` 失败原因被 `>/dev/null` 吞掉，仅缺 launcher 的完好安装被误判「未安装」→ `rm -rf` 整个框架（刚更新好的 4.18.30 一并删除）③ 全量重装链在上游脚本无条件 `apt-get update` 处被 SIGKILL（`7397 Killed bash napcat.sh`，引擎 exit=137）④ 版本钉扎强制执行永远对抗用户主动更新——旧设计下 WebUI 更新永远不可能成功。**修=四件**：**① WebUI 更新采纳机制**：检测到已装版本 > 基线（`package.json` 读取 + 纯 bash 三段版本比较）自动采纳为新钉扎基线（`.pinned_version` 落盘、跨会话生效、下载 URL 同步）；显式 `NAPCAT_SHELL_VERSION` 环境变量钉扎时不采纳（运维指定优先）；采纳版连崩自愈 L3 自动回退已知可用基线 4.18.28（清采纳标记+删离线包防误用）。**② launcher 原位重建**：`ensure_napcat_launcher` 补 launcher.sh（上游同款内容）/编译 libnapcat_launcher.so/napcat 目录内重启垫片（外部组件以 napcat 为 CWD 调 launcher.sh 也能工作）；`install_napcat`/`start_napcat` 修复优先——框架（napcat.mjs）+ LinuxQQ 完好时只补缺失件，绝不整删安装；就绪检查失败原因逐项进日志（可观测）。**③ apt-get update 快速通道**：`ensure_napcat_build_deps` 依赖齐备零 apt 操作；`patch_napcat_installer` 新增 python3 幂等补丁把上游 `install_dependency` 的无条件 `apt-get update` 换成依赖守卫（齐备跳过，缺失先直接装不刷源、失败才回退刷新源）——被杀点根治。**④ 消息真实性**：重装消息打印真实检测版本（旧消息把钉扎版号当检测版本显示，误导排查）。
+
+- 验证：bash -n 过；新增功能测试 68/68 PASS（scripts/test-v2281-napcat-update.sh：ver_gt 六例/get_napcat_version 三态/采纳机制+幂等/显式钉扎不采纳/15 分钟退避/跨会话 URL 同步/launcher 原位重建+幂等+无框架拒绝/install_napcat 修复优先哨兵不完好框架缺失双路径/快速通道零 apt+缺依赖直接装/真实上游脚本补丁+幂等+语法/L3 回退静态断言）；版本 APP 2.28.1（vc72）
+- 其他：仓库根用户上传的第十份 engine-2026-10-05.log（3900 行，07:21~23:29 五会话）分析完毕后删除（结论即 ①②③④）
+
+### v2.28.0 → v2.27.0（vc70~vc71，摘要）
+
+> v2.27.0（第八份日志定案）：版本钉扎强制执行（napcat.mjs 找不到钉扎字面量即立即重装，双入口+15 分钟退避）；反检测写入 python3 化（rootfs 自带 3.12，node 链降兜底限 25s）；wait_napcat_ports 立即自愈（主进程退出同步调 napcat-start）；看门狗硬化（内层 timeout 480 + [NAPCAT-WD] 摘要进 fd9）。v2.28.0（10-05 双日志封号全链定案）：反检测分级复检（旧 .bypass_disabled 一次性迁移 nohook 形态，绝不自动重试实证必崩的全开形态）+ 分级 bypass 自愈阶梯（L2 先只禁 hook 崩溃源，仍崩才全禁）+ 运行时真相进 UI（AntiDetectState 判据 标记文件>控制台>配置块）+ 环境伪装（/proc/version、osrelease、hostname 绑定遮蔽 + machine-id/hostname 固定）+ 发送风控 SendGuard 三道闸（登录预热 45s/限速 2.5s+0~1.5s 抖动/突发 12 条冷却 60s，拦截原因直达手环 toast）。
+
+### v2.26.0（vc68）
 
 > NapCat 崩溃循环终结版（第七份引擎日志驱动，三根修一加强）：**① Worker SIGSEGV 崩溃循环 → 四级自愈阶梯 + NapCat 版本钉扎**（用户 10-05 第七份日志实锤：v2.25.0 清缓存后的全新启动仍 `[UtilityProcess] Worker退出码11(SIGSEGV)×3 → 主进程退出 → :3001/:3000 永不监听`；上游考据实锤 NapCat issue #1626 同症状（更新后 Worker 退出码 11/139 ×3，多容器宿主全复现），官方规避 = `NAPCAT_DISABLE_BYPASS=1`（bypass 反检测原生钩子在容器/proot 环境段错误，源码考证 base.ts `enableAllBypasses` 默认启用 + 4.18.29 于 10-04 20:30 发布、容器走 releases/latest 静默漂移拉到新版）。修=启动前新增四级自愈阶梯：每次检测到崩溃特征（.need_clean 标记/控制台尾部"主进程退出"）计数 +1，端口真正监听即清零——L1 清缓存残锁原样重启（v2.25.0 行为）→ L2 `NAPCAT_DISABLE_BYPASS=1` 启动（上游官方规避；标记 .bypass_disabled 持久化，后续启动沿用避免每次冷启先崩一轮）→ L3 重装钉扎版 NapCat（配置目录备份恢复，自愈标记文件随目录摘存）→ L4 深度重置 QQ 数据目录（登录态损坏最后手段，需重新扫码）；同时 NapCat 下载源从 `releases/latest` 钉扎为 v4.18.28（本设备实测可用版本，`NAPCAT_SHELL_URL`/`NAPCAT_SHELL_VERSION` 环境变量可覆盖升级）。**② 看门狗"宣布重启却永不发生"根修**（第 7 份日志实锤：07:22:06 宣布"5 分钟内自动清理并重启"，直到 07:28:32 用户手停都无动作——主进程退出后残留子进程（renderer/gpu，cmdline 带 --type=）仍命中 `pgrep 'qq --no-sandbox'`，start_napcat 误判"已在运行，跳过重复启动"。修=①新增 qq_main_alive：仅"无 --type= 的主进程"算存活（/proc/PID/cmdline 逐个甄别）②崩溃特征判定优先于"已在运行"跳过（先杀残进程清现场再拉起）③napcat_kill_stale 补 '/opt/QQ/qq' 模式（连子进程一起清）④巡检 300s→120s、文案同步"约 2 分钟"⑤端口真正监听→自愈计数清零+重新起步。**③ 反检测自动开启"node 不可用"根修**（第 7 份日志实锤 v2.25.0 的 node 合并在 proot 永远失败（容器无独立 node）→ WebUI 手动兜底从未真正可用。修=新增 napcat_node_run 运行时回退链：node → nodejs → **QQ 自带 Electron `ELECTRON_RUN_AS_NODE=1` 退化纯 Node 运行时**（QQ deb 必在、无 GUI 依赖、proot 可用）；JS 落临时文件调用，argv[2]||argv[1] 双模式兼容；bypass_disabled 在位时跳过写入防"假已开"。**④ 停止链与日志管道加强**（TERM 优雅窗口 4s→8s（NT 大库落盘需要）+ 停止/杀残模式补 '/opt/QQ/qq'；napcat-console tap 改写 fd9（主脚本启动时捕获引擎管道，看门狗自愈重启后 [NAPCAT] 日志继续全程可见，不再断流进 watchdog.log）；App 反检测说明行同步自愈语义）。
 
