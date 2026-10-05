@@ -6,6 +6,7 @@ plugins {
 android {
     namespace = "io.github.gsjsjzhznsz.bandqq.devtools"
     compileSdk = 37
+    compileSdkMinor = 0  // v2.26.0：AGP 9 需 minor 字段才命中 platforms;android-37.0（app 模块 v2.25.1 已迁，本模块漏迁）
 
     defaultConfig {
         applicationId = "io.github.gsjsjzhznsz.bandqq.devtools"

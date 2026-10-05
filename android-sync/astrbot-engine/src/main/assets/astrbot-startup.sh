@@ -2,6 +2,13 @@
 
 ASTRBOT_APP_VERSION="{{VERSION}}"
 
+# v2.26.0：引擎管道保存——fd9 = 原始 stdout。看门狗 nohup 上下文里重新拉起的
+# napcat-console tap 若写当前 stdout 只会落进 watchdog.log，引擎日志/App 日志面板
+# 从自愈重启时刻起就看不到 NapCat 动态。fd9 在主脚本启动时捕获引擎读取管道，
+# 子进程（nohup 不动 fd≥3）层层继承，tap 恒写 >&9 → 引擎日志全程可见。
+# 守卫：仅在 fd9 尚未打开时捕获（看门狗重新执行本脚本时 fd9 已继承，不能覆盖）。
+if { true >&9; } 2>/dev/null; then :; else exec 9>&1; fi
+
 # 自定义 Git Clone 命令（为空时使用默认逻辑）
 CUSTOM_GIT_CLONE=""
 
@@ -725,8 +732,8 @@ ensure_napcat_zip(){
     return 0
   fi
   rm -f "$zip_file"
-  echo "预下载 NapCat 离线包（多源竞速，20 秒无数据自动换源）..."
-  if gh_fetch "$zip_file" "https://github.com/NapNeko/NapCatQQ/releases/latest/download/NapCat.Shell.zip"; then
+  echo "预下载 NapCat v${NAPCAT_SHELL_VERSION} 离线包（多源竞速，20 秒无数据自动换源）..."
+  if gh_fetch "$zip_file" "$NAPCAT_SHELL_URL"; then
     if unzip -t "$zip_file" >/dev/null 2>&1; then
       echo "NapCat 离线包预下载完成（上游脚本将跳过其内部下载）"
       return 0
@@ -747,6 +754,13 @@ ensure_napcat_zip(){
 NAPCAT_WEBUI_PORT="${NAPCAT_WEBUI_PORT:-5099}"
 NAPCAT_WEBUI_TOKEN="${NAPCAT_WEBUI_TOKEN:-bandqq-napcat}"
 NAPCAT_DISPLAY="${NAPCAT_DISPLAY:-20}"
+# v2.26.0：NapCat 版本钉扎。原 releases/latest 下载源会静默漂移——10-04 20:30 上游
+# 发布 v4.18.29 后，容器内安装/重装立即拉到新版，随即出现 [UtilityProcess] Worker
+# SIGSEGV×3 崩溃循环（用户 10-05 第七份日志；同症状上游 issue #1626 实证为 bypass
+# 反检测原生钩子在部分容器/proot 环境段错误，官方规避 NAPCAT_DISABLE_BYPASS=1）。
+# 钉扎本设备实测可用版本；如需升级用环境变量 NAPCAT_SHELL_URL / NAPCAT_SHELL_VERSION 覆盖。
+NAPCAT_SHELL_VERSION="${NAPCAT_SHELL_VERSION:-4.18.28}"
+NAPCAT_SHELL_URL="${NAPCAT_SHELL_URL:-https://github.com/NapNeko/NapCatQQ/releases/download/v${NAPCAT_SHELL_VERSION}/NapCat.Shell.zip}"
 
 # onebot11.json：本机服务端（HTTP :3000 / WS :3001，BandQQ 直连）+ 反向 WS 客户端（AstrBot :6199）。
 # v2.20/2.21 旧默认只有反向客户端且两个 server 数组为空——即使 NapCat 启动，App 也连不上。
@@ -856,7 +870,7 @@ write_ob11_config(){
 # 输出 WebUI 手动开启指引兜底。幂等：内容一致不写（防看门狗死循环重启）。
 NAPCAT_ANTI_DETECT_JS='
 const fs = require("fs");
-const f = process.argv[1];
+const f = process.argv[2] || process.argv[1];
 let c = {};
 try { c = JSON.parse(fs.readFileSync(f, "utf8")); } catch (e) { c = {}; }
 if (typeof c !== "object" || c === null || Array.isArray(c)) c = {};
@@ -872,16 +886,40 @@ fs.writeFileSync(f, JSON.stringify(c, null, 2) + "\n");
 console.log("write");
 '
 
+# v2.26.0：node 运行时回退链。proot 容器内没有独立 node（AstrBot 装 uv/python，
+# QQ deb 只带 Electron 内嵌 node）——v2.25.0 的 node 合并在真机永远落到 WebUI 手动
+# 兜底（用户 10-05 第七份日志“反检测自动开启失败（node 不可用）”）。QQ 的 Electron
+# 支持 ELECTRON_RUN_AS_NODE=1 退化为纯 Node 运行时（无 GUI 依赖，proot 可用），
+# 是容器内唯一稳定的 JS 引擎来源；独立 node/nodejs 存在时优先。
+napcat_node_run(){
+  if command -v node >/dev/null 2>&1; then node "$@"; return $?; fi
+  if command -v nodejs >/dev/null 2>&1; then nodejs "$@"; return $?; fi
+  if [ -x /opt/QQ/qq ]; then
+    ELECTRON_RUN_AS_NODE=1 /opt/QQ/qq "$@"; return $?
+  fi
+  return 127
+}
+
 ensure_napcat_antidetect(){
+  # v2.26.0：崩溃自愈已禁用 bypass 时跳过写入（NAPCAT_DISABLE_BYPASS=1 下配置被
+  # 短路，写入会造成“反检测已全开”假象）
+  if [ -f "$HOME/napcat/.bypass_disabled" ]; then
+    echo "[AstrBot Android] bypass 反检测钩子处于崩溃自愈禁用态（删除 /root/napcat/.bypass_disabled 可恢复），跳过反检测写入"
+    return 1
+  fi
   local f written=0 skipped=0 failed=0
   local files=()
   files+=("$HOME/napcat/config/napcat.json")
   for f in "$HOME"/napcat/config/napcat_*.json; do
     [ -f "$f" ] && files+=("$f")
   done
+  # v2.26.0：JS 落临时文件调用（脚本文件模式下 argv[2]=首个参数；-e 模式下
+  # argv[1]=首个参数，JS 内 argv[2]||argv[1] 双兼容）
+  local jsfile="$HOME/napcat/.antidetect.js"
+  printf '%s' "$NAPCAT_ANTI_DETECT_JS" > "$jsfile"
   for f in "${files[@]}"; do
     local out rc
-    out=$(node -e "$NAPCAT_ANTI_DETECT_JS" "$f" 2>/dev/null)
+    out=$(napcat_node_run "$jsfile" "$f" 2>/dev/null)
     rc=$?
     if [ "$rc" = "0" ] && [ "$out" = "write" ]; then
       echo "反检测已全部开启：$(basename "$f")（hook/window/module/process/container/js + o3HookMode）"
@@ -897,7 +935,7 @@ ensure_napcat_antidetect(){
     return 0
   fi
   if [ "$failed" -gt 0 ]; then
-    echo "[AstrBot Android] 反检测自动开启失败（node 不可用），请手动开启：打开 NapCat WebUI :$NAPCAT_WEBUI_PORT → 反检测开关配置 → 全部开关打开并保存"
+    echo "[AstrBot Android] 反检测自动开启失败（无可用 node 运行时），请手动开启：打开 NapCat WebUI :$NAPCAT_WEBUI_PORT → 反检测开关配置 → 全部开关打开并保存"
     return 1
   fi
   return 1
@@ -944,7 +982,9 @@ ensure_napcat_configs(){
 
 # 优雅+彻底地结束残留 NapCat/QQ/Xvfb（TERM → 轮询等待 → KILL 收尾）
 napcat_kill_stale(){
-  local pats=('qq --no-sandbox' 'Xvfb :20' 'bandqq-napcat-tap-marker' 'bash launcher.sh' 'launcher_.*\.sh')
+  # v2.26.0：补 '/opt/QQ/qq'——崩溃后残留的子进程（renderer/gpu，cmdline 带 --type=，
+  # 未必含 --no-sandbox 字样）旧模式杀不到，会一直干扰存活判定
+  local pats=('/opt/QQ/qq' 'qq --no-sandbox' 'Xvfb :20' 'bandqq-napcat-tap-marker' 'bash launcher.sh' 'launcher_.*\.sh')
   local p i killed=0
   for p in "${pats[@]}"; do
     pgrep -f "$p" >/dev/null 2>&1 && { pkill -TERM -f "$p" 2>/dev/null || true; killed=1; }
@@ -977,6 +1017,86 @@ napcat_clean_dirty_state(){
   return 0
 }
 
+# ---------- v2.26.0 崩溃自愈阶梯（用户 10-05 第七份日志定案） ----------
+# 第 7 份日志实证三件事：①清理缓存后的全新启动仍 Worker SIGSEGV×3（v2.25.0 的
+# 缓存级清理不够——上游 issue #1626 证明同类崩溃由 bypass 反检测原生钩子在
+# 容器/proot 环境触发，官方规避 = NAPCAT_DISABLE_BYPASS=1）；②看门狗宣布"5 分钟
+# 内重启"却永不发生——主进程退出后残留子进程仍命中 pgrep，start_napcat 误判
+# "已在运行，跳过重复启动"；③反检测写入因容器内无 node 永远失败。
+# 阶梯：每次检测到崩溃特征计数 +1（端口真正监听即清零）：
+#   L1 清缓存残锁原样重启（v2.25.0 行为）→ L2 NAPCAT_DISABLE_BYPASS=1（标记
+#   持久化）→ L3 重装钉扎版 NapCat（配置保留）→ L4 深度重置 QQ 数据目录（需重新扫码）
+qq_main_alive(){
+  # 只有"无 --type= 的主进程"算存活；崩溃后残留的 renderer/gpu 子进程（cmdline
+  # 带 --type=）不算——旧 pgrep 判定把它们误当运行中的 NapCat
+  local pid
+  for pid in $(pgrep -f 'qq --no-sandbox' 2>/dev/null); do
+    tr '\0' ' ' < "/proc/$pid/cmdline" 2>/dev/null | grep -qv -- '--type=' && return 0
+  done
+  return 1
+}
+
+napcat_ports_open(){
+  (exec 3<>"/dev/tcp/127.0.0.1/3001") 2>/dev/null && return 0
+  (exec 3<>"/dev/tcp/127.0.0.1/3000") 2>/dev/null && return 0
+  return 1
+}
+
+napcat_heal_count(){
+  local cnt
+  cnt=$(cat "$HOME/napcat/.crash_count" 2>/dev/null || echo 0)
+  case "$cnt" in ''|*[!0-9]*) cnt=0;; esac
+  echo "$cnt"
+}
+
+napcat_mark_healthy(){
+  if [ -f "$HOME/napcat/.crash_count" ]; then
+    rm -f "$HOME/napcat/.crash_count"
+    echo "[AstrBot Android] NapCat 端口已监听，自愈计数清零"
+  fi
+}
+
+# 自愈 L3：重装 NapCat（钉扎 NAPCAT_SHELL_VERSION，配置目录备份恢复；不动 LinuxQQ）
+napcat_reinstall_pinned(){
+  echo "[AstrBot Android] 重装 NapCat v${NAPCAT_SHELL_VERSION}（配置保留）..."
+  # 自愈标记文件随 napcat 目录一起被删，先摘到 TMPDIR 用后放回
+  local m
+  for m in .crash_count .bypass_disabled .need_clean; do
+    [ -f "$HOME/napcat/$m" ] && cp "$HOME/napcat/$m" "$TMPDIR/bandqq-marker$m"
+  done
+  if [ -d "$HOME/napcat/config" ]; then
+    cp -r "$HOME/napcat/config" "$HOME/napcat_config_backup"
+  fi
+  rm -rf "$HOME/napcat" "$HOME/napcat.sh" "$HOME/launcher.sh" "$HOME/launcher.cpp" "$HOME/libnapcat_launcher.so"
+  cd "$HOME" || return 1
+  if ! gh_fetch "$HOME/napcat.sh" "https://raw.githubusercontent.com/NapNeko/napcat-linux-installer/refs/heads/main/install.sh" --max-time 120; then
+    echo "下载 napcat.sh 失败"
+    return 1
+  fi
+  chmod +x napcat.sh || return 1
+  if ! patch_napcat_installer napcat.sh; then echo "修补 napcat.sh 失败"; return 1; fi
+  ensure_sudo_shim
+  ensure_napcat_zip
+  if ! bash napcat.sh; then
+    echo "NapCat 上游安装脚本执行失败"
+    return 1
+  fi
+  pkill -f 'qq --no-sandbox' 2>/dev/null || true
+  pkill -f 'NapCat' 2>/dev/null || true
+  if [ -d "$HOME/napcat_config_backup" ]; then
+    mkdir -p "$HOME/napcat/config"
+    cp -r "$HOME/napcat_config_backup"/* "$HOME/napcat/config/"
+    rm -rf "$HOME/napcat_config_backup"
+  fi
+  mkdir -p "$HOME/napcat"
+  for m in .crash_count .bypass_disabled .need_clean; do
+    [ -f "$TMPDIR/bandqq-marker$m" ] && mv "$TMPDIR/bandqq-marker$m" "$HOME/napcat/$m"
+  done
+  configure_napcat_token_ttl
+  ensure_napcat_configs
+  return 0
+}
+
 # 后台启动 NapCat（Xvfb 虚拟显示 + launcher.sh），幂等；QQ 登录后 :3001/:3000 自动可用
 # v2.23.0：①配置升级先行（已运行时若 onebot11 配置有变更，自动重启生效）
 # ②launcher 改子 shell 内 cd（原主 shell cd $HOME 污染工作目录——用户 10-04 第四份日志
@@ -990,30 +1110,59 @@ start_napcat(){
   # 配置先行：无论是否已运行都确保 onebot11/webui/反检测 配置为规范形状
   local cfg_changed=0
   ensure_napcat_configs && cfg_changed=1
-  if pgrep -f 'qq --no-sandbox' >/dev/null 2>&1; then
-    if [ "$cfg_changed" = "1" ]; then
+  # v2.26.0：崩溃特征判定优先于"已在运行"——Worker SIGSEGV 后主进程退出但残留
+  # 子进程仍命中 pgrep，旧逻辑误判"运行中"导致看门狗重启永不发生（第 7 份日志实证）
+  local heal=0
+  if [ -f "$HOME/napcat/.need_clean" ] \
+     || { [ -f "$HOME/napcat/napcat-console.log" ] \
+          && tail -n 300 "$HOME/napcat/napcat-console.log" 2>/dev/null | grep -q "主进程退出"; }; then
+    heal=$(( $(napcat_heal_count) + 1 ))
+    echo "$heal" > "$HOME/napcat/.crash_count"
+    echo "[AstrBot Android] 检测到 NapCat 崩溃（第 $heal 次），执行自愈第 $heal 级（登录态尽量保留）"
+  fi
+  if qq_main_alive; then
+    if [ "$heal" -gt 0 ]; then
+      echo "[AstrBot Android] 终止残留进程并清理崩溃现场..."
+      napcat_kill_stale
+      napcat_clean_dirty_state
+    elif [ "$cfg_changed" = "1" ]; then
       echo "[AstrBot Android] NapCat 配置已升级，优雅重启使配置生效"
       napcat_kill_stale
       napcat_clean_dirty_state
     else
+      if napcat_ports_open; then napcat_mark_healthy; fi
       echo "[AstrBot Android] NapCat 已在运行，跳过重复启动"
       return 0
     fi
   else
-    # v2.25.0：上次异常退出自愈——崩溃标记（看门狗写入）或控制台尾部崩溃特征
-    # （Worker SIGSEGV×3 主进程退出）→ 先清理脏状态再拉起（登录态/聊天数据不动）。
-    # 根因链见 napcat_kill_stale 上方注释：强杀→脏数据→二次启动必崩。
-    if [ -f "$HOME/napcat/.need_clean" ] \
-       || { [ -f "$HOME/napcat/napcat-console.log" ] \
-            && tail -n 300 "$HOME/napcat/napcat-console.log" 2>/dev/null | grep -q "主进程退出"; }; then
-      echo "[AstrBot Android] 检测到上次 NapCat 异常退出，清理缓存与残锁后重启（登录态不受影响）"
-      napcat_kill_stale
-      napcat_clean_dirty_state
-      rm -f "$HOME/napcat/.need_clean"
-    else
+    if [ "$heal" = "0" ]; then
       # 无崩溃特征也便宜地清一次残锁/陈旧缓存（幂等，代价≈0）
       napcat_clean_dirty_state
+    else
+      echo "[AstrBot Android] 清理崩溃现场（残留进程/残锁/缓存）..."
+      napcat_kill_stale
+      napcat_clean_dirty_state
     fi
+  fi
+  rm -f "$HOME/napcat/.need_clean"
+  # 自愈阶梯动作（L2 起禁用 bypass 钩子；标记持久化，后续启动沿用）
+  if [ "$heal" -ge 2 ]; then
+    if [ ! -f "$HOME/napcat/.bypass_disabled" ]; then
+      touch "$HOME/napcat/.bypass_disabled"
+      echo "[AstrBot Android] 自愈第 2 级：禁用 bypass 反检测钩子启动（NapCat 上游 issue #1626 同类崩溃的官方规避 NAPCAT_DISABLE_BYPASS=1；恢复：删除 /root/napcat/.bypass_disabled 后重启引擎）"
+    fi
+    export NAPCAT_DISABLE_BYPASS=1
+  elif [ -f "$HOME/napcat/.bypass_disabled" ]; then
+    export NAPCAT_DISABLE_BYPASS=1
+  fi
+  if [ "$heal" -ge 3 ]; then
+    echo "[AstrBot Android] 自愈第 3 级：重装 NapCat v${NAPCAT_SHELL_VERSION}（钉扎版本，配置保留）"
+    napcat_reinstall_pinned || echo "[AstrBot Android] NapCat 重装未成功，继续尝试启动现有文件"
+  fi
+  if [ "$heal" -ge 4 ]; then
+    echo "[AstrBot Android] 自愈第 4 级：深度重置 QQ 数据目录（多次崩溃后登录态可能已损坏；下次启动需重新扫码登录）"
+    rm -rf "$HOME/.config/QQ"
+    napcat_clean_dirty_state
   fi
   stage 90 "启动 NapCat（首次需扫码登录 QQ，Token 在 App「密码与登录」卡复制）"
   progress_echo "NapCat 启动中"
@@ -1056,7 +1205,7 @@ start_napcat_watchdog(){
   nohup bash -c '
     last=0
     while true; do
-      sleep 300
+      sleep 120
       log="$HOME/napcat/napcat-console.log"
       cur=$(wc -c < "$log" 2>/dev/null || echo 0)
       case "$cur" in ''|*[!0-9]*) cur=0;; esac
@@ -1068,9 +1217,16 @@ start_napcat_watchdog(){
       fi
       last=$cur
       bash /root/astrbot-startup.sh --step napcat-start >> "$HOME/napcat/watchdog.log" 2>&1
+      # v2.26.0：端口真正监听才算恢复——自愈计数清零，下次崩溃重新从第 1 级起步
+      if (exec 3<>"/dev/tcp/127.0.0.1/3001") 2>/dev/null || (exec 3<>"/dev/tcp/127.0.0.1/3000") 2>/dev/null; then
+        if [ -f "$HOME/napcat/.crash_count" ]; then
+          rm -f "$HOME/napcat/.crash_count"
+          echo "[$(date "+%m-%d %H:%M:%S")] NapCat 端口已监听，自愈计数清零" >> "$HOME/napcat/watchdog.log"
+        fi
+      fi
     done
   ' > /dev/null 2>&1 &
-  echo "[AstrBot Android] NapCat 看门狗已启动（5 分钟巡检：进程保活 + 崩溃自愈清理 + 登录后配置自动升级重启）"
+  echo "[AstrBot Android] NapCat 看门狗已启动（2 分钟巡检：进程保活 + 崩溃自愈阶梯 + 登录后配置自动升级重启）"
 }
 
 # v2.24.0：NapCat 控制台 tail（用户反馈「log 没有 napcat 的 log」）。
@@ -1088,7 +1244,7 @@ napcat_console_tap(){
     [ -f "$log" ] || exit 0
     tail -n +1 -F "$log" 2>/dev/null | while IFS= read -r line; do
       clean=$(printf "%s" "$line" | tr -d "\000" | sed -e "s/\x1b\[[0-9;]*[A-Za-z]//g" -e "s/\r//g" | cut -c1-160)
-      [ -n "$clean" ] && echo "[NAPCAT] $clean"
+      [ -n "$clean" ] && echo "[NAPCAT] $clean" >&9
     done
   ' &
 }
@@ -1105,16 +1261,17 @@ wait_napcat_ports(){
       if (exec 3<>"/dev/tcp/127.0.0.1/3001") 2>/dev/null; then ok=1; break; fi
       if (exec 3<>"/dev/tcp/127.0.0.1/3000") 2>/dev/null; then ok=1; break; fi
       # v2.25.0：崩溃可观测——控制台出现"主进程退出"时用大白话告诉用户发生了什么、
-      # 会发生什么（看门狗约 5 分钟内自动清理重启，登录态不丢），避免只能干看"启动中"
+      # 会发生什么（看门狗约 2 分钟内自动清理重启，自愈阶梯逐级升级），避免只能干看"启动中"
       if [ "$crash_noted" = "0" ] \
          && tail -n 100 "$HOME/napcat/napcat-console.log" 2>/dev/null | grep -q "主进程退出"; then
         crash_noted=1
-        echo "[AstrBot Android] 检测到 QQ 内部组件异常退出——看门狗将在约 5 分钟内自动清理并重启（登录态不丢，无需重新扫码）"
+        echo "[AstrBot Android] 检测到 QQ 内部组件异常退出——看门狗将在约 2 分钟内自动清理并重启（自愈阶梯见日志；登录态尽量保留）"
       fi
       [ "$((i % 6))" = "0" ] && echo "[AstrBot Android] NapCat 启动中…（已等待 $((i * 5)) 秒，QQ 首次引导较慢）"
       sleep 5
     done
     if [ -n "$ok" ]; then
+      napcat_mark_healthy
       if [ "$mode" = "fg" ]; then
         stage 100 "NapCat 已就绪（:3001/:3000 可连，手环消息链路可用）"
       else

@@ -618,14 +618,16 @@ object EngineManager {
                         p.waitFor()
                     }
                     // 第一轮：优雅终止业务进程（先业务后壳；proot 是 ptrace 跟踪者，
-                    // 先杀壳会破坏容器内进程的优雅退出路径，故仅第二轮才动壳）
-                    for (pat in listOf("qq --no-sandbox", "Xvfb", "napcat", "AstrBot/main.py")) {
+                    // 先杀壳会破坏容器内进程的优雅退出路径，故仅第二轮才动壳）。
+                    // v2.26.0：补 "/opt/QQ/qq"——崩溃残留的子进程（--type=）旧模式杀不到
+                    for (pat in listOf("/opt/QQ/qq", "qq --no-sandbox", "Xvfb", "napcat", "AstrBot/main.py")) {
                         pkill(listOf("-TERM", "-f", pat))
                     }
-                    // 给 Chromium 优雅退出落盘的窗口（脏数据 = 二次启动 Worker SIGSEGV 的根因）
-                    Thread.sleep(4000)
+                    // 给 Chromium 优雅退出落盘的窗口（脏数据 = 二次启动 Worker SIGSEGV 的根因）；
+                    // v2.26.0：4s→8s，QQ NT 数据库大时 4s 经常不够完整落盘
+                    Thread.sleep(8000)
                     // 第二轮：KILL 收尾兜底（含容器壳 proot/启动脚本）
-                    for (pat in listOf("qq --no-sandbox", "Xvfb", "napcat", "AstrBot/main.py", "proot", "astrbot-startup")) {
+                    for (pat in listOf("/opt/QQ/qq", "qq --no-sandbox", "Xvfb", "napcat", "AstrBot/main.py", "proot", "astrbot-startup")) {
                         pkill(listOf("-9", "-f", pat))
                     }
                 }

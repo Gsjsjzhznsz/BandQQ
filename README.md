@@ -144,7 +144,19 @@ gradle :devtools:assembleRelease
 
 ## 📦 更新日志
 
-### v2.23.0（当前版本 · vc64）
+### v2.26.0（当前版本 · vc68）
+
+> NapCat 崩溃循环终结版（第七份引擎日志驱动，三根修一加强）：**① Worker SIGSEGV 崩溃循环 → 四级自愈阶梯 + NapCat 版本钉扎**（用户 10-05 第七份日志实锤：v2.25.0 清缓存后的全新启动仍 `[UtilityProcess] Worker退出码11(SIGSEGV)×3 → 主进程退出 → :3001/:3000 永不监听`；上游考据实锤 NapCat issue #1626 同症状（更新后 Worker 退出码 11/139 ×3，多容器宿主全复现），官方规避 = `NAPCAT_DISABLE_BYPASS=1`（bypass 反检测原生钩子在容器/proot 环境段错误，源码考证 base.ts `enableAllBypasses` 默认启用 + 4.18.29 于 10-04 20:30 发布、容器走 releases/latest 静默漂移拉到新版）。修=启动前新增四级自愈阶梯：每次检测到崩溃特征（.need_clean 标记/控制台尾部"主进程退出"）计数 +1，端口真正监听即清零——L1 清缓存残锁原样重启（v2.25.0 行为）→ L2 `NAPCAT_DISABLE_BYPASS=1` 启动（上游官方规避；标记 .bypass_disabled 持久化，后续启动沿用避免每次冷启先崩一轮）→ L3 重装钉扎版 NapCat（配置目录备份恢复，自愈标记文件随目录摘存）→ L4 深度重置 QQ 数据目录（登录态损坏最后手段，需重新扫码）；同时 NapCat 下载源从 `releases/latest` 钉扎为 v4.18.28（本设备实测可用版本，`NAPCAT_SHELL_URL`/`NAPCAT_SHELL_VERSION` 环境变量可覆盖升级）。**② 看门狗"宣布重启却永不发生"根修**（第 7 份日志实锤：07:22:06 宣布"5 分钟内自动清理并重启"，直到 07:28:32 用户手停都无动作——主进程退出后残留子进程（renderer/gpu，cmdline 带 --type=）仍命中 `pgrep 'qq --no-sandbox'`，start_napcat 误判"已在运行，跳过重复启动"。修=①新增 qq_main_alive：仅"无 --type= 的主进程"算存活（/proc/PID/cmdline 逐个甄别）②崩溃特征判定优先于"已在运行"跳过（先杀残进程清现场再拉起）③napcat_kill_stale 补 '/opt/QQ/qq' 模式（连子进程一起清）④巡检 300s→120s、文案同步"约 2 分钟"⑤端口真正监听→自愈计数清零+重新起步。**③ 反检测自动开启"node 不可用"根修**（第 7 份日志实锤 v2.25.0 的 node 合并在 proot 永远失败（容器无独立 node）→ WebUI 手动兜底从未真正可用。修=新增 napcat_node_run 运行时回退链：node → nodejs → **QQ 自带 Electron `ELECTRON_RUN_AS_NODE=1` 退化纯 Node 运行时**（QQ deb 必在、无 GUI 依赖、proot 可用）；JS 落临时文件调用，argv[2]||argv[1] 双模式兼容；bypass_disabled 在位时跳过写入防"假已开"。**④ 停止链与日志管道加强**（TERM 优雅窗口 4s→8s（NT 大库落盘需要）+ 停止/杀残模式补 '/opt/QQ/qq'；napcat-console tap 改写 fd9（主脚本启动时捕获引擎管道，看门狗自愈重启后 [NAPCAT] 日志继续全程可见，不再断流进 watchdog.log）；App 反检测说明行同步自愈语义）。
+
+- 验证：astrbot-startup.sh bash -n 过；新增功能测试 15/15 PASS（反检测 JS 首写/幂等/坏 JSON 重建/自定义键保留/-e 模式兼容、自愈计数读取/容错、fd9 关闭捕获/继承不覆盖、qq_main_alive 主进程识别/子进程排除）；bundled/companion 双 APK badging vc68/2.26.0 签名同源
+- 版本：APP 2.26.0（vc68）；手环 RPK 无改动
+- 其他：仓库根用户上传的第七份 engine-2026-10-05.log（436 行）分析完毕后删除（结论即 ①②③）
+
+### v2.24.0 → v2.25.1（vc65~vc67，摘要）
+
+> v2.24.0：发送链根修（NapCat 4.18.28 HTTP params-only 体适配 + judge() 三态判定 + 手环 toast）+ NapCat 状态/日志/配置三联动 + 一键填入热重连 + 撤回闭环；v2.25.0：二次启动崩溃首修（TERM 优雅停止 + 缓存级自愈清理 + 看门狗崩溃自愈 + 反检测自动全开首版 + 仅 NapCat 模式停 6199 刷屏 + LinuxQQ 断点续传）；v2.25.1：CI 十一轮攻坚定案 + AGP 9.0.1/Gradle 9.1.0 迁移（对 APK 功能无影响）。
+
+### v2.23.0（vc64）
 
 > 四线更新（第四份引擎日志 + VM 双分支实测驱动）：**① 键盘第五轮：高度链收紧，底部黑色死区铲除**（用户实测"方形手表键盘有点高，下面怎么有块黑色区域"——rect 字母区实际内容仅 170px（60+55+55 负 margin 收紧），scroll 261 预算多出 91px 死区（容器无背景露出页面黑底），键盘整体观感偏高且底部一块黑。修=高度链整体收紧：scroll 261→176（170 内容+6px 兜底）、rect 容器 321→236、KB_H_RECT 349→264（28 拼音行+236），dock/preview 由 branch-release.js 同步写入 264。**VM 双分支实测通过：redmiwatch 432×514 与 bandpro 336×480——动作行（候选栏）在键盘顶部、三排字母完整无裁剪、按键整体下移 78px 贴近屏底、拼音 a's→按时/哀伤/阿是 与 q'w→请问/千万/气温 候选正常进顶栏**；VM 像素探针实测键带止于 y=456（=固件 bottom:0 锚点 469 − 13px 缓冲，与设计值吻合），旧版同位黑区 91px 消灭，剩余底部 45px 为系统手势保留区（系统级，真机显示手势指示条非死黑）。**② AstrBot 启动失败 cwd 污染根修**（用户实测"apk上astrbot启动失败"+第四份日志定案：15:21 会话 start_napcat 后 `uv run main.py` 报 `Failed to spawn: main.py — No such file or directory` + `--no-sync outside of a project`——launch_astrbot 先 cd AstrBot 再调 start_napcat，而 start_napcat 主 shell `cd "$HOME"` 把工作目录污染成 /root，uv 在错误目录 spawn 必败（12:44 v2.21 会话自愈分支同样 cd 走过工作目录，重启后恢复即成功=同根因）。修=①start_napcat 的 launcher 改子 shell 内 cd（`nohup bash -c "cd '$HOME' && exec bash launcher.sh"`，主 shell 工作目录不再被污染）②launch_astrbot 的 `cd "$INSTALL_DIR"` 移到 uv run 之前（start_napcat/看门狗之后）+ main.py 存在性前置检查，任何分支污染后启动前强制归位）。**③ NapCat "启动成功但 APK 检测不到" 根修：按账号配置升级**（用户实测 NapCat 已启动已扫码但 App 连不上——NapCat 登录账号后只读按账号配置 `onebot11_<uin>.json`，v2.22 只写通用模板 `onebot11.json` 对已登录账号完全无效。修=ensure_napcat_configs 扫描 `$HOME/napcat/config/onebot11_*.json` 全部账号配置，旧空 server 形状自动升级为规范配置（HTTP :3000 / WS :3001 + AstrBot 桥 :6199）；start_napcat 配置升级先行，若 NapCat 已运行且配置有变更自动重启生效；webui.json 内容一致跳写（调用方可感知配置变化））。**④ QQ 账号提取 + 密码卡自动刷新 + 主页日志上移**（用户"怎么没有提取账号"——AstrBotSecrets 新增 QQ 账号读取：首选容器内 `onebot11_<uin>.json` 文件名提取（扫码登录后自动出现），兜底扫 napcat-console.log 登录行（账号/uin/self_id/logged in）；「密码与登录」卡新增 QQ 账号行+一键复制；卡片随引擎状态变化自动刷新（LaunchedEffect）不再依赖手动点刷新；主页「实时日志」上移到状态卡之后快捷操作之前，打开主页首屏即可见日志）。
 

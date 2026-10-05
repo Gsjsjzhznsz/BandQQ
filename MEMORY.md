@@ -8,7 +8,8 @@
 上游：https://github.com/Astroptis/band-qq-assistant ；本仓库为完整版镜像（含签名/产物/legacy）。
 
 ## 版本线
-- 当前正式线：v2.25.1（vc67）—— CI 首建（GitHub Actions）+ AGP 9.0.1/Gradle 9.1.0 迁移 + api.js send 门控真修（2026-10-04）
+- 当前正式线：v2.26.0（vc68）—— NapCat Worker SIGSEGV 崩溃循环终结（四级自愈阶梯 + 版本钉扎 4.18.28 + 看门狗主进程判定根修 + ELECTRON_RUN_AS_NODE 反检测回退链 + fd9 引擎管道）（2026-10-05）
+- 前情：v2.25.1（vc67）—— CI 首建（GitHub Actions）+ AGP 9.0.1/Gradle 9.1.0 迁移 + api.js send 门控真修（2026-10-04）
   - CI 首建（用户"哪里有ci，都没有写过工作流文件"）：.github/workflows/ci.yml（push/PR 触发：rpk 四分支+node 单测 / APK 双 flavor 单测+Debug 出包）+ release.yml（tag v* 触发：tag↔versionName 一致性校验+双 APK+四分支 rpk 六资产自动发 GitHub Release）；签名 keystore.jks 与 rpk pem 均已入库全程零 secrets；README 加 CI 徽章
   - AGP 9.0.1 + Gradle 9.1.0 迁移（CI 十一轮定位的终极解）：AGP 8.13.2 的 sdklib 解析不了 Google 新 minor 版本打包（platforms;android-37.0 的 `<api-level>37.0</api-level>` + Platform.Version=17 笔误），hash 'android-37' 永远查不到（FullLoading 路径）且 DirectLoading 需 AGP 默认 build-tools 35.0.0 预存；AGP 9 内置 Kotlin（移除 org.jetbrains.kotlin.android，保留 plugin.compose）+ applicationVariants 移除（产物改名移至 CI 收集阶段）+ manifest 禁 uses-sdk 版本属性（tools:overrideLibrary 仍允许）+ compileSdk=37+compileSdkMinor=0 直接命中原生 platforms;android-37.0，**零元数据手术**；AGP 9.0.1 要求 Gradle ≥9.1.0
   - api.js send 就绪门控真修（本地基线 106/107 挂项）：waitReady/markReady 门控此前只在 connectStatus 生效，send 漏接 → onopen 前业务帧直发丢失；修后 node 107/107 全绿
@@ -81,6 +82,24 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 ## 关键文件索引
 - 手环：band-qq/src/pages/index/index.ux（列表/防抖/签名diff）、pages/chat/chat.ux（翻页/快捷回复/read_chat）、common/protocol.js（协议v2+convSignature）、common/store.js（未读/装饰/快捷回复）、common/api.js（interconnect 封装，勿动）
 - 手机：android-sync/.../sync/MessageStore.kt（未读/Display预计算/翻页锚点）、sync/MessageBroker.kt（read_chat/before/quick_replies）、onebot/OneBotParser.kt（CQ剥离）、sync/InterconnectBridge.kt（onConnect 补推）、ui/SettingsScreen.kt（快捷回复编辑+WebUI）、WebUiActivity.kt
+
+## v2.26.0（2026-10-05，vc68）—— NapCat Worker SIGSEGV 崩溃循环终结（四级自愈阶梯 + 版本钉扎 + ELECTRON_RUN_AS_NODE）
+
+**用户第七份日志（engine-2026-10-05.log，436 行）三连实锤**：①v2.25.0 清缓存后的全新启动仍 `[UtilityProcess] Worker退出码11(SIGSEGV)×3→主进程退出`——"脏缓存"定案不完整；②看门狗 07:22:06 宣布"5 分钟内自动清理并重启"，直到 07:28:32 用户手停都无动作（承诺未兑现）；③"反检测自动开启失败（node 不可用）"——v2.25.0 的 node 合并方案在 proot 永远走不通。
+
+**上游考据（决定性）**：NapCat issue #1626 同症状（"更新NapCat后Worker进程退出，退出码 11/139 ×3"，多容器宿主全复现），结论两条——回滚版本即恢复；`NAPCAT_DISABLE_BYPASS=1` 可启动。源码考证（v4.18.28/v4.18.29 base.ts 逐字节相同）：`wrapper.node` 加载后**默认执行 `enableAllBypasses`**（bypass 反检测原生钩子，日志中的 "prepare write and writev hooks" 即其写钩子），该钩子在部分容器/proot 环境触发 Worker 段错误。版本时间线：4.18.29 发布于 10-04 20:30（北京时间），容器 NapCat zip 走 `releases/latest` 静默漂移拉到新版——上晚起进入崩溃循环。
+
+**修法**（astrbot-startup.sh，+180 行）：
+1. **四级自愈阶梯**：崩溃特征（.need_clean 或控制台尾部"主进程退出"）→ 计数 +1（.crash_count）；端口真正监听 → 清零。L1 清缓存残锁原样重启（v2.25.0 行为）→ L2 `NAPCAT_DISABLE_BYPASS=1` 启动（官方规避；.bypass_disabled 持久化，后续启动沿用，防每次冷启先崩一轮；恢复=删文件）→ L3 重装钉扎版 NapCat（配置备份恢复；自愈标记文件先摘到 TMPDIR 随后放回）→ L4 深度重置 $HOME/.config/QQ（需重新扫码）。阶梯动作在 start_napcat 内、stage 90 之前执行。
+2. **版本钉扎**：`NAPCAT_SHELL_URL` 默认 `.../download/v4.18.28/NapCat.Shell.zip`（NAPCAT_SHELL_VERSION/URL 可覆盖）——releases/latest 漂移 = 不确定性问题源头。
+3. **看门狗重启根修**：qq_main_alive() 逐 pid 读 /proc/PID/cmdline，仅"无 --type= 的主进程"算存活（残留 renderer/gpu 子进程不再误判"已在运行"）；崩溃特征判定**优先于**"已在运行"跳过；napcat_kill_stale 补 '/opt/QQ/qq' 模式连子进程一起清；巡检 300s→120s；看门狗循环内端口监听→计数清零。
+4. **napcat_node_run 运行时回退链**：node → nodejs → `ELECTRON_RUN_AS_NODE=1 /opt/QQ/qq`（QQ deb 自带 Electron 退化纯 Node，无 GUI 依赖，proot 可用）——反检测 JSON 合并从此不依赖容器装没装 node。JS 落临时文件调用（脚本文件模式 argv[2]=首参；-e 模式 argv[1]=首参，JS 内 argv[2]||argv[1] 双兼容）。
+5. **fd9 引擎管道**：主脚本启动时 `exec 9>&1` 捕获引擎读取管道（守卫：fd9 已开则不覆盖，看门狗重入安全）；napcat-console tap 改 `echo >&9`——自愈重启后 [NAPCAT] 日志继续进引擎日志/App 日志面板，不再断流进 watchdog.log。
+6. **EngineManager 停止链**：TERM 优雅窗口 4s→8s（NT 大库落盘）+ 停止/杀残模式补 '/opt/QQ/qq'；AstrBotScreen 反检测说明行同步自愈语义。
+
+**验证**：bash -n 过；功能测试 15/15 PASS（scripts/test-v2260-napcat.sh：反检测 JS 首写/幂等 skip rc=3/坏 JSON 重建/自定义键保留/node -e 兼容；heal_count 读取/脏值容错；fd9 关闭捕获/继承不覆盖；qq_main_alive 主进程识别/仅子进程判死）。坑位：MultiEdit 非原子（失败时已应用的前序编辑保留，重跑会产生重复块，须 rg 计数去重）；bash -c 传函数文本时 pgrep 会自匹配自身 cmdline（测试须落临时文件跑）。
+
+**教训**：上游 `releases/latest` 是不确定性来源——基础设施类下载一律钉扎版本；"看门狗宣布会重启"≠"重启逻辑可达"——跳过分支（已在运行）必须排在崩溃处理之后；在无 node 的容器里依赖 node 的设计要用「环境里必然存在的东西」（QQ 的 Electron）做回退。
 
 ## v2.2.0（2026-09-10，versionCode 22）
 1. **手环图标深色化**：背景改 #0D1015 近黑冷灰（AMOLED 手环融合），前景（蓝圆+白气泡+企鹅）不变；母版 icon_preview.png（用户提供，白底版已废弃），生成脚本 `scripts/darken-watch-icon.py`（flood fill 只换边缘连通白底，108×108 纯 RGB 全出血）

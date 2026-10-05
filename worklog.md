@@ -342,3 +342,21 @@ Work Log:
 Stage Summary:
 - 产物：v2.25.1 CI 全绿工作流（ci/release）+ AGP9 迁移后的构建链 + api.js 门控真修 + nSecondary 残缺修复
 - 待回归：CI push 全绿后打 tag v2.25.1 触发 release.yml 自动发版（六资产）
+
+---
+Task ID: 22
+Agent: main (Super Z)
+Task: band-qq v2.26.0 —— NapCat Worker SIGSEGV 崩溃循环终结（用户第七份日志定案：四级自愈阶梯 + NapCat 版本钉扎 4.18.28 + 看门狗主进程判定根修 + ELECTRON_RUN_AS_NODE 反检测回退链 + fd9 引擎管道）
+
+Work Log:
+- 用户"还是不不行呀"+ 第七份 engine-2026-10-05.log（436 行）分析：①v2.25.0 清缓存后全新启动仍 Worker SIGSEGV×3→主进程退出（脏缓存定案不完整）②看门狗 07:22:06 宣布 5 分钟重启，07:28:32 用户手停仍无动作③反检测 node 不可用×2
+- 上游考据：NapCat issue #1626 同症状（更新后 Worker 退出码 11/139×3，官方规避 NAPCAT_DISABLE_BYPASS=1）；base.ts v4.18.28/29 逐字节相同且 enableAllBypasses 默认启用（日志"prepare write and writev hooks"即其写钩子，proot 容器环境触发段错误）；4.18.29 发布于 10-04 20:30，容器 releases/latest 静默漂移拉到新版
+- astrbot-startup.sh 六处修改（+180/-23）：四级自愈阶梯（L1 清缓存→L2 NAPCAT_DISABLE_BYPASS=1 持久化标记→L3 重装钉扎版 NapCat（配置备份+自愈标记摘存）→L4 深度重置 .config/QQ）；NAPCAT_SHELL_URL 钉扎 v4.18.28（env 可覆盖）；qq_main_alive（/proc cmdline 无 --type= 才算主进程）+ 崩溃判定优先于"已在运行"跳过 + kill 模式补 /opt/QQ/qq + 巡检 300→120s + 端口监听计数清零；napcat_node_run 回退链（node→nodejs→QQ Electron ELECTRON_RUN_AS_NODE=1）+ antidetect JS 落临时文件 argv[2]||argv[1] 双兼容；fd9 捕获引擎管道（守卫防看门狗重入覆盖）+ tap 写 >&9；wait_napcat_ports 成功即 mark_healthy
+- EngineManager 停止链：TERM 窗口 4s→8s + 模式补 /opt/QQ/qq；AstrBotScreen 反检测说明行同步自愈语义；版本 2.26.0/vc68
+- 验证：bash -n 过；功能测试 15/15 PASS（scripts/test-v2260-napcat.sh：JS 首写/幂等/坏 JSON/自定义键/-e 兼容；heal_count 读取/容错；fd9 关闭捕获/继承不覆盖；qq_main_alive 主进程识别/仅子进程判死）；badging vc68/2.26.0
+- 用户第七份日志分析完毕后删除；README 更新日志 v2.26.0 + 2.24→2.25.1 摘要桥接；MEMORY 版本线 + 历史条目
+
+Stage Summary:
+- 产物：bandqq bundled/companion 2.26.0(vc68) 双 APK
+- 回归建议：①装新 APK 启动引擎——若 NapCat 仍崩，看门狗 2 分钟内自动升级自愈级别（日志可见"自愈第 N 级"），L2 起禁用 bypass 反检测钩子保启动 ②崩溃循环最多 4 级（最后一级重置 QQ 数据需重新扫码）③反检测在无 node 容器内现在真正可自动写入 ④自愈重启后 App 日志面板 NapCat 日志不断流
+- 教训入库：releases/latest 是不确定性来源（基础设施下载一律钉扎）；"看门狗宣布重启"≠"重启逻辑可达"（跳过分支必须排在崩溃处理之后）；无 node 容器的 JS 需求用 QQ 自带 Electron 做 ELECTRON_RUN_AS_NODE 回退；MultiEdit 非原子性（失败重跑须 rg 计数去重）

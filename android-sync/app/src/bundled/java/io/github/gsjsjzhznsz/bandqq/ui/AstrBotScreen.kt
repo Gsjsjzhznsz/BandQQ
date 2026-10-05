@@ -562,12 +562,13 @@ fun AstrBotScreen(
                             modifier = Modifier.weight(1f),
                         ) { Text(" NapCat 扫码", fontSize = 12.sp) }
                     }
-                    // v2.25.0：反检测状态说明——引擎启动时自动在配置层全开（napcat.json +
-                    // per-uin，WebUI 开关重启会被上游重置，配置层是唯一可靠路径）；若引擎
-                    // 日志出现"反检测自动开启失败"，按提示在 WebUI 手动开启。
+                    // v2.26.0：反检测状态说明——引擎启动时自动在配置层全开（node 运行时
+                    // 回退链：node → nodejs → QQ Electron ELECTRON_RUN_AS_NODE，容器内
+                    // 无独立 node 也可写入）；若启动崩溃自愈升级到第 2 级，会持久禁用
+                    // bypass 钩子保启动（删除 /root/napcat/.bypass_disabled 可恢复）。
                     Text(
-                        text = "反检测：6 项已自动全开（hook/窗口/模块/进程/容器/JS，配置层持久生效）。" +
-                            "若引擎日志提示开启失败，请打开 NapCat WebUI → 反检测开关配置 → 手动全开",
+                        text = "反检测：6 项自动全开（配置层持久生效）。启动崩溃自愈时会禁用 bypass 保启动（日志有说明），" +
+                            "删除 /root/napcat/.bypass_disabled 并重启引擎可恢复；开启失败请按 WebUI 提示手动全开",
                         fontSize = 11.sp,
                         color = colorScheme.onSurfaceSecondary,
                         modifier = Modifier.padding(top = 8.dp),
