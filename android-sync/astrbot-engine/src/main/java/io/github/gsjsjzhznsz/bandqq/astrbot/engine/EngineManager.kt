@@ -456,7 +456,7 @@ object EngineManager {
                 }
             }
         }
-        logLine("启动脚本已与 APK 资产对齐（v2.18 每次启动强制刷新）")
+        logLine("启动脚本已与 APK 资产对齐（v2.27.0 每次启动强制刷新）")
     }
 
     /**

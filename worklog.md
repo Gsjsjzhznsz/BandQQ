@@ -360,3 +360,16 @@ Stage Summary:
 - 产物：bandqq bundled/companion 2.26.0(vc68) 双 APK
 - 回归建议：①装新 APK 启动引擎——若 NapCat 仍崩，看门狗 2 分钟内自动升级自愈级别（日志可见"自愈第 N 级"），L2 起禁用 bypass 反检测钩子保启动 ②崩溃循环最多 4 级（最后一级重置 QQ 数据需重新扫码）③反检测在无 node 容器内现在真正可自动写入 ④自愈重启后 App 日志面板 NapCat 日志不断流
 - 教训入库：releases/latest 是不确定性来源（基础设施下载一律钉扎）；"看门狗宣布重启"≠"重启逻辑可达"（跳过分支必须排在崩溃处理之后）；无 node 容器的 JS 需求用 QQ 自带 Electron 做 ELECTRON_RUN_AS_NODE 回退；MultiEdit 非原子性（失败重跑须 rg 计数去重）
+
+## 2026-10-05 v2.27.0(vc70)：NapCat 4.18.29 崩溃循环根治（第八份日志定案）
+- 日志：engine-2026-10-05.log 三会话（07:21/16:12 旧脚本 5 分钟巡检；18:48 新脚本 2 分钟巡检+自愈阶梯）→ 全部 NapCat 4.18.29 Worker 退出码 11×3 主进程退出；18:48 会话自愈第 1 级跑了但之后看门狗承诺的 2 分钟重启 5 分钟内从未发生；分析后已删除
+- 根修四件（astrbot-startup.sh）：
+  1. napcat_pinned_ok/napcat_enforce_pinned：napcat.mjs 找不到钉扎版本字面量即立即重装（配置保留+离线包优先），15 分钟退避防无网络空转；start_napcat 与 install_napcat 双入口
+  2. napcat_antidetect_patch_one：python3（rootfs 自带 3.12）实现 bypass 六项+o3HookMode+fileLog 写入，语义与原 JS 对齐、幂等 exit 3；node 链降兜底且每次限时 25s
+  3. wait_napcat_ports 立即自愈：检测"主进程退出"同步调 napcat-start（BASH_SOURCE 自调用），阶梯按 .crash_count 自动升级，每等待期 ≤3 轮
+  4. 看门狗：内层调用 timeout 480；端口未监听巡检写 [NAPCAT-WD] 摘要到 fd9（App 日志面板自愈可观测）
+- 其它：napcat_reinstall_pinned 标记清单补 .pin_retry；EngineManager "v2.18"陈旧标签→v2.27.0；版本 bump 2.27.0/vc70（gradle/manifest/about）
+- 验证：scripts/bq_startup_test.sh 21 项全 PASS（bash -n 源+两内嵌块；python3 patch 工厂/per-uin/坏JSON/缺失/幂等/守卫；真实 4.18.28 mjs 探测+伪造 4.18.29 反例；enforce 触发/退避/过期/未安装；端到端冒烟 45 秒内 L1→L2→L3 升级+.bypass_disabled 落盘+重装兜底分支+[NAPCAT] tap 流）
+- 产物：bundled/companion 2.27.0(vc70) 双 APK（CI tag 触发）
+- 回归建议：装新包启动引擎——预期日志出现"检测到 NapCat 非钉扎版…立即重装钉扎版"→"钉扎版 v4.18.28 重装完成"→反检测自动全开→端口监听；若 4.18.28 仍崩（bypass 在 4.18.28 未实测过），立即自愈会在数秒内升级 L2 禁 bypass 保启动
+- 教训入库：钉扎必须含"已装版本的强制降级"（只管下载等于没钉）；"承诺 X 分钟内重启"必须配套"到期未重启的可观测信号"；容器内 JS 需求先查 rootfs 自带 python3（比 Electron RUN_AS_NODE 可靠）

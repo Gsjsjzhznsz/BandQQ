@@ -445,3 +445,9 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 - EngineManager.installIfNeeded bin 组装改双通道：nativeLibraryDir 有 → copy；缺 → `extractSoFromApk`（ZipFile 扫 applicationInfo.sourceDir 内 lib/arm64-v8a/<so>，退化匹配任意 lib/<abi>/）；两者皆无 → 报错附带 nativeLibraryDir 路径 + Build.SUPPORTED_ABIS + APK 路径诊断。覆盖 ROM 解压目录不全 / 历版 APK 未打 .so 场景。
 
 **验证基线**：手环端 node 单测 90 测 89 过（新增 10 项渲染器全绿；api.test.js 1 例存量环境失败基线一致）；构建/解包断言详见当轮 worklog。
+
+**NapCat 4.18.29 崩溃循环根治（v2.27.0，用户 10-05 第八份日志 engine-2026-10-05.log 定案，分析后已删）**：
+- 三重定案：①钉扎只管新下载——漂移窗口内已装的 4.18.29 从未被降级（check_napcat_ready 通过即跳过重装；自愈 L3 要连跨三轮巡检）②看门狗 18:48 承诺"2 分钟内重启"5 分钟内从未发生（自愈动作全进 watchdog.log 引擎日志零动静，内层巡检链疑似被 QQ Electron RUN_AS_NODE 路径挂起冻结）③node 三连退真机全军覆没（"反检测自动开启失败（无可用 node 运行时）"）而 rootfs 自带 python3.12 一直闲置
+- 修法四件：版本钉扎强制执行（napcat.mjs 字面量探测 + 立即重装 + 15 分钟退避）；反检测写入 python3 化（语义与 JS 逐项对齐，node 降兜底）；wait_napcat_ports 立即自愈（检测"主进程退出"直接同步调 napcat-start，不等看门狗，每等待期最多 3 轮）；看门狗硬化（timeout 480 包裹内层调用 + 端口未监听时 [NAPCAT-WD] 摘要写 fd9 引擎管道）
+- 版本探测不做 semver 解析：钉扎版本号以字面量烙在 napcat.mjs（"4.18.28"），grep -qF 即判匹配；NapCat.Shell.zip 的 package.json version 恒为 0.0.1 不可用
+- 测试：21 项断言全绿（python3 patch 四场景/幂等/守卫/真假版本探测/退避/端到端自愈链冒烟 L1→L2→L3 升级+tap 可见性+重装兜底）
