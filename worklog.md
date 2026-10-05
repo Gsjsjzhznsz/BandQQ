@@ -386,3 +386,19 @@ Stage Summary:
 - 验证：scripts/test-v2281-napcat-update.sh 68/68 PASS（源语法/ver_gt 六例/版本读取三态/采纳+幂等/显式不采纳/退避/跨会话同步/launcher 重建+幂等+拒绝/install 修复优先哨兵+全量双路径/快速通道零apt+缺依赖直装/真实上游脚本补丁幂等语法/静态断言）；脚手架踩坑入库：bash -c 多行拼接禁行首分号、g++ shim 需跳过 -o 目标、env 预置 NAPCAT_SHELL_VERSION 会让 lib 判显式钉扎
 - 产物：CI 触发 bundled/companion 2.28.1(vc72) 双 APK
 - 回归建议：装新包启动 → 在 NapCat WebUI 点更新到 4.18.30 → 预期日志「检测到 NapCat 已更新到 v4.18.30（WebUI 更新生效），采纳为新基线」→ 重启引擎后版本保持 4.18.30 不被降级；若 4.18.30 连崩自愈 L3 自动回退 4.18.28 并明确提示
+
+## 2026-10-06 v2.28.2(vc73)：数据同步失败定案=签名不一致 + 互联签名错误诊断指引（10-06 双日志定案——"为什么同步不了数据，是不是签名不一致"）
+- 日志：bandqq-2026-10-06.log + engine-2026-10-06.log（00:38~00:44 单会话），分析后已删除
+- 定案三线：
+  1. NapCat/WS/OneBot 全链正常（4.18.30 在线、群消息实时接收）——v2.28.1 更新链修复实测生效
+  2. 失败全在互联通道：auth check / openApp / registerListener / sendToBand 四连 SignatureVerifyFailedException(fingerprint verify failed)，每 5s 重连刷屏
+  3. 根因取证：仓库 keystore.jks = band-qq/sign/release/certificate.pem = Release 实包 rpk 签名块（RPK Sig Block 42 内 DER 证书，python 解析提取）三者指纹同为 af8819e2；git 历史（489ec5f v2.23.0 换证入库、264763e 旧证隐私清理）+ 用户提到 2.9.4（v2.23.0 前旧证书时代）→ 手环端快应用仍是旧证书安装，换证后只更 APK 未重装 rpk，两端指纹必然不匹配
+- 修复（诊断面，物理修复需用户重装手环端）：
+  1. InterconnectBridge：isSignatureError（SignatureVerifyFailedException instanceof + 消息兜底）在 auth/registerListener/sendToBand 三个失败点精准识别；markSignatureError 置位 SyncState.bandSignatureError + 一次性打印三步修复指引（卸载手环旧版→重装对应分支最新 rpk→运动健康设备授权管理重新授权）；clearSignatureError 在 registerListener/sendToBand 成功时复位
+  2. 重连退避：签名错误期间 5s→60s，成功恢复 5s
+  3. UI：主页手环状态卡新增「签名不一致」态 + 修复指引卡（useBandSignatureError 复用 BandStateBus 事件流，沿用已验证 MiuixTheme API）
+  4. FileLogger 启动提示补签名不一致自检条目
+- 版本 bump 2.28.2/vc73 四处（gradle/manifest/about/EngineManager）
+- 推送通道异常与处置：git over HTTPS 被 GitHub 拒（git 端点 401→"Repository not found"；/repos/{name} 404 但 /repositories/{id} 200 且 push:true，匿名 repo HTML 404，疑 GitHub 侧账号/仓库可见性异常）→ 备用通道 REST Git Data API（blobs/tree/commit/refs by repo id）推送成功，main→ba9056d + tag v2.28.2，Release/CI 工作流正常触发
+- 产物：CI tag 触发 Release v2.28.2（bundled/companion APK + 四分支 rpk + SHA256SUMS）；Release 正文已重写为「v2.9.4→v2.28.2 主题化汇总 + 从零使用方法」（用户要求：写明 2.9.4 到现在更新了什么并附使用方法）
+- 教训入库：①换证书 = 两端同时换（手环 rpk 不会随 APK 自动更新，跨证书升级必须卸载重装+重新授权）②互联签名失败要在三个失败点统一识别并一次性给可操作指引，5s 重连循环对不可自愈错误纯属刷屏 ③GitHub git 端点被拒时 REST Git Data API 是可靠备用推送通道（token 需 workflow scope 才能触发 CI）
