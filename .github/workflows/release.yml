@@ -89,6 +89,16 @@ jobs:
           cp band-qq/dist-branch/*.rpk release-assets/
           ls -la release-assets/
 
+      # v2.26.1：生成 SHA256 校验和随 Release 发布。
+      # 背景：v2.25.1 胖包（80MB）用户报“解析包时出现问题”，本地 apksigner/aapt2/逐字节 CRC 对比
+      # 证明 CI 产物完全合法（签名有效、清单/arsc 与历版可用包逐字节同构、.so 16KB 对齐），
+      # 最大嫌疑是手机端大文件下载截断。有了 SHA256SUMS.txt，用户可先校验再安装，截断包不再无从対证。
+      - name: 生成 SHA256 校验和
+        run: |
+          cd release-assets
+          sha256sum bandqq-*.apk bandqq-*.rpk > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
       - name: 上传构建产物（artifact 存档）
         uses: actions/upload-artifact@v4
         with:
@@ -103,3 +113,16 @@ jobs:
         with:
           files: release-assets/*
           generate_release_notes: true
+          body: |
+            ## 下载后请先校验再安装（尤其 80MB 胖包）
+
+            手机端直接从 GitHub 下载大文件容易被截断，截断包安装必报 **“解析包时出现问题”**。
+            附件提供 `SHA256SUMS.txt`，安装前建议校验：
+
+            ```
+            # PC 端：
+            sha256sum -c SHA256SUMS.txt
+            # 或手机端用任一「文件校验/MD5 校验」类工具比对下方哈希
+            ```
+
+            若哈希不一致 → 重新下载（可换网络/镜像）；若哈希一致仍报解析失败 → 请反馈机型与 Android 版本。

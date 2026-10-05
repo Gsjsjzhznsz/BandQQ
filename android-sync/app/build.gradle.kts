@@ -18,8 +18,8 @@ android {
         // 降回 28 走 legacy untrusted_app 域，恢复数据目录 exec 权限 —— 与 Termux/UserLAnd
         // 同款方案（GitHub 直发无商店 targetSdk 约束）；运行时权限代码均按 SDK_INT 守卫，不受影响。
         targetSdk = 28
-        versionCode = 68
-        versionName = "2.26.0"
+        versionCode = 69
+        versionName = "2.26.1"
     }
 
     // v2.13.0 双包分发（用户可二选一安装，同 applicationId 同 versionCode）：
@@ -44,6 +44,11 @@ android {
             storePassword = "bandqq123"
             keyAlias = "bandqq"
             keyPassword = "bandqq123"
+            // v2.26.1：显式启用 v1+v2+v3 三代签名方案（此前 AGP 对 minSdk≥24 默认仅 v2，
+            // 个别魔改 ROM 的 PackageParser 只认 v1 JAR 签名会报“解析包时出现问题”）。
+            enableV1Signing = true
+            enableV2Signing = true
+            enableV3Signing = true
         }
     }
 
@@ -68,6 +73,24 @@ android {
 
     lint {
         checkReleaseBuilds = false
+    }
+
+    // v2.26.1：引擎链路五件套是预构建静态二进制（busybox/proot/bash/loader/talloc），
+    // 禁止 AGP 的 stripDebugSymbols 用 llvm-strip 重写它们——CI 实测 NDK 28 的 llvm-strip
+    // 对 osm0sis busybox（NDK r15c 构建）会重排段表（shstrtab 重排+段头改写，143 字节差异），
+    // 对体积零收益（1,498,688B 前后不变），却引入“打包产物与仓库制品不一致”的变量；
+    // libsudo.so 是脚本垫片本就剥不动，一并保留原样。
+    packaging {
+        jniLibs {
+            keepDebugSymbols += listOf(
+                "**/libbusybox.so",
+                "**/libproot.so",
+                "**/libbash.so",
+                "**/libloader.so",
+                "**/liblibtalloc.so.2.so",
+                "**/libsudo.so",
+            )
+        }
     }
 }
 

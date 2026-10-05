@@ -8,8 +8,8 @@
 上游：https://github.com/Astroptis/band-qq-assistant ；本仓库为完整版镜像（含签名/产物/legacy）。
 
 ## 版本线
-- 当前正式线：v2.26.0（vc68）—— NapCat Worker SIGSEGV 崩溃循环终结（四级自愈阶梯 + 版本钉扎 4.18.28 + 看门狗主进程判定根修 + ELECTRON_RUN_AS_NODE 反检测回退链 + fd9 引擎管道）（2026-10-05）
-- 前情：v2.25.1（vc67）—— CI 首建（GitHub Actions）+ AGP 9.0.1/Gradle 9.1.0 迁移 + api.js send 门控真修（2026-10-04）
+- 当前正式线：v2.26.1（vc69）—— 新 CI 胖包“解析失败”排查定案 + 打包硬化（doNotStrip 引擎五件套 + v1/v2/v3 全代签名显式启用 + Release 附 SHA256SUMS.txt）（2026-10-05）
+- 前情：v2.26.0（vc68）—— NapCat Worker SIGSEGV 崩溃循环终结（四级自愈阶梯 + 版本钉扎 4.18.28 + 看门狗主进程判定根修 + ELECTRON_RUN_AS_NODE 反检测回退链 + fd9 引擎管道）（2026-10-05）
   - CI 首建（用户"哪里有ci，都没有写过工作流文件"）：.github/workflows/ci.yml（push/PR 触发：rpk 四分支+node 单测 / APK 双 flavor 单测+Debug 出包）+ release.yml（tag v* 触发：tag↔versionName 一致性校验+双 APK+四分支 rpk 六资产自动发 GitHub Release）；签名 keystore.jks 与 rpk pem 均已入库全程零 secrets；README 加 CI 徽章
   - AGP 9.0.1 + Gradle 9.1.0 迁移（CI 十一轮定位的终极解）：AGP 8.13.2 的 sdklib 解析不了 Google 新 minor 版本打包（platforms;android-37.0 的 `<api-level>37.0</api-level>` + Platform.Version=17 笔误），hash 'android-37' 永远查不到（FullLoading 路径）且 DirectLoading 需 AGP 默认 build-tools 35.0.0 预存；AGP 9 内置 Kotlin（移除 org.jetbrains.kotlin.android，保留 plugin.compose）+ applicationVariants 移除（产物改名移至 CI 收集阶段）+ manifest 禁 uses-sdk 版本属性（tools:overrideLibrary 仍允许）+ compileSdk=37+compileSdkMinor=0 直接命中原生 platforms;android-37.0，**零元数据手术**；AGP 9.0.1 要求 Gradle ≥9.1.0
   - api.js send 就绪门控真修（本地基线 106/107 挂项）：waitReady/markReady 门控此前只在 connectStatus 生效，send 漏接 → onopen 前业务帧直发丢失；修后 node 107/107 全绿
@@ -82,6 +82,16 @@ SnowLuma 是 **hook 型**协议端（ptrace 注入真实 Linux QQ 进程，NTQQ 
 ## 关键文件索引
 - 手环：band-qq/src/pages/index/index.ux（列表/防抖/签名diff）、pages/chat/chat.ux（翻页/快捷回复/read_chat）、common/protocol.js（协议v2+convSignature）、common/store.js（未读/装饰/快捷回复）、common/api.js（interconnect 封装，勿动）
 - 手机：android-sync/.../sync/MessageStore.kt（未读/Display预计算/翻页锚点）、sync/MessageBroker.kt（read_chat/before/quick_replies）、onebot/OneBotParser.kt（CQ剥离）、sync/InterconnectBridge.kt（onConnect 补推）、ui/SettingsScreen.kt（快捷回复编辑+WebUI）、WebUiActivity.kt
+
+## v2.26.1（2026-10-05，vc69）—— 新 CI 胖包“解析失败”排查定案 + 打包硬化
+
+**用户反馈**：v2.25.1（首个纯 CI 出包的 Release，v2.24.0 及此前均为本地构建）胖包安装报“解析包时出现问题”。
+
+**排查全链（本地取证，非猜）**：下载 Release 双包与本地 v2.24.0 可用包做五维对比——①签名：apksigner verify 两包均 v2-only 有效、证书指纹同源（af8819e2…）；②ZIP：经典 32 位无 ZIP64、无 data descriptor、.so 全部 16KB 对齐；③清单/资源：AndroidManifest.xml 与 resources.arsc 逐字节 CRC 同构（仅版本串差异）；④dex：038 版本一致、badging minSdk 26/targetSdk 28/compileSdk 37 一致；⑤ELF：仅 libbusybox.so 不同——CI runner 预装 NDK 28.2，`:app:stripBundledReleaseDebugSymbols` 用 llvm-strip 重写了 osm0sis busybox（NDK r15c 构建）的段表（shstrtab 重排 + 段头改写，143 字节差异，体积零收益），ELF 结构校验两包均合法。**结论：CI 产物结构上挑不出毛病，“解析失败”最大嫌疑是手机端 80MB 大文件下载截断**（截断包安装必报同款错误）；llvm-strip 重写为唯一 CI 独有产物差异，一并根除。模拟器 adb install 实测路径受限于容器 2 核/无 KVM/3GB RAM 未能完成（TCG 拖死系统，已回滚）。
+
+**修法**：①app/build.gradle.kts packaging.jniLibs.keepDebugSymbols 钉住引擎五件套（busybox/proot/bash/loader/talloc）+ libsudo 垫片——预构建静态二进制禁止 llvm-strip 碰；②signingConfigs.release 显式 enableV1/V2/V3Signing=true——个别魔改 ROM 只认 v1 JAR 签名的兼容兜底；③release.yml 新增 SHA256SUMS.txt 生成步骤 + Release 正文附“先校验再安装”指引（截断包哈希必不一致，不再无从对证）；④版本 bump 2.26.1/vc69，rpk manifest/about.ux 同步（v2.26.0 漏同步 rpk 版本，本次补齐 2.25.1→2.26.1）。
+
+**教训**：CI runner 预装组件（NDK/SDK）会静默改变产物——strip/对齐等打包后处理必须显式钉住；发大体积 APK 必须附带哈希，否则“解析失败”类反馈无从定位是包坏还是下载坏；排查 APK 安装失败先做“与可用旧版逐字节 CRC diff”，排除法收圆最快。
 
 ## v2.26.0（2026-10-05，vc68）—— NapCat Worker SIGSEGV 崩溃循环终结（四级自愈阶梯 + 版本钉扎 + ELECTRON_RUN_AS_NODE）
 
