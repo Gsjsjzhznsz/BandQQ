@@ -1,3 +1,9 @@
+## 2026-10-06 v2.28.2 发行版 APK 二次热修：真根因=重打包压扁 .so（extractNativeLibs=false 违例），改用 CI 原生构建（用户复测"依旧不行，安装文件错误，sha校验正常，有核心破解"）
+- 复测信息三连排除法：SHA 一致（排除截断）、核心破解在场（排除签名/降级拦截）、v1 补签后仍败（v1 假设不成立或非充分）
+- 真根因取证（zip 本地头逐条对比 原生 CI 包 vs 手工重打包）：repack 后 lib/arm64-v8a/*.so 全部 method=8 DEFLATED（libloader.so 5608B→1122B），而原生 AGP 包 .so 全部 method=0 STORED+页对齐；manifest extractNativeLibs="false" 要求 .so 必须 Stored——python zipfile 重打包用默认 DEFLATED 压缩了所有条目，HyperOS 严格解析器拒装报"安装文件错误"；apksigner/aapt2/zipalign/CRC 桌面验证全绿也查不出（它们不校验 .so 压缩方式）
+- 修复：workflow_dispatch 触发 release.yml（run 37467115858，main@53fb8b1，AGP 9.0.1 原生出包），下载 bandqq-release-assets artifact → 全项验证（v1+v2+v3 三代签名全 true、证书 af8819e2、vc73、新 startup.sh md5=01cece8e 即含 napcat_check_upstream 自动更新、.so 全 STORED、SHA256SUMS 自洽）→ 静默替换三资产（bundled id 615540108=07af79d7…/companion 615540438=71633bb5…/SHA256SUMS 615540476），rpk 四资产保持 tag 原产不动，SHA256SUMS 手工匹配；认证 API 回读验证哈希+签名+.so 三重一致
+- 教训入库：①APK 内嵌 asset 更新绝不许 python zipfile 全量重压缩——逐条目保留原 compress_type（.so/arsc Stored、其余 Deflated），或干脆零重打包走"改源码+CI 原生构建"通道（本次即后者，最稳）②"桌面工具全绿+手机拒装"优先查 .so 压缩方式与 extractNativeLibs，其次查 v1 签名（apksigner verify 默认 minSdk≥24 虚报 v1:false）③发行版修复链：dispatch 构建→artifact 下载→验证→资产替换→回读，全程可复用
+
 ## 2026-10-06 v2.28.2 发行版 APK 静默热修：v1 签名缺失定案+三代方案重签（用户报"apk错误"）
 - 无新日志（远端无新上传），直接从发行版资产本身取证定案
 - 根因：上轮外科手术式重打包重签只用了 v2+v3（apksigner 未显式给 --v1-signing-enabled，对 minSdk≥24 的包默认跳过 v1），而 build.gradle.kts 自 v2.26.1 起显式启用 v1+v2+v3 三代签名——历史教训"个别魔改 ROM 的 PackageParser 只认 v1 JAR 签名，安装报『解析包时出现问题』"被手工重签流程重新踩回（v2.26.0 时代同款坑）
