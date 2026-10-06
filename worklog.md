@@ -402,3 +402,24 @@ Stage Summary:
 - 推送通道异常与处置：git over HTTPS 被 GitHub 拒（git 端点 401→"Repository not found"；/repos/{name} 404 但 /repositories/{id} 200 且 push:true，匿名 repo HTML 404，疑 GitHub 侧账号/仓库可见性异常）→ 备用通道 REST Git Data API（blobs/tree/commit/refs by repo id）推送成功，main→ba9056d + tag v2.28.2，Release/CI 工作流正常触发
 - 产物：CI tag 触发 Release v2.28.2（bundled/companion APK + 四分支 rpk + SHA256SUMS）；Release 正文已重写为「v2.9.4→v2.28.2 主题化汇总 + 从零使用方法」（用户要求：写明 2.9.4 到现在更新了什么并附使用方法）
 - 教训入库：①换证书 = 两端同时换（手环 rpk 不会随 APK 自动更新，跨证书升级必须卸载重装+重新授权）②互联签名失败要在三个失败点统一识别并一次性给可操作指引，5s 重连循环对不可自愈错误纯属刷屏 ③GitHub git 端点被拒时 REST Git Data API 是可靠备用推送通道（token 需 workflow scope 才能触发 CI）
+
+---
+Task ID: 24
+Agent: main (Super Z)
+Task: NapCat 自动更新检测（QQ 3.2.34 兼容性）+ 2.28.2 发行版胖包静默替换；另完成 2.28.2 瘦包签名对齐替换（上轮遗留）
+
+Work Log:
+- 用户上传 engine-2026-10-06.log（4a262c3，5414 行）分析完毕后删除（纪律）
+- 日志定案：引擎全量重装拉到最新 QQ 3.2.34-53644（官网直链 403→临时签名通道成功），NapCat 钉扎基线 4.18.28 启动告警 [QQ版本兼容性检测] 当前版本Appid未内置 通过Major获取——「QQ 自动最新、NapCat 永远落后」结构性缺陷；末尾停在二维码登录等待（全新安装未登录，非版本故障）
+- napcat_check_upstream 实现：24h 门控（.upd_check，看门狗 2 分钟轮询不打爆上游）；显式环境变量钉扎跳过；黑名单 .upd_blacklist（L3 连崩回退时自动写入，防跨天崩溃循环）；上游版本经 releases/latest 302 重定向解析（直连→ghfast.top 双通道，无 API 配额）；上游>生效基线 → napcat_reinstall_pinned（配置/登录态保留）→ package.json 版本验证 → 采纳为新基线（.pinned_version），下次启动 enforce 自动同步下载 URL；任何失败静默继续现有版本
+- 基线 bump 4.18.28→4.18.30（10-06 实测在线收发可用版；4.18.32 为当日上游最新，交由自动检测跟进+L3 兜底）
+- napcat_reinstall_pinned 标记清单补 .upd_check/.upd_blacklist（摘+还两处）
+- 测试：scripts/test-v2282-napcat-autoupdate.sh 新建（25/25：解析/门控/采纳/验证失败不采纳/黑名单/显式钉扎/同版本不动/静态断言）；scripts/test-v2281-napcat-update.sh 适配新基线并全绿（68/68）；真实网络验证 napcat_upstream_version=4.18.32 与 GitHub API 一致
+- 发行版静默替换（外科手术式，无本地 SDK 环境）：v2.28.2 bundled.apk 内 assets/astrbot-startup.sh 原位换新 → 两段式重打包（resources.arsc 保持 Stored）→ zipalign -p → 仓库 keystore 重签（v2+v3，指纹 af8819e2 不变，覆盖安装兼容）→ 版本保持 2.28.2/vc73；companion 瘦包不含引擎无需变更（本轮仅换签名块，同证书）
+- SHA256SUMS.txt 重算上传：bundled=e72a84ee…，companion=e3bd3016…，四个 rpk 未动
+- 资产下载走认证 API 通道（repositories/{id}/releases/assets，仓库名直连 404 的环境限制绕过）
+
+Stage Summary:
+- v2.28.2 发行版胖包已替换为新签名块+新启动脚本（哈希 e72a84ee…，回读验证通过），瘦包签名块已换新（哈希 e3bd3016…）
+- 引擎侧 NapCat 具备自动跟进上游能力，QQ 兼容性告警随基线 4.18.30 + 自动更新双通道消除
+- commit: 本次改动（startup.sh + 两套测试 + worklog + 日志删除）

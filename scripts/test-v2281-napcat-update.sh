@@ -113,10 +113,11 @@ rm -f "$SB/home/napcat/package.json"
 r=$(run_scn 3 'get_napcat_version'); assert "缺失 package.json → 空" "$r" ""
 
 echo "== 4. WebUI 更新采纳机制（钉扎不再对抗用户更新）=="
+# v2.28.2：基线已提至 4.18.30，WebUI 更新场景同步改为 4.18.31（保持“高于基线”语义）
 new_sandbox 4
-printf 'const v="4.18.30";\n' > "$SB/home/napcat/napcat.mjs"
-printf '{"version":"4.18.30"}\n' > "$SB/home/napcat/package.json"
-r=$(run_scn 4 'napcat_enforce_pinned; echo "RC=$?"; [ "$(cat $HOME/napcat/.pinned_version 2>/dev/null)" = "4.18.30" ] && echo MARK_OK || echo MARK_MISSING')
+printf 'const v="4.18.31";\n' > "$SB/home/napcat/napcat.mjs"
+printf '{"version":"4.18.31"}\n' > "$SB/home/napcat/package.json"
+r=$(run_scn 4 'napcat_enforce_pinned; echo "RC=$?"; [ "$(cat $HOME/napcat/.pinned_version 2>/dev/null)" = "4.18.31" ] && echo MARK_OK || echo MARK_MISSING')
 assert_contains "输出采纳消息" "$r" "采纳为新基线"
 assert_contains ".pinned_version 落盘" "$r" "MARK_OK"
 assert_contains "返回成功" "$r" "RC=0"
@@ -132,7 +133,7 @@ printf '{"version":"4.18.27"}\n' > "$SB/home/napcat/package.json"
 r=$(run_scn 5 'NAPCAT_PIN_EXPLICIT=1; napcat_enforce_pinned; echo "RC=$?"')
 assert_contains "触发重装" "$r" "REINSTALL_CALLED"
 assert_contains "消息含真实检测版本" "$r" "检测到 NapCat v4.18.27"
-assert_contains "消息含钉扎版" "$r" "非钉扎版 v4.18.28"
+assert_contains "消息含钉扎版" "$r" "非钉扎版 v4.18.30"
 assert_not_contains "显式钉扎不采纳" "$r" "采纳为新基线"
 
 echo "== 6. 15 分钟退避 =="
@@ -174,9 +175,10 @@ r=$(run_scn 9 'ensure_napcat_launcher; echo "RC=$?"')
 assert_contains "无 napcat.mjs 返回失败" "$r" "RC=1"
 
 echo "== 10. install_napcat 修复优先（不再整删完好安装）=="
+# v2.28.2：安装场景同步改为 4.18.31（高于新基线 4.18.30，保持“采纳”语义）
 new_sandbox 10
-printf 'const v="4.18.30";\n' > "$SB/home/napcat/napcat.mjs"
-printf '{"version":"4.18.30"}\n' > "$SB/home/napcat/package.json"
+printf 'const v="4.18.31";\n' > "$SB/home/napcat/napcat.mjs"
+printf '{"version":"4.18.31"}\n' > "$SB/home/napcat/package.json"
 echo "SENTINEL" > "$SB/home/napcat/config/keepme"
 printf 'int bandqq_test_symbol;\n' > "$SB/home/launcher.cpp"
 r=$(run_scn 10 'install_napcat; echo "RC=$?"')
@@ -241,7 +243,7 @@ n=$(grep -c '\.pin_retry \.pinned_version' "$SRC"); assert "重装标记清单�
 sed -n '/^install_napcat(){/,/^  if ! napcat_enforce_pinned/p' "$SRC" | grep -q "ensure_napcat_build_deps" && ok "install_napcat 全量路径接快速通道" || bad "install_napcat 全量路径接快速通道"
 sed -n '/^napcat_reinstall_pinned(){/,/^}/p' "$SRC" | grep -q "ensure_napcat_build_deps" && ok "napcat_reinstall_pinned 接快速通道" || bad "napcat_reinstall_pinned 接快速通道"
 grep -q 'check_napcat_ready 2>&1 | sed' "$SRC" && ok "就绪检查缺失项可见" || bad "就绪检查缺失项可见"
-grep -q 'NAPCAT_SHELL_VERSION_DEFAULT="4.18.28"' "$SRC" && ok "基线版本常量" || bad "基线版本常量"
+grep -q 'NAPCAT_SHELL_VERSION_DEFAULT="4.18.30"' "$SRC" && ok "基线版本常量" || bad "基线版本常量"
 
 echo
 echo "======================================"

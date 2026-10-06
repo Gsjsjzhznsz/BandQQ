@@ -819,7 +819,12 @@ NAPCAT_DISPLAY="${NAPCAT_DISPLAY:-20}"
 # 更高版本会被采纳为新基线（否则钉扎永远对抗用户更新：10-05 23:27 实测 WebUI 更新
 # v4.18.30 被整链吞掉：自更新动 launcher → 误判未安装 → 全量 rm -rf → 重装链被杀）；
 # 显式环境变量钉扎时采纳机制停用（运维指定版本即以指定为准）。采纳版连崩自动回退基线。
-NAPCAT_SHELL_VERSION_DEFAULT="4.18.28"
+# v2.28.2：基线 4.18.28→4.18.30——引擎侧 QQ 永远拉官网最新（10-06 18:45 日志实证装到
+# 3.2.34-53644），4.18.28 内置 Appid 表未含 → 启动告警 [QQ版本兼容性检测] 当前版本
+# Appid未内置 通过Major获取（协议实现以 Major 兜底，功能可用但常驻降级）。4.18.30 为
+# 本设备实测在线收发可用版本；后续新版本跟进交由 napcat_check_upstream 自动检测（下），
+# 此基线仅作为首次安装/回退兜底。
+NAPCAT_SHELL_VERSION_DEFAULT="4.18.30"
 NAPCAT_SHELL_URL_DEFAULT="https://github.com/NapNeko/NapCatQQ/releases/download/v${NAPCAT_SHELL_VERSION_DEFAULT}/NapCat.Shell.zip"
 if [ -n "${NAPCAT_SHELL_VERSION:-}" ]; then
   NAPCAT_PIN_EXPLICIT=1
@@ -927,6 +932,60 @@ napcat_enforce_pinned(){
   fi
   echo "[AstrBot Android] 钉扎版重装未成功（可能无网络），保留现有版本继续；自愈阶梯兜底（L2 禁 bypass 绕开崩溃源）"
   return 1
+}
+
+# ---------- v2.28.2 NapCat 自动更新检测 ----------
+# 背景：引擎侧 LinuxQQ 修复流程 v9 每次重装都拉 QQ 官网最新包（10-06 18:45 日志实证
+# 装到 3.2.34-53644），而钉扎基线 4.18.28 的内置 Appid 表未含该新版 QQ → NapCat 启动
+# 告警 [QQ版本兼容性检测] 当前版本Appid未内置（协议实现以 Major 兜底，常驻降级）。
+# 4.18.29 曾在本环境 Worker SIGSEGV（issue #1626，自愈 L2/L3 已有兜底），4.18.30 实测
+# 可用。为免「QQ 自动最新、NapCat 永远落后」组合复发，增加自动跟进：
+#   每 24h 一次（.upd_check 时间戳，无论成败——看门狗 2 分钟轮询不会打爆上游）；
+#   显式环境变量钉扎（NAPCAT_PIN_EXPLICIT=1）时不自动更新（运维指定即以指定为准）；
+#   黑名单（.upd_blacklist，L3 崩溃回退时写入）中的版本不再自动升入（防跨天崩溃循环）；
+#   上游 > 生效基线时：切 NAPCAT_SHELL_URL → napcat_reinstall_pinned → 验证
+#   package.json 版本 → 采纳为新基线（.pinned_version）。任何失败静默继续现有版本。
+napcat_upstream_version(){
+  # 上游最新版解析：releases/latest 302 重定向 Location 提取 tag（无需 API 配额）。
+  # 直连 → ghfast.top 镜像两通道；全失败返回非零。
+  local loc v
+  for base in "https://github.com" "https://ghfast.top/https://github.com"; do
+    loc=$(curl -sI -o /dev/null -w '%{redirect_url}' --max-time 12 "$base/NapNeko/NapCatQQ/releases/latest" 2>/dev/null || true)
+    if [ -z "$loc" ]; then
+      loc=$(curl -sL -o /dev/null -w '%{url_effective}' --max-time 12 "$base/NapNeko/NapCatQQ/releases/latest" 2>/dev/null || true)
+    fi
+    v=$(printf '%s' "$loc" | grep -oE 'v[0-9]+\.[0-9]+\.[0-9]+' | tail -n1 | tr -d 'v')
+    if [ -n "$v" ]; then printf '%s' "$v"; return 0; fi
+  done
+  return 1
+}
+
+napcat_check_upstream(){
+  [ "${NAPCAT_PIN_EXPLICIT:-0}" = "1" ] && return 0
+  local now last upstream pin
+  now=$(date +%s); last=$(cat "$HOME/napcat/.upd_check" 2>/dev/null || echo 0)
+  case "$last" in ''|*[!0-9]*) last=0;; esac
+  if [ $((now - last)) -lt 86400 ]; then return 0; fi
+  echo "$now" > "$HOME/napcat/.upd_check"
+  upstream=$(napcat_upstream_version) || { echo "[AstrBot Android] NapCat 自动更新检测：上游版本解析失败（网络），本轮跳过"; return 0; }
+  if grep -qxF "$upstream" "$HOME/napcat/.upd_blacklist" 2>/dev/null; then
+    echo "[AstrBot Android] NapCat 上游最新 v${upstream} 曾在本环境连续崩溃（黑名单），不自动更新"
+    return 0
+  fi
+  pin=$(napcat_effective_version)
+  if ! ver_gt "$upstream" "$pin"; then return 0; fi
+  echo "[AstrBot Android] 检测到 NapCat 上游新版本 v${upstream}（当前 v${pin}），自动更新中（约 30MB，配置与登录态保留）..."
+  NAPCAT_SHELL_VERSION="$upstream"
+  NAPCAT_SHELL_URL="https://github.com/NapNeko/NapCatQQ/releases/download/v${upstream}/NapCat.Shell.zip"
+  if napcat_reinstall_pinned && [ "$(get_napcat_version)" = "$upstream" ]; then
+    echo "$upstream" > "$HOME/napcat/.pinned_version"
+    echo "[AstrBot Android] NapCat 已自动更新到 v${upstream} 并采纳为新基线；若连续崩溃将自动回退基线 v${NAPCAT_SHELL_VERSION_DEFAULT} 并拉黑该版本"
+    return 0
+  fi
+  echo "[AstrBot Android] NapCat 自动更新未成功，继续使用现有版本 v$(get_napcat_version)"
+  NAPCAT_SHELL_VERSION="$(napcat_effective_version)"
+  NAPCAT_SHELL_URL="https://github.com/NapNeko/NapCatQQ/releases/download/v${NAPCAT_SHELL_VERSION}/NapCat.Shell.zip"
+  return 0
 }
 
 # ---------- v2.28.1 launcher 原位重建 + 构建依赖快速通道 ----------
@@ -1393,7 +1452,7 @@ napcat_reinstall_pinned(){
   # 自愈标记文件随 napcat 目录一起被删，先摘到 TMPDIR 用后放回
   # v2.28.0：补 .bypass_nohook（分级 bypass 标记）与 .bypass_retry_done_v228（复检防循环标记）
   local m
-  for m in .crash_count .bypass_disabled .bypass_nohook .bypass_retry_done_v228 .need_clean .pin_retry .pinned_version; do
+  for m in .crash_count .bypass_disabled .bypass_nohook .bypass_retry_done_v228 .need_clean .pin_retry .pinned_version .upd_check .upd_blacklist; do
     [ -f "$HOME/napcat/$m" ] && cp "$HOME/napcat/$m" "$TMPDIR/bandqq-marker$m"
   done
   if [ -d "$HOME/napcat/config" ]; then
@@ -1422,7 +1481,7 @@ napcat_reinstall_pinned(){
     rm -rf "$HOME/napcat_config_backup"
   fi
   mkdir -p "$HOME/napcat"
-  for m in .crash_count .bypass_disabled .bypass_nohook .bypass_retry_done_v228 .need_clean .pin_retry .pinned_version; do
+  for m in .crash_count .bypass_disabled .bypass_nohook .bypass_retry_done_v228 .need_clean .pin_retry .pinned_version .upd_check .upd_blacklist; do
     [ -f "$TMPDIR/bandqq-marker$m" ] && mv "$TMPDIR/bandqq-marker$m" "$HOME/napcat/$m"
   done
   configure_napcat_token_ttl
@@ -1446,6 +1505,8 @@ start_napcat(){
     fi
     echo "[AstrBot Android] NapCat 缺失文件已自动修复，继续启动"
   fi
+  # v2.28.2：自动更新检测先行——上游有新版则更新并采纳，随后 enforce 以新基线为准
+  napcat_check_upstream || true
   # v2.27.0：版本钉扎强制执行——漂移版容器在下次启动即被降级重装（不再依赖
   # 自愈阶梯三轮升级；用户设备 4.18.29 崩溃循环的根治入口）
   napcat_enforce_pinned || true
@@ -1513,6 +1574,8 @@ start_napcat(){
     # （采纳标记清除 + 离线包删除，确保 ensure_napcat_zip 重新下载基线版而非采纳版）
     if [ "${NAPCAT_PIN_EXPLICIT:-0}" != "1" ] && [ -f "$HOME/napcat/.pinned_version" ]; then
       echo "[AstrBot Android] 采纳版本 v$(cat "$HOME/napcat/.pinned_version" 2>/dev/null) 连续崩溃，回退已知可用基线 v${NAPCAT_SHELL_VERSION_DEFAULT}（如需升级请重新在 WebUI 更新）"
+      # v2.28.2：回退版本记入自动更新黑名单——napcat_check_upstream 不再自动升到该版（防跨天崩溃循环）
+      cat "$HOME/napcat/.pinned_version" 2>/dev/null >> "$HOME/napcat/.upd_blacklist"
       rm -f "$HOME/napcat/.pinned_version" "$HOME/NapCat.Shell.zip"
       NAPCAT_SHELL_VERSION="$NAPCAT_SHELL_VERSION_DEFAULT"
       NAPCAT_SHELL_URL="$NAPCAT_SHELL_URL_DEFAULT"
