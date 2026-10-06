@@ -1,3 +1,11 @@
+## 2026-10-06 v2.28.2 发行版 APK 静默热修：v1 签名缺失定案+三代方案重签（用户报"apk错误"）
+- 无新日志（远端无新上传），直接从发行版资产本身取证定案
+- 根因：上轮外科手术式重打包重签只用了 v2+v3（apksigner 未显式给 --v1-signing-enabled，对 minSdk≥24 的包默认跳过 v1），而 build.gradle.kts 自 v2.26.1 起显式启用 v1+v2+v3 三代签名——历史教训"个别魔改 ROM 的 PackageParser 只认 v1 JAR 签名，安装报『解析包时出现问题』"被手工重签流程重新踩回（v2.26.0 时代同款坑）
+- 取证：apksigner verify --verbose 当前发行版 bundled/companion 均 v1: false；--min-sdk-version 23 强制校验直接报 Missing META-INF/MANIFEST.MF；APK 结构其余全部正常（签名指纹 af8819e2/arsc Stored 对齐/zipalign -p/内嵌 startup.sh 与仓库逐字节一致/引擎 tarball xz 完整）
+- 修复：bundled+companion 双包仓库 keystore（bandqq123/bandqq，af8819e2）三代方案重签（--v1-signing-enabled true --v2-signing-enabled true --v3-signing-enabled true），zipalign -c -p 4 复验通过，versionCode 73/内容零变化
+- 发行版静默替换：三资产 DELETE 204 → POST 201（bundled id 615491572 / companion 615491772 / SHA256SUMS 615491857），bundled=186eccac…、companion=cfcadcd4…；认证 API 回读验证哈希一致+三代签名全 true
+- 教训入库：①手工重签 APK 必须复刻 gradle 签名配置完整方案集（v1+v2+v3），缺一即对魔改 ROM 用户安装失败 ②验证 v1 必须显式 --min-sdk-version 23 强制校验——apksigner verify 默认对 minSdk≥24 的包虚报 v1: false（即使 v1 签名文件真实存在）
+
 # worklog.md
 
 ---
